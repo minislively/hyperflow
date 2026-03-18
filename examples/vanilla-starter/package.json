@@ -2,7 +2,7 @@
   "name": "@hyperflow/example-vanilla-starter",
   "private": true,
   "version": "0.1.0",
-  "description": "Vanilla starter example placeholder.",
+  "description": "Vanilla harness for the HyperFlow small PoC.",
   "type": "module",
-  "main": "src/index.ts"
+  "main": "src/main.js"
 }

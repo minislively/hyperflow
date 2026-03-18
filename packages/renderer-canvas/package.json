@@ -2,7 +2,7 @@
   "name": "@hyperflow/renderer-canvas",
   "private": true,
   "version": "0.1.0",
-  "description": "Canvas renderer placeholder for HyperFlow.",
+  "description": "Minimal Canvas renderer for the HyperFlow small PoC.",
   "type": "module",
-  "main": "src/index.ts"
+  "main": "src/index.js"
 }

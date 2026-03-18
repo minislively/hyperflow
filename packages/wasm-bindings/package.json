@@ -2,7 +2,7 @@
   "name": "@hyperflow/wasm-bindings",
   "private": true,
   "version": "0.1.0",
-  "description": "WASM bridge package placeholder for HyperFlow.",
+  "description": "Minimal raw WASM bridge for the HyperFlow small PoC.",
   "type": "module",
-  "main": "src/index.ts"
+  "main": "src/index.js"
 }

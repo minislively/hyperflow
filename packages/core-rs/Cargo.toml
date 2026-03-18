@@ -2,8 +2,9 @@
 name = "hyperflow-core"
 version = "0.1.0"
 edition = "2021"
-description = "Rust graph core placeholder for HyperFlow"
+description = "Rust graph core for the HyperFlow small PoC"
 license = "MIT"
 
 [lib]
 path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]

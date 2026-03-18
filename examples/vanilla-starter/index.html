@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HyperFlow Vanilla PoC</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="controls">
+        <h1>HyperFlow Vanilla PoC</h1>
+        <p>Rust viewport/culling/hit-test + WASM bridge + Canvas visible-box rendering.</p>
+        <label>
+          Fixture
+          <select id="fixture-size">
+            <option value="100">100</option>
+            <option value="300">300</option>
+            <option value="1000">1000</option>
+          </select>
+        </label>
+        <div class="button-row">
+          <button id="pan-left">←</button>
+          <button id="pan-right">→</button>
+          <button id="pan-up">↑</button>
+          <button id="pan-down">↓</button>
+          <button id="zoom-out">-</button>
+          <button id="zoom-in">+</button>
+        </div>
+        <pre id="metrics"></pre>
+        <pre id="hit-result">Click a node box to test hit detection.</pre>
+      </section>
+      <section class="canvas-panel">
+        <canvas id="poc-canvas" width="960" height="540"></canvas>
+      </section>
+    </main>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

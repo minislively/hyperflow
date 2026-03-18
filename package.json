@@ -7,6 +7,14 @@
   "scripts": {
     "validate:workspace": "node tooling/validate-workspace.mjs",
     "lint": "pnpm run validate:workspace",
-    "test": "pnpm run validate:workspace"
-  }
+    "test": "pnpm run validate:workspace",
+    "build:wasm:poc": "cargo build --manifest-path packages/core-rs/Cargo.toml --target wasm32-unknown-unknown --release",
+    "test:poc:rust": "cargo test --manifest-path packages/core-rs/Cargo.toml",
+    "test:poc:js": "node --test packages/renderer-canvas/test/*.test.js packages/wasm-bindings/test/*.test.js",
+    "bench:poc": "pnpm run build:wasm:poc && node benchmarks/run-poc.mjs",
+    "test:poc": "pnpm run build:wasm:poc && pnpm run test:poc:rust && pnpm run test:poc:js && node benchmarks/run-poc.mjs",
+    "verify:poc": "pnpm run validate:workspace && pnpm run test:poc",
+    "serve:poc": "python3 -m http.server 4173"
+  },
+  "type": "module"
 }

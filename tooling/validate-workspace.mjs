@@ -10,13 +10,23 @@ const requiredPaths = [
   "package.json",
   "pnpm-workspace.yaml",
   "docs/prd/hyperflow-prd-v0.1.md",
+  "docs/architecture/monorepo-layout.md",
+  "docs/architecture/poc-contract.md",
+  "benchmarks/fixtures.js",
+  "benchmarks/run-poc.mjs",
   "packages/core-rs/Cargo.toml",
-  "packages/sdk/package.json",
+  "packages/core-rs/src/lib.rs",
+  "packages/wasm-bindings/package.json",
+  "packages/wasm-bindings/src/index.js",
   "packages/renderer-canvas/package.json",
+  "packages/renderer-canvas/src/index.js",
   "packages/react/package.json",
   "packages/vanilla/package.json",
   "examples/react-starter/package.json",
-  "examples/vanilla-starter/package.json"
+  "examples/vanilla-starter/package.json",
+  "examples/vanilla-starter/index.html",
+  "examples/vanilla-starter/src/main.js",
+  "examples/vanilla-starter/src/styles.css"
 ];
 
 const missing = requiredPaths.filter((rel) => !fs.existsSync(path.join(root, rel)));

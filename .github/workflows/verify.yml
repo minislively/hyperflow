@@ -17,5 +17,8 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - run: pnpm install --ignore-scripts
-      - run: pnpm test
+      - run: pnpm run verify:poc
