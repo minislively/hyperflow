@@ -93,6 +93,22 @@ Out of scope for this slice:
 
 ## Near-term next steps
 
-1. lock the minimal SDK contract that follows from the PoC outputs
-2. refine the PoC harness into a more demonstrable surface
-3. add richer renderer capabilities only after the core seam remains stable
+1. refine the PoC harness into a more demonstrable surface
+2. add richer renderer capabilities only after the core seam remains stable
+3. expand wrapper-facing API surfaces after the minimal SDK contract holds up
+
+## Stable SDK surface after the PoC
+
+The first stabilized SDK slice now covers:
+
+- viewport and visible-box shapes
+- frame metrics shape
+- a thin engine contract for fixture load, render frame, visible queries, and hit test
+
+Deferred intentionally:
+
+- edges / minimap / richer editor APIs
+- worker/offscreen concerns
+- framework wrapper contracts
+
+Current SDK precondition: call `loadFixture(nodes)` before rendering a frame.

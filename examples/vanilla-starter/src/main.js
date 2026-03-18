@@ -1,57 +1,27 @@
-import { getFixture, getDefaultViewport } from "../../../benchmarks/fixtures.js";
-import { createHyperflowWasmBridge } from "../../../packages/wasm-bindings/src/index.js";
-import { drawVisibleBoxes } from "../../../packages/renderer-canvas/src/index.js";
+import { getFixture } from "../../../benchmarks/fixtures.js";
+import { createPocEngine, createPocMetricsSummary, createPocViewport } from "../../../packages/sdk/src/index.js";
 
 const canvas = document.querySelector("#poc-canvas");
 const metricsEl = document.querySelector("#metrics");
 const hitResultEl = document.querySelector("#hit-result");
 const fixtureSelect = document.querySelector("#fixture-size");
 const context = canvas.getContext("2d");
-const viewport = getDefaultViewport(canvas.width, canvas.height);
+const viewport = createPocViewport(canvas.width, canvas.height);
 
-let bridge;
+let engine;
 let currentFixture = getFixture(Number(fixtureSelect.value));
 
-function formatMetrics({ fixtureSize, visibleCount, viewportUpdateMs, renderMs, zoom, x, y }) {
-  return [
-    `fixtureSize: ${fixtureSize}`,
-    `visibleCount: ${visibleCount}`,
-    `viewportUpdateMs: ${viewportUpdateMs.toFixed(3)}`,
-    `renderMs: ${renderMs.toFixed(3)}`,
-    `zoom: ${zoom.toFixed(2)}`,
-    `viewport: (${x.toFixed(1)}, ${y.toFixed(1)})`,
-  ].join("\n");
-}
-
 function loadCurrentFixture() {
-  bridge.loadFixture(currentFixture);
+  engine.loadFixture(currentFixture);
 }
 
 function render() {
-  const fixtureSize = currentFixture.length;
-
-  const viewportStart = performance.now();
-  const visibleCount = bridge.setViewport(viewport);
-  const boxes = bridge.getVisibleBoxes();
-  const viewportUpdateMs = performance.now() - viewportStart;
-
-  const renderStart = performance.now();
-  drawVisibleBoxes(context, boxes, viewport, {
-    clear: true,
+  const frame = engine.renderFrame(context, viewport, {
     canvasWidth: canvas.width,
     canvasHeight: canvas.height,
   });
-  const renderMs = performance.now() - renderStart;
 
-  metricsEl.textContent = formatMetrics({
-    fixtureSize,
-    visibleCount,
-    viewportUpdateMs,
-    renderMs,
-    zoom: viewport.zoom,
-    x: viewport.x,
-    y: viewport.y,
-  });
+  metricsEl.textContent = createPocMetricsSummary(frame.metrics);
 }
 
 function updateFixture() {
@@ -98,14 +68,14 @@ canvas.addEventListener("click", (event) => {
     y: viewport.y + (event.clientY - rect.top) / viewport.zoom,
   };
 
-  const hit = bridge.hitTest(worldPoint);
+  const hit = engine.hitTest(worldPoint);
   hitResultEl.textContent = hit === null
     ? `No hit at (${worldPoint.x.toFixed(1)}, ${worldPoint.y.toFixed(1)})`
     : `Hit node ${hit} at (${worldPoint.x.toFixed(1)}, ${worldPoint.y.toFixed(1)})`;
 });
 
 try {
-  bridge = await createHyperflowWasmBridge();
+  engine = await createPocEngine();
   loadCurrentFixture();
   render();
 } catch (error) {

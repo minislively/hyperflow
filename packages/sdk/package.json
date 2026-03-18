@@ -2,7 +2,7 @@
   "name": "@hyperflow/sdk",
   "private": true,
   "version": "0.1.0",
-  "description": "Framework-neutral TypeScript SDK placeholder for HyperFlow.",
+  "description": "Minimal SDK contract for the HyperFlow small PoC.",
   "type": "module",
-  "main": "src/index.ts"
+  "main": "src/index.js"
 }
