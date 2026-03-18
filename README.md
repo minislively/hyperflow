@@ -97,6 +97,15 @@ Out of scope for this slice:
 2. add richer renderer capabilities only after the demo surface and current core seam remain stable
 3. expand wrapper-facing API surfaces after the current SDK contract proves durable
 
+## Evaluator workflow
+
+To test the guided demo with first-time evaluators, use:
+
+- `docs/evaluator/README.md`
+- `docs/evaluator/session-checklist.md`
+- `docs/evaluator/session-script.md`
+- `docs/evaluator/feedback-template.md`
+
 ## Stable SDK surface after the PoC
 
 The first stabilized SDK slice now covers:
