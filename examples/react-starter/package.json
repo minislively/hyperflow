@@ -1,0 +1,8 @@
+{
+  "name": "@hyperflow/example-react-starter",
+  "private": true,
+  "version": "0.1.0",
+  "description": "React starter example placeholder.",
+  "type": "module",
+  "main": "src/index.ts"
+}

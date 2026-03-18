@@ -1,0 +1,12 @@
+{
+  "name": "hyperflow",
+  "private": true,
+  "version": "0.1.0",
+  "description": "HyperFlow monorepo bootstrap",
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "validate:workspace": "node tooling/validate-workspace.mjs",
+    "lint": "pnpm run validate:workspace",
+    "test": "pnpm run validate:workspace"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "@hyperflow/vanilla",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Vanilla adapter placeholder for HyperFlow.",
+  "type": "module",
+  "main": "src/index.ts"
+}

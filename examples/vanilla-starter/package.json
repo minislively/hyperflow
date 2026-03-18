@@ -1,0 +1,8 @@
+{
+  "name": "@hyperflow/example-vanilla-starter",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Vanilla starter example placeholder.",
+  "type": "module",
+  "main": "src/index.ts"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "@hyperflow/theme-default",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Default theme placeholder for HyperFlow.",
+  "type": "module",
+  "main": "src/index.ts"
+}

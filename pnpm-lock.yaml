@@ -1,0 +1,29 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  examples/react-starter: {}
+
+  examples/vanilla-starter: {}
+
+  packages/react: {}
+
+  packages/renderer-canvas: {}
+
+  packages/sdk: {}
+
+  packages/svelte: {}
+
+  packages/theme-default: {}
+
+  packages/vanilla: {}
+
+  packages/vue: {}
+
+  packages/wasm-bindings: {}

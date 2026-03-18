@@ -1,0 +1,8 @@
+{
+  "name": "@hyperflow/wasm-bindings",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WASM bridge package placeholder for HyperFlow.",
+  "type": "module",
+  "main": "src/index.ts"
+}
