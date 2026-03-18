@@ -1,64 +1,243 @@
 import { getFixture } from "../../../benchmarks/fixtures.js";
-import { createPocEngine, createPocMetricsSummary, createPocViewport } from "../../../packages/sdk/src/index.js";
+import { createPocEngine, createPocViewport } from "../../../packages/sdk/src/index.js";
+
+const SCENARIOS = [
+  {
+    id: "quick-canvas",
+    size: 100,
+    label: "Quick canvas",
+    summary: "Start with a small graph to see the baseline interaction story.",
+    proof: "HyperFlow can keep viewport updates, rendering, and hit detection understandable even in the smallest slice.",
+    why: "This gives evaluators a clean first impression before they inspect heavier graph density.",
+    intro: "Begin here to see the calmest version of the proof surface.",
+    defaultViewport: { x: 0, y: 0, zoom: 1 },
+  },
+  {
+    id: "scale-check",
+    size: 300,
+    label: "Scale check",
+    summary: "Shift to a mid-size graph and inspect whether the runtime summary stays easy to read.",
+    proof: "The same SDK contract can drive a denser graph without changing the demo workflow.",
+    why: "This is the clearest product-facing checkpoint before the graph becomes visually dense.",
+    intro: "Use this to compare the product story against a more realistic graph size.",
+    defaultViewport: { x: 120, y: 40, zoom: 0.95 },
+  },
+  {
+    id: "dense-tour",
+    size: 1000,
+    label: "Dense graph tour",
+    summary: "Move into the heaviest current fixture and use the guided flow to inspect proof signals instead of raw controls.",
+    proof: "Even when the graph grows, the demo can still tell a clear story about viewport work, rendering, and hit testing.",
+    why: "This is the best scenario for explaining why HyperFlow exists as an embed-first performance surface.",
+    intro: "Use the guided steps to explore the densest current scenario without losing context.",
+    defaultViewport: { x: 240, y: 120, zoom: 0.72 },
+  },
+];
 
 const canvas = document.querySelector("#poc-canvas");
-const metricsEl = document.querySelector("#metrics");
-const hitResultEl = document.querySelector("#hit-result");
-const fixtureSelect = document.querySelector("#fixture-size");
 const context = canvas.getContext("2d");
+const scenarioListEl = document.querySelector("#scenario-list");
+const scenarioTitleEl = document.querySelector("#scenario-title");
+const scenarioSummaryEl = document.querySelector("#scenario-summary");
+const scenarioProofEl = document.querySelector("#scenario-proof");
+const scenarioWhyEl = document.querySelector("#scenario-why");
+const stageCaptionEl = document.querySelector("#stage-caption");
+const hitResultEl = document.querySelector("#hit-result");
+const flowIntroEl = document.querySelector("#flow-intro");
+const guidedStepsEl = document.querySelector("#guided-steps");
+const flowStatusEl = document.querySelector("#flow-status");
+const metricScenarioEl = document.querySelector("#metric-scenario");
+const metricScaleEl = document.querySelector("#metric-scale");
+const metricVisibleEl = document.querySelector("#metric-visible");
+const metricViewportEl = document.querySelector("#metric-viewport");
+const metricRenderEl = document.querySelector("#metric-render");
 const viewport = createPocViewport(canvas.width, canvas.height);
 
+const controls = {
+  panLeft: document.querySelector("#pan-left"),
+  panRight: document.querySelector("#pan-right"),
+  panUp: document.querySelector("#pan-up"),
+  panDown: document.querySelector("#pan-down"),
+  zoomOut: document.querySelector("#zoom-out"),
+  zoomIn: document.querySelector("#zoom-in"),
+};
+
+const steps = [
+  {
+    id: "scenario",
+    title: "Choose a scenario",
+    detail: "Start with the story you want to inspect: baseline, scale, or dense graph tour.",
+  },
+  {
+    id: "summary",
+    title: "Read the runtime summary",
+    detail: "Check how many nodes are visible and how quickly viewport + render work completed.",
+  },
+  {
+    id: "navigate",
+    title: "Pan or zoom the graph",
+    detail: "Use the stage controls to move around and see the summary update.",
+  },
+  {
+    id: "hit-test",
+    title: "Click a node",
+    detail: "Confirm the current proof still supports interaction-level hit testing.",
+  },
+];
+
 let engine;
-let currentFixture = getFixture(Number(fixtureSelect.value));
+let activeScenario = SCENARIOS[0];
+let currentFixture = getFixture(activeScenario.size);
+let completedSteps = new Set(["scenario"]);
+let currentStep = "summary";
+
+function setFlowStep(stepId) {
+  if (stepId === "navigate") {
+    completedSteps.add("summary");
+  }
+  if (stepId === "hit-test") {
+    completedSteps.add("summary");
+    completedSteps.add("navigate");
+  }
+  currentStep = stepId;
+  renderGuidedSteps();
+}
+
+function renderGuidedSteps() {
+  guidedStepsEl.innerHTML = "";
+
+  for (const step of steps) {
+    const item = document.createElement("li");
+    item.className = "guided-step";
+
+    if (completedSteps.has(step.id)) item.classList.add("is-complete");
+    if (currentStep === step.id) item.classList.add("is-active");
+
+    item.innerHTML = `
+      <strong>${step.title}</strong>
+      <span>${step.detail}</span>
+    `;
+
+    guidedStepsEl.appendChild(item);
+  }
+
+  const active = steps.find((step) => step.id === currentStep);
+  flowStatusEl.textContent = active
+    ? `Next: ${active.title} — ${active.detail}`
+    : "You completed the guided flow. Switch scenarios to compare the product story again.";
+}
+
+function renderScenarioCards() {
+  scenarioListEl.innerHTML = "";
+
+  for (const scenario of SCENARIOS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "scenario-card";
+    button.dataset.scenarioId = scenario.id;
+
+    if (scenario.id === activeScenario.id) {
+      button.classList.add("is-active");
+    }
+
+    button.innerHTML = `
+      <span class="scenario-card__label">${scenario.label}</span>
+      <strong>${scenario.size} nodes</strong>
+      <small>${scenario.summary}</small>
+    `;
+
+    button.addEventListener("click", () => applyScenario(scenario.id));
+    scenarioListEl.appendChild(button);
+  }
+}
+
+function updateScenarioCopy() {
+  scenarioTitleEl.textContent = activeScenario.label;
+  scenarioSummaryEl.textContent = activeScenario.summary;
+  scenarioProofEl.textContent = activeScenario.proof;
+  scenarioWhyEl.textContent = activeScenario.why;
+  stageCaptionEl.textContent = activeScenario.intro;
+  flowIntroEl.textContent = `Follow these steps to explore the ${activeScenario.label.toLowerCase()} scenario.`;
+}
+
+function updateMetrics(metrics) {
+  metricScenarioEl.textContent = activeScenario.label;
+  metricScaleEl.textContent = `${metrics.fixtureSize} nodes · zoom ${metrics.zoom.toFixed(2)}`;
+  metricVisibleEl.textContent = String(metrics.visibleCount);
+  metricViewportEl.textContent = `${metrics.viewportUpdateMs.toFixed(3)} ms`;
+  metricRenderEl.textContent = `${metrics.renderMs.toFixed(3)} ms`;
+}
 
 function loadCurrentFixture() {
+  currentFixture = getFixture(activeScenario.size);
   engine.loadFixture(currentFixture);
 }
 
-function render() {
+function renderFrame() {
   const frame = engine.renderFrame(context, viewport, {
     canvasWidth: canvas.width,
     canvasHeight: canvas.height,
   });
 
-  metricsEl.textContent = createPocMetricsSummary(frame.metrics);
+  updateMetrics(frame.metrics);
 }
 
-function updateFixture() {
-  currentFixture = getFixture(Number(fixtureSelect.value));
-  viewport.x = 0;
-  viewport.y = 0;
-  viewport.zoom = 1;
+function resetViewport() {
+  viewport.x = activeScenario.defaultViewport.x;
+  viewport.y = activeScenario.defaultViewport.y;
+  viewport.zoom = activeScenario.defaultViewport.zoom;
+}
+
+function applyScenario(scenarioId) {
+  activeScenario = SCENARIOS.find((scenario) => scenario.id === scenarioId) ?? SCENARIOS[0];
+  completedSteps = new Set(["scenario"]);
+  currentStep = "summary";
+  hitResultEl.textContent = "Click a node box to test hit detection.";
+
+  updateScenarioCopy();
+  renderScenarioCards();
+  renderGuidedSteps();
+  resetViewport();
   loadCurrentFixture();
-  render();
+  renderFrame();
 }
 
-fixtureSelect.addEventListener("change", updateFixture);
+function nudgeNavigation() {
+  if (currentStep === "summary") {
+    setFlowStep("navigate");
+  }
+}
 
 const panStep = 80;
-document.querySelector("#pan-left").addEventListener("click", () => {
+controls.panLeft.addEventListener("click", () => {
   viewport.x = Math.max(0, viewport.x - panStep / viewport.zoom);
-  render();
+  nudgeNavigation();
+  renderFrame();
 });
-document.querySelector("#pan-right").addEventListener("click", () => {
+controls.panRight.addEventListener("click", () => {
   viewport.x += panStep / viewport.zoom;
-  render();
+  nudgeNavigation();
+  renderFrame();
 });
-document.querySelector("#pan-up").addEventListener("click", () => {
+controls.panUp.addEventListener("click", () => {
   viewport.y = Math.max(0, viewport.y - panStep / viewport.zoom);
-  render();
+  nudgeNavigation();
+  renderFrame();
 });
-document.querySelector("#pan-down").addEventListener("click", () => {
+controls.panDown.addEventListener("click", () => {
   viewport.y += panStep / viewport.zoom;
-  render();
+  nudgeNavigation();
+  renderFrame();
 });
-document.querySelector("#zoom-out").addEventListener("click", () => {
+controls.zoomOut.addEventListener("click", () => {
   viewport.zoom = Math.max(0.5, viewport.zoom - 0.25);
-  render();
+  nudgeNavigation();
+  renderFrame();
 });
-document.querySelector("#zoom-in").addEventListener("click", () => {
+controls.zoomIn.addEventListener("click", () => {
   viewport.zoom = Math.min(4, viewport.zoom + 0.25);
-  render();
+  nudgeNavigation();
+  renderFrame();
 });
 
 canvas.addEventListener("click", (event) => {
@@ -72,14 +251,24 @@ canvas.addEventListener("click", (event) => {
   hitResultEl.textContent = hit === null
     ? `No hit at (${worldPoint.x.toFixed(1)}, ${worldPoint.y.toFixed(1)})`
     : `Hit node ${hit} at (${worldPoint.x.toFixed(1)}, ${worldPoint.y.toFixed(1)})`;
+  setFlowStep("hit-test");
 });
 
 try {
   engine = await createPocEngine();
+  updateScenarioCopy();
+  renderScenarioCards();
+  renderGuidedSteps();
+  resetViewport();
   loadCurrentFixture();
-  render();
+  renderFrame();
 } catch (error) {
-  metricsEl.textContent = `Failed to initialize WASM bridge: ${error.message}`;
+  metricScenarioEl.textContent = "WASM unavailable";
+  metricScaleEl.textContent = "Build required";
+  metricVisibleEl.textContent = "—";
+  metricViewportEl.textContent = "—";
+  metricRenderEl.textContent = "—";
+  flowStatusEl.textContent = "Build the WASM module first, then reload the page.";
   hitResultEl.textContent = "Build the WASM module with `pnpm build:wasm:poc` and reload the page.";
   console.error(error);
 }

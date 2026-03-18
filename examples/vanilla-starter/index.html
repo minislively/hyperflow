@@ -3,35 +3,100 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HyperFlow Vanilla PoC</title>
+    <title>HyperFlow Guided Demo</title>
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
     <main class="app-shell">
-      <section class="controls">
-        <h1>HyperFlow Vanilla PoC</h1>
-        <p>Rust viewport/culling/hit-test + WASM bridge + Canvas visible-box rendering.</p>
-        <label>
-          Fixture
-          <select id="fixture-size">
-            <option value="100">100</option>
-            <option value="300">300</option>
-            <option value="1000">1000</option>
-          </select>
-        </label>
-        <div class="button-row">
-          <button id="pan-left">←</button>
-          <button id="pan-right">→</button>
-          <button id="pan-up">↑</button>
-          <button id="pan-down">↓</button>
-          <button id="zoom-out">-</button>
-          <button id="zoom-in">+</button>
-        </div>
-        <pre id="metrics"></pre>
-        <pre id="hit-result">Click a node box to test hit detection.</pre>
+      <section class="sidebar">
+        <p class="eyebrow">HyperFlow Demo</p>
+        <h1>See how HyperFlow stays understandable as graph scale grows.</h1>
+        <p class="lede">
+          This guided demo shows the current HyperFlow proof slice: Rust viewport logic, WASM bridge handoff,
+          and Canvas rendering wrapped in the first stable SDK contract.
+        </p>
+
+        <section class="panel panel-scenario">
+          <div class="panel-header">
+            <h2>Choose a scenario</h2>
+            <p>Select the story you want to evaluate first.</p>
+          </div>
+          <div id="scenario-list" class="scenario-list"></div>
+        </section>
+
+        <section class="panel panel-story">
+          <div class="panel-header">
+            <h2 id="scenario-title">Scenario title</h2>
+            <p id="scenario-summary"></p>
+          </div>
+          <div class="story-copy">
+            <div>
+              <h3>What this proves</h3>
+              <p id="scenario-proof"></p>
+            </div>
+            <div>
+              <h3>Why it matters</h3>
+              <p id="scenario-why"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel panel-flow">
+          <div class="panel-header">
+            <h2>Try this guided flow</h2>
+            <p id="flow-intro">Follow the steps to evaluate the current product story.</p>
+          </div>
+          <ol id="guided-steps" class="guided-steps"></ol>
+          <div class="callout" id="flow-status"></div>
+        </section>
       </section>
-      <section class="canvas-panel">
-        <canvas id="poc-canvas" width="960" height="540"></canvas>
+
+      <section class="stage-shell">
+        <header class="stage-header">
+          <div>
+            <p class="eyebrow">Runtime summary</p>
+            <h2>Current proof surface</h2>
+          </div>
+          <div class="stage-actions">
+            <button type="button" id="pan-left" aria-label="Pan left">←</button>
+            <button type="button" id="pan-right" aria-label="Pan right">→</button>
+            <button type="button" id="pan-up" aria-label="Pan up">↑</button>
+            <button type="button" id="pan-down" aria-label="Pan down">↓</button>
+            <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+            <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+          </div>
+        </header>
+
+        <section class="metrics-grid">
+          <article class="metric-card">
+            <span class="metric-label">Scenario</span>
+            <strong id="metric-scenario">—</strong>
+            <small id="metric-scale">—</small>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Visible nodes</span>
+            <strong id="metric-visible">—</strong>
+            <small>Current viewport result</small>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Viewport update</span>
+            <strong id="metric-viewport">—</strong>
+            <small>Rust + WASM step</small>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Render time</span>
+            <strong id="metric-render">—</strong>
+            <small>Canvas draw step</small>
+          </article>
+        </section>
+
+        <section class="canvas-panel">
+          <div class="stage-caption">
+            <p id="stage-caption">Use the controls or click a node to inspect how the current proof behaves.</p>
+            <p id="hit-result">Click a node box to test hit detection.</p>
+          </div>
+          <canvas id="poc-canvas" width="960" height="540"></canvas>
+        </section>
       </section>
     </main>
 

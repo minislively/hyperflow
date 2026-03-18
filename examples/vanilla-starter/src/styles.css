@@ -1,83 +1,260 @@
 body {
   margin: 0;
   font-family: Inter, system-ui, sans-serif;
-  background: #0f172a;
+  background: linear-gradient(180deg, #020617 0%, #0f172a 52%, #111827 100%);
   color: #e2e8f0;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 .app-shell {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(320px, 400px) 1fr;
   min-height: 100vh;
 }
 
-.controls {
-  padding: 24px;
-  border-right: 1px solid rgba(148, 163, 184, 0.2);
-  background: #111827;
+.sidebar {
+  padding: 32px 28px;
+  border-right: 1px solid rgba(148, 163, 184, 0.15);
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(18px);
 }
 
-.controls h1 {
-  margin-top: 0;
-  margin-bottom: 8px;
+.eyebrow {
+  margin: 0 0 12px;
+  color: #60a5fa;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.controls p {
+.sidebar h1,
+.stage-header h2,
+.panel-header h2,
+.story-copy h3 {
+  margin: 0;
+}
+
+.sidebar h1 {
+  font-size: 34px;
+  line-height: 1.1;
+  margin-bottom: 12px;
+}
+
+.lede,
+.panel-header p,
+.story-copy p,
+.callout,
+.guided-step span {
   color: #94a3b8;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
-select, button {
-  font: inherit;
+.panel {
+  margin-top: 24px;
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-select {
-  display: block;
-  margin-top: 8px;
-  padding: 8px 10px;
-  width: 100%;
+.panel-header {
+  margin-bottom: 16px;
 }
 
-.button-row {
+.scenario-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 16px 0;
+  gap: 12px;
 }
 
-button {
-  padding: 10px 12px;
+.scenario-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.72);
+  color: inherit;
+  padding: 16px;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.scenario-card:hover,
+.scenario-card.is-active {
+  transform: translateY(-1px);
+  border-color: rgba(96, 165, 250, 0.6);
+  background: rgba(30, 41, 59, 0.95);
+}
+
+.scenario-card__label {
+  display: block;
+  margin-bottom: 6px;
+  color: #60a5fa;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.scenario-card strong,
+.metric-card strong {
+  display: block;
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+
+.story-copy {
+  display: grid;
+  gap: 16px;
+}
+
+.guided-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.guided-step {
+  display: grid;
+  gap: 4px;
+  opacity: 0.65;
+}
+
+.guided-step.is-active,
+.guided-step.is-complete {
+  opacity: 1;
+}
+
+.guided-step.is-active strong {
+  color: #f8fafc;
+}
+
+.guided-step.is-complete strong {
+  color: #86efac;
+}
+
+.callout {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(96, 165, 250, 0.18);
+}
+
+.stage-shell {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 20px;
+  padding: 28px;
+}
+
+.stage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.stage-actions button {
+  width: 44px;
+  height: 44px;
   border: none;
-  border-radius: 10px;
+  border-radius: 14px;
   background: #312e81;
   color: white;
+  font: inherit;
   cursor: pointer;
 }
 
-button:hover {
+.stage-actions button:hover {
   background: #4338ca;
 }
 
-pre {
-  white-space: pre-wrap;
-  word-break: break-word;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(15, 23, 42, 0.7);
-  color: #cbd5e1;
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metric-card {
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.metric-label {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #94a3b8;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.metric-card small {
+  color: #94a3b8;
 }
 
 .canvas-panel {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.stage-caption {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.stage-caption p {
+  margin: 0;
+  line-height: 1.6;
 }
 
 canvas {
-  background: white;
-  border-radius: 18px;
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.35);
+  width: 100%;
   max-width: 100%;
   height: auto;
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.35);
+}
+
+@media (max-width: 1100px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stage-header {
+    flex-direction: column;
+  }
 }

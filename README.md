@@ -81,7 +81,7 @@ The first proof slice intentionally stays narrow:
 - `packages/core-rs`: viewport math, visible culling, hit testing
 - `packages/wasm-bindings`: raw WASM bridge without extra toolchain dependencies
 - `packages/renderer-canvas`: visible-node box rendering only
-- `examples/vanilla-starter`: thin manual harness for `100 / 300 / 1000` fixtures
+- `examples/vanilla-starter`: guided product demo for `100 / 300 / 1000` proof scenarios
 
 Out of scope for this slice:
 
@@ -93,9 +93,9 @@ Out of scope for this slice:
 
 ## Near-term next steps
 
-1. refine the PoC harness into a more demonstrable surface
-2. add richer renderer capabilities only after the core seam remains stable
-3. expand wrapper-facing API surfaces after the minimal SDK contract holds up
+1. validate the guided demo surface with external evaluators and tighten the product story
+2. add richer renderer capabilities only after the demo surface and current core seam remain stable
+3. expand wrapper-facing API surfaces after the current SDK contract proves durable
 
 ## Stable SDK surface after the PoC
 
