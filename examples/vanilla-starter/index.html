@@ -10,16 +10,16 @@
     <main class="app-shell">
       <section class="sidebar">
         <p class="eyebrow">HyperFlow Demo</p>
-        <h1>See how HyperFlow stays understandable as graph scale grows.</h1>
+        <h1>Understand HyperFlow’s proof surface in 30 seconds.</h1>
         <p class="lede">
-          This guided demo shows the current HyperFlow proof slice: Rust viewport logic, WASM bridge handoff,
-          and Canvas rendering wrapped in the first stable SDK contract.
+          HyperFlow keeps graph-heavy builder surfaces legible by combining Rust viewport logic, a WASM bridge,
+          and Canvas rendering. This demo is designed to explain that quickly, without making you decode internal tooling first.
         </p>
 
         <section class="panel panel-scenario">
           <div class="panel-header">
             <h2>Choose a scenario</h2>
-            <p>Select the story you want to evaluate first.</p>
+            <p>Pick the scale story you want to inspect first.</p>
           </div>
           <div id="scenario-list" class="scenario-list"></div>
         </section>
@@ -43,8 +43,8 @@
 
         <section class="panel panel-flow">
           <div class="panel-header">
-            <h2>Try this guided flow</h2>
-            <p id="flow-intro">Follow the steps to evaluate the current product story.</p>
+            <h2>Understand it in 30 seconds</h2>
+            <p id="flow-intro">Follow these steps to understand what the demo is proving.</p>
           </div>
           <ol id="guided-steps" class="guided-steps"></ol>
           <div class="callout" id="flow-status"></div>
@@ -55,7 +55,7 @@
         <header class="stage-header">
           <div>
             <p class="eyebrow">Runtime summary</p>
-            <h2>Current proof surface</h2>
+            <h2>Proof signals to watch</h2>
           </div>
           <div class="stage-actions">
             <button type="button" id="pan-left" aria-label="Pan left">←</button>
@@ -69,22 +69,22 @@
 
         <section class="metrics-grid">
           <article class="metric-card">
-            <span class="metric-label">Scenario</span>
+            <span class="metric-label">Demo path</span>
             <strong id="metric-scenario">—</strong>
-            <small id="metric-scale">—</small>
+            <small id="metric-scale">Which story is active</small>
           </article>
           <article class="metric-card">
-            <span class="metric-label">Visible nodes</span>
+            <span class="metric-label">Nodes on screen</span>
             <strong id="metric-visible">—</strong>
             <small>Current viewport result</small>
           </article>
           <article class="metric-card">
-            <span class="metric-label">Viewport update</span>
+            <span class="metric-label">Viewport response</span>
             <strong id="metric-viewport">—</strong>
             <small>Rust + WASM step</small>
           </article>
           <article class="metric-card">
-            <span class="metric-label">Render time</span>
+            <span class="metric-label">Canvas response</span>
             <strong id="metric-render">—</strong>
             <small>Canvas draw step</small>
           </article>
@@ -92,8 +92,8 @@
 
         <section class="canvas-panel">
           <div class="stage-caption">
-            <p id="stage-caption">Use the controls or click a node to inspect how the current proof behaves.</p>
-            <p id="hit-result">Click a node box to test hit detection.</p>
+            <p id="stage-caption">Follow the steps on the left, then pan, zoom, or click a node to see the proof react in motion.</p>
+            <p id="hit-result">Step 4: click any node to confirm hit detection.</p>
           </div>
           <canvas id="poc-canvas" width="960" height="540"></canvas>
         </section>

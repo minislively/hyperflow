@@ -93,7 +93,7 @@ Out of scope for this slice:
 
 ## Near-term next steps
 
-1. validate the guided demo surface with external evaluators and tighten the product story
+1. run real evaluator sessions on the refined guided demo and capture where the story still feels unclear
 2. add richer renderer capabilities only after the demo surface and current core seam remain stable
 3. expand wrapper-facing API surfaces after the current SDK contract proves durable
 

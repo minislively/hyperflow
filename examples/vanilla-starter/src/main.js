@@ -5,31 +5,34 @@ const SCENARIOS = [
   {
     id: "quick-canvas",
     size: 100,
-    label: "Quick canvas",
-    summary: "Start with a small graph to see the baseline interaction story.",
-    proof: "HyperFlow can keep viewport updates, rendering, and hit detection understandable even in the smallest slice.",
-    why: "This gives evaluators a clean first impression before they inspect heavier graph density.",
-    intro: "Begin here to see the calmest version of the proof surface.",
+    eyebrow: "Start here",
+    label: "Fast first impression",
+    summary: "Use the smallest graph to understand the proof before you inspect scale.",
+    proof: "Shows the full proof loop clearly: viewport refresh, canvas drawing, and node hit detection all stay easy to follow.",
+    why: "Best for someone seeing HyperFlow for the first time.",
+    intro: "Start here: scan the proof cards, then pan once to see the runtime summary respond.",
     defaultViewport: { x: 0, y: 0, zoom: 1 },
   },
   {
     id: "scale-check",
     size: 300,
-    label: "Scale check",
-    summary: "Shift to a mid-size graph and inspect whether the runtime summary stays easy to read.",
-    proof: "The same SDK contract can drive a denser graph without changing the demo workflow.",
-    why: "This is the clearest product-facing checkpoint before the graph becomes visually dense.",
-    intro: "Use this to compare the product story against a more realistic graph size.",
+    eyebrow: "Next step",
+    label: "Scaling confidence check",
+    summary: "Move to a mid-size graph and see whether the same story still feels easy to read.",
+    proof: "Demonstrates that the same SDK-led demo surface remains understandable as the graph becomes denser.",
+    why: "Useful when you want confidence beyond the smallest proof case.",
+    intro: "Use this next to compare the product story against a more realistic graph size.",
     defaultViewport: { x: 120, y: 40, zoom: 0.95 },
   },
   {
     id: "dense-tour",
     size: 1000,
-    label: "Dense graph tour",
-    summary: "Move into the heaviest current fixture and use the guided flow to inspect proof signals instead of raw controls.",
-    proof: "Even when the graph grows, the demo can still tell a clear story about viewport work, rendering, and hit testing.",
-    why: "This is the best scenario for explaining why HyperFlow exists as an embed-first performance surface.",
-    intro: "Use the guided steps to explore the densest current scenario without losing context.",
+    eyebrow: "Stress story",
+    label: "Dense graph walkthrough",
+    summary: "Inspect the largest current graph and check whether the proof still feels understandable.",
+    proof: "Shows the current proof slice under its heaviest shared demo fixture without changing the interaction model.",
+    why: "Best for judging whether the narrative still works when visual density increases.",
+    intro: "Use this last, once you understand the smaller scenarios.",
     defaultViewport: { x: 240, y: 120, zoom: 0.72 },
   },
 ];
@@ -65,23 +68,23 @@ const controls = {
 const steps = [
   {
     id: "scenario",
-    title: "Choose a scenario",
-    detail: "Start with the story you want to inspect: baseline, scale, or dense graph tour.",
+    title: "Choose the story",
+    detail: "Pick the scenario that matches how much graph scale you want to inspect.",
   },
   {
     id: "summary",
-    title: "Read the runtime summary",
-    detail: "Check how many nodes are visible and how quickly viewport + render work completed.",
+    title: "Read the proof cards",
+    detail: "Check the active scale, nodes on screen, viewport response, and canvas response.",
   },
   {
     id: "navigate",
-    title: "Pan or zoom the graph",
-    detail: "Use the stage controls to move around and see the summary update.",
+    title: "Move the scene once",
+    detail: "Pan or zoom once to confirm the proof cards respond with the scene.",
   },
   {
     id: "hit-test",
-    title: "Click a node",
-    detail: "Confirm the current proof still supports interaction-level hit testing.",
+    title: "Click any node",
+    detail: "Confirm the current proof still supports direct hit detection on the canvas.",
   },
 ];
 
@@ -141,8 +144,9 @@ function renderScenarioCards() {
     }
 
     button.innerHTML = `
-      <span class="scenario-card__label">${scenario.label}</span>
-      <strong>${scenario.size} nodes</strong>
+      <span class="scenario-card__label">${scenario.eyebrow}</span>
+      <strong>${scenario.label}</strong>
+      <span class="scenario-card__meta">${scenario.size} nodes</span>
       <small>${scenario.summary}</small>
     `;
 
@@ -192,7 +196,7 @@ function applyScenario(scenarioId) {
   activeScenario = SCENARIOS.find((scenario) => scenario.id === scenarioId) ?? SCENARIOS[0];
   completedSteps = new Set(["scenario"]);
   currentStep = "summary";
-  hitResultEl.textContent = "Click a node box to test hit detection.";
+  hitResultEl.textContent = "Step 4: click any node to confirm hit detection.";
 
   updateScenarioCopy();
   renderScenarioCards();
