@@ -2,23 +2,205 @@ import { useMemo, useState } from "react";
 import { FIXTURE_SIZES, getFixture } from "../../../benchmarks/fixtures.js";
 import { HyperFlowPocCanvas, createPocViewport, type PocMetrics, type PocNode, type PocViewport } from "@hyperflow/react";
 
+type Scenario = {
+  id: number;
+  label: string;
+  subtitle: string;
+  summary: string;
+  proof: string;
+  why: string;
+};
+
+type WorkflowDetails = {
+  title: string;
+  status: string;
+  summary: string;
+  description: string;
+  why: string;
+  configGroups: { title: string; fields: { label: string; value: string }[] }[];
+  example: string;
+};
+
+type InteractionMode = "inspect" | "read-only";
+
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
-const STARTER_SCENARIOS = [
-  { id: 100, label: "Fast first proof", subtitle: "Starter-like small graph" },
-  { id: 300, label: "Mid graph check", subtitle: "Bigger proof with same shell" },
-  { id: 1000, label: "Dense graph tour", subtitle: "Stress the current slice" },
+const STARTER_SCENARIOS: Scenario[] = [
+  {
+    id: 100,
+    label: "Fast first proof",
+    subtitle: "Starter-like small graph",
+    summary: "Use the smallest fixture to understand the React starter shell before you inspect scale.",
+    proof: "Shows that the same current slice can power a React toolbar/canvas/inspector surface without pretending the full Starter Kit already exists.",
+    why: "Best for quickly validating that the new product proof reads like a workflow builder, not only a renderer demo.",
+  },
+  {
+    id: 300,
+    label: "Mid graph check",
+    subtitle: "Bigger proof with same shell",
+    summary: "Move to a denser fixture and confirm the starter shell still feels readable.",
+    proof: "Demonstrates that the thin React surface keeps the same product story while the graph grows.",
+    why: "Useful for checking whether the shell still feels product-like beyond the smallest case.",
+  },
+  {
+    id: 1000,
+    label: "Dense graph tour",
+    subtitle: "Stress the current slice",
+    summary: "Inspect the largest current fixture to understand the outer limit of this bounded proof slice.",
+    proof: "Shows the React starter shell under the heaviest shared demo fixture without widening scope into full editor features.",
+    why: "Best for judging how honest and useful the thin slice still feels at the edge of the current proof.",
+  },
 ];
 
-const WORKFLOW_LABELS = [
-  [1, { title: "Customer Ticket", status: "Input · Ready", summary: "Starting node for incoming support work." }],
-  [2, { title: "Intent Classifier", status: "AI step · Configured", summary: "Classifies request intent before routing." }],
-  [3, { title: "Priority Router", status: "Logic step · Active", summary: "Maps urgency and account tier to a route." }],
-  [4, { title: "Knowledge Search", status: "Tool step · Search ready", summary: "Adds help-center context before drafting." }],
-  [5, { title: "CRM Lookup", status: "Tool step · Context ready", summary: "Fetches plan and support tier context." }],
-  [6, { title: "Draft Response", status: "AI step · Draft ready", summary: "Generates an agent-ready reply draft." }],
-  [7, { title: "Review Output", status: "Output · Human review", summary: "Packages the result for approval." }],
-];
+const WORKFLOW_DETAILS = new Map<number, WorkflowDetails>([
+  [
+    1,
+    {
+      title: "Customer Ticket",
+      status: "Input · Ready",
+      summary: "Starting node for incoming support work.",
+      description: "Receives the incoming support request before any automation begins.",
+      why: "Keeps the workflow grounded in a concrete customer problem instead of an abstract graph.",
+      configGroups: [
+        {
+          title: "Source",
+          fields: [
+            { label: "Type", value: "Support form" },
+            { label: "Primary fields", value: "subject, message, customer_id" },
+          ],
+        },
+        {
+          title: "Example payload",
+          fields: [
+            { label: "Subject", value: "Refund request" },
+            { label: "Customer", value: "cus_2048" },
+          ],
+        },
+      ],
+      example: `{"subject": "Refund request", "customer_id": "cus_2048"}`,
+    },
+  ],
+  [
+    2,
+    {
+      title: "Intent Classifier",
+      status: "AI step · Configured",
+      summary: "Classifies request intent before routing.",
+      description: "Maps the incoming request into a bounded label set so the workflow can choose the next route.",
+      why: "Shows that the starter proof is tied to an operational workflow step instead of generic AI branding.",
+      configGroups: [
+        {
+          title: "Model",
+          fields: [
+            { label: "Model", value: "gpt-5.4-mini" },
+            { label: "Confidence threshold", value: "0.80" },
+          ],
+        },
+      ],
+      example: "Intent: Billing · Confidence: 0.93",
+    },
+  ],
+  [
+    3,
+    {
+      title: "Priority Router",
+      status: "Logic step · Active",
+      summary: "Maps urgency and account tier to a route.",
+      description: "Routes work using simple product rules instead of exposing raw graph mechanics.",
+      why: "This is where the product proof starts to look like a real operations workflow.",
+      configGroups: [
+        {
+          title: "Routing rules",
+          fields: [
+            { label: "Billing + urgent", value: "Escalate" },
+            { label: "Fallback", value: "Standard queue" },
+          ],
+        },
+      ],
+      example: "Route selected: Billing queue",
+    },
+  ],
+  [
+    4,
+    {
+      title: "Knowledge Search",
+      status: "Tool step · Search ready",
+      summary: "Adds help-center context before drafting.",
+      description: "Pulls relevant internal knowledge before any reply is drafted.",
+      why: "Shows that the inspector is grounded in product logic, not only box coordinates.",
+      configGroups: [
+        {
+          title: "Search settings",
+          fields: [
+            { label: "Mode", value: "Hybrid search" },
+            { label: "Source", value: "Help center + policies" },
+          ],
+        },
+      ],
+      example: "Matched docs: refund-policy, duplicate-charge-faq",
+    },
+  ],
+  [
+    5,
+    {
+      title: "CRM Lookup",
+      status: "Tool step · Context ready",
+      summary: "Fetches plan and support tier context.",
+      description: "Loads customer context that changes how the request should be handled.",
+      why: "Makes the workflow feel product-specific rather than a generic canvas toy.",
+      configGroups: [
+        {
+          title: "Lookup",
+          fields: [
+            { label: "Source", value: "CRM" },
+            { label: "Key", value: "customer_id" },
+          ],
+        },
+      ],
+      example: "Plan: Pro · Support tier: Priority",
+    },
+  ],
+  [
+    6,
+    {
+      title: "Draft Response",
+      status: "AI step · Draft ready",
+      summary: "Generates an agent-ready reply draft.",
+      description: "Packages the routed context into a visible product outcome.",
+      why: "This is the clearest value-creation step in the current bounded proof.",
+      configGroups: [
+        {
+          title: "Response settings",
+          fields: [
+            { label: "Tone", value: "Support-friendly" },
+            { label: "Output", value: "Draft reply + internal notes" },
+          ],
+        },
+      ],
+      example: "Draft ready: refund-policy-based response generated",
+    },
+  ],
+  [
+    7,
+    {
+      title: "Review Output",
+      status: "Output · Human review",
+      summary: "Packages the result for approval.",
+      description: "Shows the workflow ending in a human-controlled review step.",
+      why: "Keeps the proof honest about bounded autonomy and operational control.",
+      configGroups: [
+        {
+          title: "Review policy",
+          fields: [
+            { label: "Approval required", value: "Yes" },
+            { label: "Escalation path", value: "Billing queue" },
+          ],
+        },
+      ],
+      example: "Ready for billing-team approval",
+    },
+  ],
+]);
 
 function getDefaultViewport() {
   return createPocViewport(CANVAS_WIDTH, CANVAS_HEIGHT, { x: 0, y: 0, zoom: 1 });
@@ -42,25 +224,51 @@ function fitViewport(nodes: PocNode[]): PocViewport {
   });
 }
 
-function getNodeDetails(node: PocNode | undefined) {
+function getSelectedNodeDetails(node: PocNode | undefined, scenarioSize: number): WorkflowDetails {
   if (!node) {
     return {
       title: "No node selected",
       status: "Read-only starter proof",
-      summary: "Click a node on the canvas to inspect how the current validated slice behaves inside a React starter surface.",
+      summary: "Switch to Inspect mode and click a node on the canvas to inspect the current validated slice.",
+      description: "The bounded React starter now supports a real read-only overview mode alongside click-based node inspection.",
+      why: "This keeps the surface product-like without pretending full editing exists yet.",
+      configGroups: [
+        {
+          title: "Current scope",
+          fields: [
+            { label: "Fixture size", value: String(scenarioSize) },
+            { label: "Mode", value: "Read-only overview" },
+          ],
+        },
+      ],
+      example: "Select Inspect mode to bind the inspector to a real node.",
     };
   }
 
-  const workflowLabel = WORKFLOW_LABELS.find(([id]) => id === node.id)?.[1];
-  if (workflowLabel) {
-    return workflowLabel;
-  }
+  const details = WORKFLOW_DETAILS.get(node.id);
+  if (details) return details;
 
   return {
     title: `Workflow Step ${node.id}`,
     status: "Generated proof node",
     summary: `Grid-backed PoC node rendered through the current HyperFlow slice at (${Math.round(node.x)}, ${Math.round(node.y)}).`,
+    description: "This node comes from the shared grid fixture and proves that the React starter shell is bound to the real current slice.",
+    why: "Useful for confirming that the inspector remains tied to actual rendered nodes even outside the named workflow steps.",
+    configGroups: [
+      {
+        title: "Fixture details",
+        fields: [
+          { label: "Width × height", value: `${Math.round(node.width)} × ${Math.round(node.height)}` },
+          { label: "Scenario size", value: String(scenarioSize) },
+        ],
+      },
+    ],
+    example: `Node ${node.id} @ (${Math.round(node.x)}, ${Math.round(node.y)})`,
   };
+}
+
+function getScenarioBySize(size: number) {
+  return STARTER_SCENARIOS.find((scenario) => scenario.id === size) ?? STARTER_SCENARIOS[0];
 }
 
 export function App() {
@@ -70,9 +278,11 @@ export function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(1);
   const [metrics, setMetrics] = useState<PocMetrics | null>(null);
   const [ready, setReady] = useState(false);
+  const [mode, setMode] = useState<InteractionMode>("inspect");
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
-  const selectedNodeDetails = getNodeDetails(selectedNode);
+  const selectedNodeDetails = getSelectedNodeDetails(mode === "inspect" ? selectedNode : undefined, scenarioSize);
+  const activeScenario = getScenarioBySize(scenarioSize);
 
   function handleScenarioChange(size: number) {
     setScenarioSize(size);
@@ -86,6 +296,13 @@ export function App() {
       ...current,
       zoom: Math.max(0.35, Math.min(current.zoom * multiplier, 1.8)),
     }));
+  }
+
+  function setInteractionMode(nextMode: InteractionMode) {
+    setMode(nextMode);
+    if (nextMode === "inspect" && selectedNodeId === null) {
+      setSelectedNodeId(nodes[0]?.id ?? null);
+    }
   }
 
   return (
@@ -115,6 +332,8 @@ export function App() {
           </div>
 
           <div className="toolbar-group compact">
+            <button type="button" className={mode === "inspect" ? "active" : ""} onClick={() => setInteractionMode("inspect")}>Inspect mode</button>
+            <button type="button" className={mode === "read-only" ? "active" : ""} onClick={() => setInteractionMode("read-only")}>Read-only overview</button>
             <button type="button" onClick={() => setViewport(fitViewport(nodes))}>Fit view</button>
             <button type="button" onClick={() => zoomBy(0.85)}>Zoom out</button>
             <button type="button" onClick={() => zoomBy(1.15)}>Zoom in</button>
@@ -132,6 +351,7 @@ export function App() {
             <div className="panel-badges">
               <span>{ready ? "Engine ready" : "Loading engine"}</span>
               <span>{scenarioSize} nodes</span>
+              <span>{mode === "inspect" ? "Interactive inspect" : "Read-only view"}</span>
               {metrics ? <span>{metrics.visibleCount} visible</span> : null}
             </div>
           </div>
@@ -140,13 +360,20 @@ export function App() {
             className="starter-canvas"
             nodes={nodes}
             viewport={viewport}
-            selectedNodeId={selectedNodeId}
+            selectedNodeId={mode === "inspect" ? selectedNodeId : null}
+            interactive={mode === "inspect"}
             onNodeSelect={setSelectedNodeId}
             onMetricsChange={setMetrics}
             onReadyChange={setReady}
             width={CANVAS_WIDTH}
             height={CANVAS_HEIGHT}
           />
+
+          <p className="canvas-caption">
+            {mode === "inspect"
+              ? "Click any visible node to drive the inspector with real hit-test selection."
+              : "Read-only overview keeps the shell product-like without pretending full editing exists yet."}
+          </p>
 
           <div className="metrics-strip">
             <div>
@@ -172,38 +399,94 @@ export function App() {
           <div className="panel-header">
             <div>
               <p className="panel-eyebrow">Inspector</p>
-              <h2>{selectedNodeDetails.title}</h2>
+              <h2>{mode === "inspect" ? selectedNodeDetails.title : activeScenario.label}</h2>
             </div>
-            <span className="status-chip">{selectedNodeDetails.status}</span>
+            <span className="status-chip">{mode === "inspect" ? selectedNodeDetails.status : "Read-only scenario overview"}</span>
           </div>
 
-          <p className="inspector-summary">{selectedNodeDetails.summary}</p>
+          {mode === "read-only" ? (
+            <>
+              <p className="inspector-summary">{activeScenario.summary}</p>
 
-          <dl className="inspector-grid">
-            <div>
-              <dt>Selected node</dt>
-              <dd>{selectedNode?.id ?? "None"}</dd>
-            </div>
-            <div>
-              <dt>Coordinates</dt>
-              <dd>{selectedNode ? `${Math.round(selectedNode.x)}, ${Math.round(selectedNode.y)}` : "—"}</dd>
-            </div>
-            <div>
-              <dt>Canvas status</dt>
-              <dd>{ready ? "Connected" : "Loading"}</dd>
-            </div>
-            <div>
-              <dt>Interaction scope</dt>
-              <dd>Click-based proof</dd>
-            </div>
-          </dl>
+              <div className="scenario-proof-card">
+                <h3>Proof focus</h3>
+                <p>{activeScenario.proof}</p>
+              </div>
 
-          <div className="inspector-note">
-            <h3>Why this slice matters</h3>
-            <p>
-              It is the first React-facing surface that makes HyperFlow feel like a workflow builder SDK product instead of only a PoC plus docs.
-            </p>
-          </div>
+              <div className="scenario-proof-card">
+                <h3>Why this scenario</h3>
+                <p>{activeScenario.why}</p>
+              </div>
+
+              <dl className="inspector-grid">
+                <div>
+                  <dt>Mode</dt>
+                  <dd>Read-only overview</dd>
+                </div>
+                <div>
+                  <dt>Fixture size</dt>
+                  <dd>{scenarioSize}</dd>
+                </div>
+                <div>
+                  <dt>Visible nodes</dt>
+                  <dd>{metrics?.visibleCount ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt>Current proof</dt>
+                  <dd>Toolbar + canvas + inspector</dd>
+                </div>
+              </dl>
+            </>
+          ) : (
+            <>
+              <p className="inspector-summary">{selectedNodeDetails.summary}</p>
+              <p className="inspector-description">{selectedNodeDetails.description}</p>
+              <div className="scenario-proof-card emphasis">
+                <h3>Why this node matters</h3>
+                <p>{selectedNodeDetails.why}</p>
+              </div>
+
+              <dl className="inspector-grid">
+                <div>
+                  <dt>Selected node</dt>
+                  <dd>{selectedNode?.id ?? "None"}</dd>
+                </div>
+                <div>
+                  <dt>Coordinates</dt>
+                  <dd>{selectedNode ? `${Math.round(selectedNode.x)}, ${Math.round(selectedNode.y)}` : "—"}</dd>
+                </div>
+                <div>
+                  <dt>Canvas status</dt>
+                  <dd>{ready ? "Connected" : "Loading"}</dd>
+                </div>
+                <div>
+                  <dt>Interaction scope</dt>
+                  <dd>Click-based proof</dd>
+                </div>
+              </dl>
+
+              <div className="config-groups">
+                {selectedNodeDetails.configGroups.map((group) => (
+                  <section key={group.title} className="config-group-card">
+                    <h3>{group.title}</h3>
+                    <dl>
+                      {group.fields.map((field) => (
+                        <div key={`${group.title}-${field.label}`}>
+                          <dt>{field.label}</dt>
+                          <dd>{field.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                ))}
+              </div>
+
+              <div className="scenario-proof-card code-card">
+                <h3>Example output</h3>
+                <pre>{selectedNodeDetails.example}</pre>
+              </div>
+            </>
+          )}
         </aside>
       </section>
     </main>

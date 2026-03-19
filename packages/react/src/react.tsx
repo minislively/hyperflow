@@ -8,6 +8,7 @@ export type HyperFlowPocCanvasProps = {
   width?: number;
   height?: number;
   className?: string;
+  interactive?: boolean;
   onNodeSelect?: (nodeId: number | null) => void;
   onMetricsChange?: (metrics: PocMetrics) => void;
   onReadyChange?: (ready: boolean) => void;
@@ -20,6 +21,7 @@ export function HyperFlowPocCanvas({
   width = 960,
   height = 540,
   className,
+  interactive = true,
   onNodeSelect,
   onMetricsChange,
   onReadyChange,
@@ -86,7 +88,7 @@ export function HyperFlowPocCanvas({
   }, [engine, height, nodes, onMetricsChange, selectedNodeId, viewport, width]);
 
   function handleClick(event: React.MouseEvent<HTMLCanvasElement>) {
-    if (!engine || !canvasRef.current) return;
+    if (!interactive || !engine || !canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const screenX = (event.clientX - rect.left) * (canvasRef.current.width / rect.width);
@@ -100,13 +102,18 @@ export function HyperFlowPocCanvas({
   }
 
   return (
-    <div className={className}>
+    <div className={className} data-interactive={interactive ? "true" : "false"}>
       <canvas
         ref={canvasRef}
         width={width}
         height={height}
         onClick={handleClick}
-        style={{ width: "100%", height: "100%", display: "block" }}
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "block",
+          cursor: interactive ? "crosshair" : "default",
+        }}
       />
       {error ? <div className="hf-canvas-error">{error}</div> : null}
     </div>

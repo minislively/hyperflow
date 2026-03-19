@@ -59,13 +59,16 @@ button {
 
 .starter-toolbar h1,
 .panel-header h2,
-.inspector-note h3 {
+.scenario-proof-card h3,
+.config-group-card h3 {
   margin: 0;
 }
 
 .toolbar-copy,
 .inspector-summary,
-.inspector-note p {
+.inspector-description,
+.scenario-proof-card p,
+.canvas-caption {
   margin: 10px 0 0;
   color: #cbd5e1;
   line-height: 1.6;
@@ -112,7 +115,7 @@ button {
 
 .starter-content {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(320px, 0.85fr);
+  grid-template-columns: minmax(0, 2fr) minmax(360px, 0.95fr);
   gap: 20px;
 }
 
@@ -159,6 +162,10 @@ button {
   background-size: auto, 28px 28px, 28px 28px;
 }
 
+.starter-canvas[data-interactive="false"] {
+  opacity: 0.92;
+}
+
 .hf-canvas-error {
   position: absolute;
   inset: 12px;
@@ -177,15 +184,31 @@ button {
 
 .metrics-strip div,
 .inspector-grid div,
-.inspector-note {
+.scenario-proof-card,
+.config-group-card {
   border: 1px solid rgba(148, 163, 184, 0.14);
   background: rgba(15, 23, 42, 0.82);
   border-radius: 16px;
   padding: 14px;
 }
 
+.scenario-proof-card.emphasis {
+  border-color: rgba(99, 102, 241, 0.36);
+}
+
+.scenario-proof-card.code-card pre {
+  margin: 10px 0 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.85);
+  color: #bfdbfe;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
 .metrics-strip span,
-.inspector-grid dt {
+.inspector-grid dt,
+.config-group-card dt {
   display: block;
   font-size: 12px;
   color: #94a3b8;
@@ -193,7 +216,8 @@ button {
 }
 
 .metrics-strip strong,
-.inspector-grid dd {
+.inspector-grid dd,
+.config-group-card dd {
   margin: 0;
   font-size: 15px;
 }
@@ -204,11 +228,21 @@ button {
   align-content: start;
 }
 
-.inspector-grid {
+.inspector-grid,
+.config-groups {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.inspector-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0;
+}
+
+.config-group-card dl {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
 }
 
 @media (max-width: 1080px) {
