@@ -9,7 +9,14 @@ import {
   type PocViewport,
 } from "@hyperflow/react";
 
-import { STARTER_SCENARIOS, STARTER_SURFACE_STATES, WORKFLOW_DETAILS, WORKFLOW_SEQUENCE, type StarterSurfaceState } from "./starter-data";
+import {
+  STARTER_SCENARIOS,
+  STARTER_SURFACE_GUIDANCE,
+  STARTER_SURFACE_STATES,
+  WORKFLOW_DETAILS,
+  WORKFLOW_SEQUENCE,
+  type StarterSurfaceState,
+} from "./starter-data";
 import {
   getDefaultStarterViewport,
   getNodeFocusViewportOptions,
@@ -34,6 +41,7 @@ export function App() {
   const selectedNodeDetails = getSelectedNodeDetails(mode === "inspect" && surfaceState === "live" ? selectedNode : undefined, scenarioSize);
   const activeScenario = getStarterScenarioBySize(scenarioSize);
   const activeSurfaceState = STARTER_SURFACE_STATES.find((state) => state.id === surfaceState)!;
+  const activeSurfaceGuidance = surfaceState === "live" ? null : STARTER_SURFACE_GUIDANCE[surfaceState];
   const isLiveSurface = surfaceState === "live";
 
   function handleScenarioChange(size: number) {
@@ -74,8 +82,32 @@ export function App() {
     setViewport(focusPocViewportOnNode(nextNode, viewport, getNodeFocusViewportOptions(viewport)));
   }
 
-  function retrySurface() {
+  function restoreLiveSurface(nextMode: HyperFlowCanvasMode) {
     setSurfaceState("live");
+    setMode(nextMode);
+    setViewport(fitPocViewportToNodes(nodes, getStarterViewportOptions()));
+    setSelectedNodeId(activeScenario.defaultNodeId ?? nodes[0]?.id ?? null);
+  }
+
+  function handleSurfaceAction(actionId: string) {
+    if (actionId === "load-starter-workflow") {
+      restoreLiveSurface("inspect");
+      return;
+    }
+
+    if (actionId === "open-starter-template") {
+      restoreLiveSurface("read-only");
+      return;
+    }
+
+    if (actionId === "retry-load") {
+      restoreLiveSurface(mode);
+      return;
+    }
+
+    if (actionId === "return-safe-overview") {
+      restoreLiveSurface("read-only");
+    }
   }
 
   return (
@@ -189,28 +221,22 @@ export function App() {
           ) : (
             <section className={`starter-state-card starter-state-card--${surfaceState}`}>
               <p className="panel-eyebrow">Starter surface state</p>
-              <h3>
-                {surfaceState === "loading" && "Preparing workflow surface"}
-                {surfaceState === "empty" && "No workflow loaded yet"}
-                {surfaceState === "error" && "Surface failed gracefully"}
-              </h3>
-              <p>
-                {surfaceState === "loading" &&
-                  "Use this state when fixture data, remote config, or runtime resources are still being prepared before the starter surface becomes interactive."}
-                {surfaceState === "empty" &&
-                  "Use this state when the host app has no workflow to render yet and should guide the user toward loading or creating one later."}
-                {surfaceState === "error" &&
-                  "Use this state when the starter surface cannot render the current workflow safely and needs to fail without collapsing the surrounding product shell."}
-              </p>
+              <h3>{activeSurfaceGuidance?.title}</h3>
+              <p>{activeSurfaceGuidance?.description}</p>
 
               <div className="state-actions">
                 {surfaceState === "loading" ? <div className="loading-pulse" aria-hidden="true" /> : null}
-                {surfaceState === "error" ? (
-                  <button type="button" onClick={retrySurface}>Return to live proof</button>
-                ) : null}
-                {surfaceState === "empty" ? (
-                  <button type="button" onClick={retrySurface}>Load starter proof</button>
-                ) : null}
+                {activeSurfaceGuidance?.actions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    className={action.tone ?? "secondary"}
+                    disabled={action.disabled}
+                    onClick={() => handleSurfaceAction(action.id)}
+                  >
+                    {action.label}
+                  </button>
+                ))}
               </div>
             </section>
           )}
@@ -352,11 +378,7 @@ export function App() {
             </>
           ) : (
             <section className={`starter-state-card starter-state-card--${surfaceState}`}>
-              <p className="inspector-summary">
-                {surfaceState === "loading" && "The shell is still visible while data or runtime resources are being prepared."}
-                {surfaceState === "empty" && "The surface stays structured even before a workflow exists, so the host app can explain the next step clearly."}
-                {surfaceState === "error" && "The shell contains the failure and provides a recovery path instead of collapsing the surrounding product frame."}
-              </p>
+              <p className="inspector-summary">{activeSurfaceGuidance?.inspectorSummary}</p>
 
               <dl className="inspector-grid">
                 <div>
@@ -369,11 +391,11 @@ export function App() {
                 </div>
                 <div>
                   <dt>Interaction</dt>
-                  <dd>{surfaceState === "loading" ? "Blocked temporarily" : surfaceState === "empty" ? "Awaiting data" : "Recovery path"}</dd>
+                  <dd>{activeSurfaceGuidance?.interactionLabel}</dd>
                 </div>
                 <div>
                   <dt>Starter shell</dt>
-                  <dd>Still visible</dd>
+                  <dd>{activeSurfaceGuidance?.shellNote}</dd>
                 </div>
               </dl>
             </section>

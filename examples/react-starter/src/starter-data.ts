@@ -19,6 +19,21 @@ export type StarterWorkflowDetails = {
 };
 
 export type StarterSurfaceState = "live" | "loading" | "empty" | "error";
+export type StarterSurfaceAction = {
+  id: string;
+  label: string;
+  tone?: "primary" | "secondary";
+  disabled?: boolean;
+};
+
+export type StarterSurfaceGuidance = {
+  title: string;
+  description: string;
+  inspectorSummary: string;
+  interactionLabel: string;
+  shellNote: string;
+  actions: StarterSurfaceAction[];
+};
 
 export const STARTER_SURFACE_STATES: {
   id: StarterSurfaceState;
@@ -30,6 +45,45 @@ export const STARTER_SURFACE_STATES: {
   { id: "empty", label: "Empty", subtitle: "No workflow loaded yet" },
   { id: "error", label: "Error", subtitle: "Surface failed gracefully" },
 ];
+
+export const STARTER_SURFACE_GUIDANCE: Record<Exclude<StarterSurfaceState, "live">, StarterSurfaceGuidance> = {
+  loading: {
+    title: "Preparing workflow surface",
+    description:
+      "Use this state when fixture data, remote config, or runtime resources are still being prepared before the starter surface becomes interactive.",
+    inspectorSummary:
+      "The shell is still visible while data or runtime resources are being prepared, so the host app can show progress without collapsing the starter surface.",
+    interactionLabel: "Blocked temporarily",
+    shellNote: "Still visible",
+    actions: [{ id: "syncing", label: "Syncing workflow data", disabled: true }],
+  },
+  empty: {
+    title: "No workflow loaded yet",
+    description:
+      "Use this state when the host app has no workflow to render yet and should guide the user toward loading or creating one later.",
+    inspectorSummary:
+      "The surface stays structured even before a workflow exists, so the host app can explain the next step clearly.",
+    interactionLabel: "Awaiting data",
+    shellNote: "Ready for host action",
+    actions: [
+      { id: "load-starter-workflow", label: "Load starter workflow", tone: "primary" },
+      { id: "open-starter-template", label: "Open starter template", tone: "secondary" },
+    ],
+  },
+  error: {
+    title: "Surface failed gracefully",
+    description:
+      "Use this state when the starter surface cannot render the current workflow safely and needs to fail without collapsing the surrounding product shell.",
+    inspectorSummary:
+      "The shell contains the failure and provides a recovery path instead of collapsing the surrounding product frame.",
+    interactionLabel: "Recovery path",
+    shellNote: "Still visible",
+    actions: [
+      { id: "retry-load", label: "Retry load", tone: "primary" },
+      { id: "return-safe-overview", label: "Return to safe overview", tone: "secondary" },
+    ],
+  },
+};
 
 export const STARTER_SCENARIOS: StarterScenario[] = [
   {

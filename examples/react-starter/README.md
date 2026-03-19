@@ -14,6 +14,7 @@ It is intentionally bounded to prove one thing well:
 - a bounded **read-only overview mode** can coexist with inspect mode without implying full editing
 - **guided jump** and **focus selected** affordances can make the starter shell feel more product-like without introducing palette flow
 - **live / loading / empty / error** states can be demonstrated without widening into full application logic
+- empty and error states can show realistic host-action copy such as loading a workflow, opening a starter template, or retrying a failed load
 
 ## What it does not claim yet
 
