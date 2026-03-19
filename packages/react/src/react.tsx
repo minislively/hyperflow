@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPocEngine, type PocEngine, type PocMetrics, type PocNode, type PocViewport } from "@hyperflow/sdk";
+import { isInteractiveCanvasMode, type HyperFlowCanvasMode } from "./starter";
 
 export type HyperFlowPocCanvasProps = {
   nodes: PocNode[];
@@ -8,6 +9,7 @@ export type HyperFlowPocCanvasProps = {
   width?: number;
   height?: number;
   className?: string;
+  mode?: HyperFlowCanvasMode;
   interactive?: boolean;
   onNodeSelect?: (nodeId: number | null) => void;
   onMetricsChange?: (metrics: PocMetrics) => void;
@@ -21,7 +23,8 @@ export function HyperFlowPocCanvas({
   width = 960,
   height = 540,
   className,
-  interactive = true,
+  mode = "inspect",
+  interactive,
   onNodeSelect,
   onMetricsChange,
   onReadyChange,
@@ -29,6 +32,7 @@ export function HyperFlowPocCanvas({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [engine, setEngine] = useState<PocEngine | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isInteractive = interactive ?? isInteractiveCanvasMode(mode);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +92,7 @@ export function HyperFlowPocCanvas({
   }, [engine, height, nodes, onMetricsChange, selectedNodeId, viewport, width]);
 
   function handleClick(event: React.MouseEvent<HTMLCanvasElement>) {
-    if (!interactive || !engine || !canvasRef.current) return;
+    if (!isInteractive || !engine || !canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const screenX = (event.clientX - rect.left) * (canvasRef.current.width / rect.width);
@@ -102,7 +106,7 @@ export function HyperFlowPocCanvas({
   }
 
   return (
-    <div className={className} data-interactive={interactive ? "true" : "false"}>
+    <div className={className} data-interactive={isInteractive ? "true" : "false"}>
       <canvas
         ref={canvasRef}
         width={width}
@@ -112,7 +116,7 @@ export function HyperFlowPocCanvas({
           width: "100%",
           height: "100%",
           display: "block",
-          cursor: interactive ? "crosshair" : "default",
+          cursor: isInteractive ? "crosshair" : "default",
         }}
       />
       {error ? <div className="hf-canvas-error">{error}</div> : null}

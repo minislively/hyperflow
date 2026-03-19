@@ -8,7 +8,56 @@ It exists to support a starter-like React product proof without pretending that 
 
 - render the validated canvas proof inside React
 - expose a minimal canvas host for starter-like surfaces
+- provide small viewport helpers for starter-style navigation
 - support bounded product-facing examples such as `toolbar + canvas + inspector`
+
+## Public surface right now
+
+- `HyperFlowPocCanvas`
+- `createPocViewport`
+- `fitPocViewportToNodes`
+- `focusPocViewportOnNode`
+- `isInteractiveCanvasMode`
+
+## Quickstart
+
+```tsx
+import { useMemo, useState } from "react";
+import {
+  HyperFlowPocCanvas,
+  createPocViewport,
+  fitPocViewportToNodes,
+  type HyperFlowCanvasMode,
+} from "@hyperflow/react";
+import { getFixture } from "../../../benchmarks/fixtures.js";
+
+const nodes = getFixture(100);
+
+export function Example() {
+  const [mode, setMode] = useState<HyperFlowCanvasMode>("inspect");
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(nodes[0]?.id ?? null);
+  const [viewport, setViewport] = useState(() =>
+    fitPocViewportToNodes(nodes, { width: 960, height: 540 }),
+  );
+
+  return (
+    <HyperFlowPocCanvas
+      nodes={nodes}
+      viewport={viewport}
+      mode={mode}
+      selectedNodeId={selectedNodeId}
+      onNodeSelect={setSelectedNodeId}
+    />
+  );
+}
+```
+
+### Mode semantics
+
+- `mode="inspect"` → click-based hit-test selection is enabled
+- `mode="read-only"` → the same canvas proof renders without selection interaction
+
+The old `interactive` boolean still works, but `mode` is the clearer starter-facing API.
 
 ## Not promised yet
 

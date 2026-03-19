@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import { FIXTURE_SIZES, getFixture } from "../../../benchmarks/fixtures.js";
-import { HyperFlowPocCanvas, createPocViewport, type PocMetrics, type PocNode, type PocViewport } from "@hyperflow/react";
+import {
+  HyperFlowPocCanvas,
+  createPocViewport,
+  fitPocViewportToNodes,
+  focusPocViewportOnNode,
+  type HyperFlowCanvasMode,
+  type PocMetrics,
+  type PocNode,
+  type PocViewport,
+} from "@hyperflow/react";
 
 type Scenario = {
   id: number;
@@ -22,7 +31,6 @@ type WorkflowDetails = {
   example: string;
 };
 
-type InteractionMode = "inspect" | "read-only";
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -212,36 +220,6 @@ function getDefaultViewport() {
   return createPocViewport(CANVAS_WIDTH, CANVAS_HEIGHT, { x: 0, y: 0, zoom: 1 });
 }
 
-function fitViewport(nodes: PocNode[]): PocViewport {
-  const minX = Math.min(...nodes.map((node) => node.x));
-  const minY = Math.min(...nodes.map((node) => node.y));
-  const maxX = Math.max(...nodes.map((node) => node.x + node.width));
-  const maxY = Math.max(...nodes.map((node) => node.y + node.height));
-  const padding = 48;
-  const zoom = Math.min(
-    CANVAS_WIDTH / (maxX - minX + padding * 2),
-    CANVAS_HEIGHT / (maxY - minY + padding * 2),
-  );
-
-  return createPocViewport(CANVAS_WIDTH, CANVAS_HEIGHT, {
-    x: Math.max(0, minX - padding),
-    y: Math.max(0, minY - padding),
-    zoom: Math.max(0.35, Math.min(zoom, 1.25)),
-  });
-}
-
-function focusViewportOnNode(node: PocNode, currentViewport: PocViewport): PocViewport {
-  const zoom = Math.max(currentViewport.zoom, 0.7);
-  const centeredX = Math.max(0, node.x + node.width / 2 - CANVAS_WIDTH / (2 * zoom));
-  const centeredY = Math.max(0, node.y + node.height / 2 - CANVAS_HEIGHT / (2 * zoom));
-
-  return createPocViewport(CANVAS_WIDTH, CANVAS_HEIGHT, {
-    x: centeredX,
-    y: centeredY,
-    zoom,
-  });
-}
-
 function getSelectedNodeDetails(node: PocNode | undefined, scenarioSize: number): WorkflowDetails {
   if (!node) {
     return {
@@ -296,7 +274,7 @@ export function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(1);
   const [metrics, setMetrics] = useState<PocMetrics | null>(null);
   const [ready, setReady] = useState(false);
-  const [mode, setMode] = useState<InteractionMode>("inspect");
+  const [mode, setMode] = useState<HyperFlowCanvasMode>("inspect");
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
   const selectedNodeDetails = getSelectedNodeDetails(mode === "inspect" ? selectedNode : undefined, scenarioSize);
@@ -306,7 +284,7 @@ export function App() {
     setScenarioSize(size);
     const nextNodes = getFixture(size);
     const nextScenario = getScenarioBySize(size);
-    setViewport(fitViewport(nextNodes));
+    setViewport(fitPocViewportToNodes(nextNodes, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }));
     setSelectedNodeId(nextScenario.defaultNodeId ?? nextNodes[0]?.id ?? null);
   }
 
@@ -317,7 +295,7 @@ export function App() {
     }));
   }
 
-  function setInteractionMode(nextMode: InteractionMode) {
+  function setInteractionMode(nextMode: HyperFlowCanvasMode) {
     setMode(nextMode);
     if (nextMode === "inspect" && selectedNodeId === null) {
       setSelectedNodeId(activeScenario.defaultNodeId ?? nodes[0]?.id ?? null);
@@ -327,7 +305,7 @@ export function App() {
   function focusSelectedNode() {
     if (!selectedNode) return;
     setMode("inspect");
-    setViewport(focusViewportOnNode(selectedNode, viewport));
+    setViewport(focusPocViewportOnNode(selectedNode, viewport, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }));
   }
 
   function jumpToNode(nodeId: number) {
@@ -335,7 +313,7 @@ export function App() {
     if (!nextNode) return;
     setMode("inspect");
     setSelectedNodeId(nodeId);
-    setViewport(focusViewportOnNode(nextNode, viewport));
+    setViewport(focusPocViewportOnNode(nextNode, viewport, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }));
   }
 
   return (
@@ -368,7 +346,7 @@ export function App() {
             <button type="button" className={mode === "inspect" ? "active" : ""} onClick={() => setInteractionMode("inspect")}>Inspect mode</button>
             <button type="button" className={mode === "read-only" ? "active" : ""} onClick={() => setInteractionMode("read-only")}>Read-only overview</button>
             <button type="button" onClick={focusSelectedNode} disabled={!selectedNode}>Focus selected</button>
-            <button type="button" onClick={() => setViewport(fitViewport(nodes))}>Fit view</button>
+            <button type="button" onClick={() => setViewport(fitPocViewportToNodes(nodes, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }))}>Fit view</button>
             <button type="button" onClick={() => zoomBy(0.85)}>Zoom out</button>
             <button type="button" onClick={() => zoomBy(1.15)}>Zoom in</button>
           </div>
@@ -396,7 +374,7 @@ export function App() {
             nodes={nodes}
             viewport={viewport}
             selectedNodeId={mode === "inspect" ? selectedNodeId : null}
-            interactive={mode === "inspect"}
+            mode={mode}
             onNodeSelect={setSelectedNodeId}
             onMetricsChange={setMetrics}
             onReadyChange={setReady}
