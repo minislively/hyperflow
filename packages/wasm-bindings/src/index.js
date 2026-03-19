@@ -4,11 +4,16 @@ function isNodeRuntime() {
   return typeof process !== 'undefined' && Boolean(process.versions?.node);
 }
 
+async function importNodeFsPromises() {
+  const dynamicImport = new Function('specifier', 'return import(specifier);');
+  return dynamicImport('node:fs/promises');
+}
+
 async function loadWasmBytes(source = {}) {
   const wasmPathOrUrl = source.wasmPath ?? source.wasmUrl ?? DEFAULT_WASM_URL;
 
   if (isNodeRuntime()) {
-    const fs = await import('node:fs/promises');
+    const fs = await importNodeFsPromises();
     const url = wasmPathOrUrl instanceof URL ? wasmPathOrUrl : new URL(wasmPathOrUrl, import.meta.url);
     return fs.readFile(url);
   }
