@@ -127,7 +127,14 @@ Then open:
 http://localhost:5173/
 ```
 
-The current React starter proves four things together:
+The current React starter now proves the product experience more directly:
+
+- select a workflow node
+- edit its inspector form
+- click `Apply`
+- watch the custom node UI and graph state update together
+
+Supporting proof that makes that possible:
 
 - starter-like `toolbar + canvas + inspector` composition
 - bounded starter states (`live / loading / empty / error`)
@@ -209,11 +216,11 @@ Current SDK precondition: call `loadFixture(nodes)` before rendering a frame.
 
 ## Near-term next step
 
-The next public-facing milestone is a **host-controlled usage-model uplift**:
+The current public-facing story should now be read in this order:
 
-- make `useWorkflowNodesState`-class ergonomics the first-class package story
-- keep the current custom-node starter proof honest and narrow
-- use that helper foundation to prepare the next automation-SaaS form-editing proof
+- first: automation-SaaS Apply-driven form editing proof
+- second: custom-node seam + host-state helper that make that proof possible
+- third: deeper package ergonomics and broader editing surface expansion
 
 ## Evaluator workflow
 
