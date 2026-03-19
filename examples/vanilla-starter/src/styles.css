@@ -154,9 +154,21 @@ body {
 
 .stage-shell {
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto 1fr;
   gap: 20px;
   padding: 28px;
+}
+
+.workspace-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 20px;
+}
+
+.stage-main {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 20px;
 }
 
 .stage-header {
@@ -218,6 +230,100 @@ body {
   gap: 16px;
 }
 
+.inspector-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.inspector-panel h3 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.inspector-subtitle,
+.inspector-description,
+.inspector-panel p,
+.workflow-outline__item span,
+.config-label {
+  color: #94a3b8;
+  line-height: 1.6;
+}
+
+.inspector-section {
+  display: grid;
+  gap: 10px;
+}
+
+.inspector-note {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.inspector-section h4,
+.config-group h5 {
+  margin: 0;
+}
+
+.workflow-outline,
+.config-groups {
+  display: grid;
+  gap: 10px;
+}
+
+.workflow-outline__item {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.84);
+  color: inherit;
+  cursor: pointer;
+}
+
+.workflow-outline__item.is-active {
+  border-color: rgba(96, 165, 250, 0.6);
+  background: rgba(30, 41, 59, 0.98);
+}
+
+.workflow-outline__item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.config-group {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.36);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.config-row {
+  display: grid;
+  gap: 4px;
+}
+
+.config-value {
+  color: #f8fafc;
+}
+
+#inspector-example {
+  margin: 0;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  white-space: pre-wrap;
+}
+
 .stage-caption {
   display: grid;
   gap: 8px;
@@ -253,6 +359,10 @@ canvas {
 
   .metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace-shell {
+    grid-template-columns: 1fr;
   }
 }
 

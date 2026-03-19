@@ -37,6 +37,148 @@ const SCENARIOS = [
   },
 ];
 
+const WORKFLOW_NODES = [
+  {
+    id: 1,
+    title: "Customer Ticket",
+    subtitle: "Input · Configured",
+    description: "Receives the incoming support request before any automation begins.",
+    why: "This keeps the flow grounded in a real customer problem instead of an abstract test graph.",
+    configGroups: [
+      {
+        title: "Source",
+        fields: [
+          { label: "Type", value: "Support form" },
+          { label: "Primary fields", value: "subject, message, customer_id" },
+        ],
+      },
+      {
+        title: "Example payload",
+        fields: [
+          { label: "Subject", value: "Refund request" },
+          { label: "Customer", value: "cus_2048" },
+        ],
+      },
+    ],
+    example: `{\n  "subject": "Refund request",\n  "message": "I was charged twice this month.",\n  "customer_id": "cus_2048"\n}`,
+  },
+  {
+    id: 2,
+    title: "Intent Classifier",
+    subtitle: "AI step · Configured",
+    description: "Classifies the incoming request so the workflow can choose the right route.",
+    why: "If this step is unclear, the evaluator cannot see how the workflow becomes operationally useful.",
+    configGroups: [
+      {
+        title: "Model",
+        fields: [
+          { label: "Model", value: "gpt-5.4-mini" },
+          { label: "Confidence threshold", value: "0.80" },
+        ],
+      },
+      {
+        title: "Labels",
+        fields: [
+          { label: "Enabled", value: "Billing, Technical, Account, General" },
+        ],
+      },
+    ],
+    example: "Intent: Billing\nConfidence: 0.93",
+  },
+  {
+    id: 3,
+    title: "Priority Router",
+    subtitle: "Logic step · Rules active",
+    description: "Routes the request based on urgency, intent, and account context.",
+    why: "This is where the workflow stops being generic AI and starts looking like an operational support system.",
+    configGroups: [
+      {
+        title: "Routing rules",
+        fields: [
+          { label: "Billing + urgent", value: "Escalate" },
+          { label: "Technical + enterprise", value: "Priority support" },
+          { label: "Fallback", value: "Standard queue" },
+        ],
+      },
+    ],
+    example: "Route selected: Billing queue",
+  },
+  {
+    id: 4,
+    title: "Knowledge Search",
+    subtitle: "Tool step · Search ready",
+    description: "Pulls relevant help-center context before a reply is drafted.",
+    why: "It shows that the workflow can use internal knowledge instead of generating unsupported answers.",
+    configGroups: [
+      {
+        title: "Search settings",
+        fields: [
+          { label: "Mode", value: "Hybrid search" },
+          { label: "Source", value: "Help center + policies" },
+        ],
+      },
+    ],
+    example: "Matched docs: refund-policy, duplicate-charge-faq",
+  },
+  {
+    id: 5,
+    title: "CRM Lookup",
+    subtitle: "Tool step · Customer context",
+    description: "Fetches plan and support-tier context for the current customer.",
+    why: "The same issue should feel different for priority customers versus standard accounts.",
+    configGroups: [
+      {
+        title: "Lookup",
+        fields: [
+          { label: "Source", value: "CRM" },
+          { label: "Key", value: "customer_id" },
+        ],
+      },
+      {
+        title: "Returned fields",
+        fields: [
+          { label: "Fields", value: "plan, status, support tier" },
+        ],
+      },
+    ],
+    example: "Plan: Pro\nSupport tier: Priority",
+  },
+  {
+    id: 6,
+    title: "Draft Response",
+    subtitle: "AI step · Draft ready",
+    description: "Generates an agent-ready support draft using the routed context and tool outputs.",
+    why: "This is where the evaluator sees the workflow create visible product value, not just move data around.",
+    configGroups: [
+      {
+        title: "Response settings",
+        fields: [
+          { label: "Tone", value: "Support-friendly" },
+          { label: "Output", value: "Draft reply + internal notes" },
+        ],
+      },
+    ],
+    example: "Draft ready: refund-policy-based response generated",
+  },
+  {
+    id: 7,
+    title: "Review Output",
+    subtitle: "Output step · Human review",
+    description: "Packages the draft and route decision for a final support-agent review.",
+    why: "It reassures evaluators that the flow supports human control instead of pretending everything is fully autonomous.",
+    configGroups: [
+      {
+        title: "Review policy",
+        fields: [
+          { label: "Approval required", value: "Yes" },
+          { label: "Escalation path", value: "Billing queue" },
+        ],
+      },
+    ],
+    example: "Ready for billing-team approval",
+  },
+];
+
 const canvas = document.querySelector("#poc-canvas");
 const context = canvas.getContext("2d");
 const scenarioListEl = document.querySelector("#scenario-list");
@@ -54,6 +196,13 @@ const metricScaleEl = document.querySelector("#metric-scale");
 const metricVisibleEl = document.querySelector("#metric-visible");
 const metricViewportEl = document.querySelector("#metric-viewport");
 const metricRenderEl = document.querySelector("#metric-render");
+const inspectorNodeTitleEl = document.querySelector("#inspector-node-title");
+const inspectorNodeSubtitleEl = document.querySelector("#inspector-node-subtitle");
+const inspectorNodeDescriptionEl = document.querySelector("#inspector-node-description");
+const inspectorNodeWhyEl = document.querySelector("#inspector-node-why");
+const inspectorConfigGroupsEl = document.querySelector("#inspector-config-groups");
+const inspectorExampleEl = document.querySelector("#inspector-example");
+const workflowOutlineEl = document.querySelector("#workflow-outline");
 const viewport = createPocViewport(canvas.width, canvas.height);
 
 const controls = {
@@ -93,6 +242,7 @@ let activeScenario = SCENARIOS[0];
 let currentFixture = getFixture(activeScenario.size);
 let completedSteps = new Set(["scenario"]);
 let currentStep = "summary";
+let selectedNodeId = WORKFLOW_NODES[0].id;
 
 function setFlowStep(stepId) {
   if (stepId === "navigate") {
@@ -155,6 +305,80 @@ function renderScenarioCards() {
   }
 }
 
+function getSelectedNode() {
+  return WORKFLOW_NODES.find((node) => node.id === selectedNodeId) ?? {
+    id: selectedNodeId,
+    title: `Supporting workflow step ${selectedNodeId}`,
+    subtitle: "Background step · Generic",
+    description: "This node is part of the wider graph density, but it is not one of the core product-story steps.",
+    why: "It helps demonstrate that the workflow remains readable even when not every visible node is a named hero step.",
+    configGroups: [
+      {
+        title: "Current role",
+        fields: [
+          { label: "Type", value: "Background workflow step" },
+          { label: "Purpose", value: "Adds realistic graph density around the main path" },
+        ],
+      },
+    ],
+    example: "No dedicated preview for this background step.",
+  };
+}
+
+function renderWorkflowOutline() {
+  workflowOutlineEl.innerHTML = "";
+
+  for (const node of WORKFLOW_NODES) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "workflow-outline__item";
+
+    if (node.id === selectedNodeId) {
+      button.classList.add("is-active");
+    }
+
+    button.innerHTML = `
+      <strong>${node.title}</strong>
+      <span>${node.subtitle}</span>
+    `;
+    button.addEventListener("click", () => {
+      selectedNodeId = node.id;
+      renderWorkflowOutline();
+      renderInspector();
+    });
+    workflowOutlineEl.appendChild(button);
+  }
+}
+
+function renderInspector() {
+  const node = getSelectedNode();
+  inspectorNodeTitleEl.textContent = node.title;
+  inspectorNodeSubtitleEl.textContent = node.subtitle;
+  inspectorNodeDescriptionEl.textContent = node.description;
+  inspectorNodeWhyEl.textContent = node.why;
+
+  inspectorConfigGroupsEl.innerHTML = "";
+  for (const group of node.configGroups) {
+    const section = document.createElement("section");
+    section.className = "config-group";
+    section.innerHTML = `<h5>${group.title}</h5>`;
+
+    for (const field of group.fields) {
+      const row = document.createElement("div");
+      row.className = "config-row";
+      row.innerHTML = `
+        <span class="config-label">${field.label}</span>
+        <strong class="config-value">${field.value}</strong>
+      `;
+      section.appendChild(row);
+    }
+
+    inspectorConfigGroupsEl.appendChild(section);
+  }
+
+  inspectorExampleEl.textContent = node.example;
+}
+
 function updateScenarioCopy() {
   scenarioTitleEl.textContent = activeScenario.label;
   scenarioSummaryEl.textContent = activeScenario.summary;
@@ -196,11 +420,14 @@ function applyScenario(scenarioId) {
   activeScenario = SCENARIOS.find((scenario) => scenario.id === scenarioId) ?? SCENARIOS[0];
   completedSteps = new Set(["scenario"]);
   currentStep = "summary";
+  selectedNodeId = WORKFLOW_NODES[0].id;
   hitResultEl.textContent = "Step 4: click any node to confirm hit detection.";
 
   updateScenarioCopy();
   renderScenarioCards();
   renderGuidedSteps();
+  renderWorkflowOutline();
+  renderInspector();
   resetViewport();
   loadCurrentFixture();
   renderFrame();
@@ -255,6 +482,11 @@ canvas.addEventListener("click", (event) => {
   hitResultEl.textContent = hit === null
     ? `No hit at (${worldPoint.x.toFixed(1)}, ${worldPoint.y.toFixed(1)})`
     : `Hit node ${hit} at (${worldPoint.x.toFixed(1)}, ${worldPoint.y.toFixed(1)})`;
+  if (hit !== null) {
+    selectedNodeId = hit;
+    renderWorkflowOutline();
+    renderInspector();
+  }
   setFlowStep("hit-test");
 });
 
@@ -263,6 +495,8 @@ try {
   updateScenarioCopy();
   renderScenarioCards();
   renderGuidedSteps();
+  renderWorkflowOutline();
+  renderInspector();
   resetViewport();
   loadCurrentFixture();
   renderFrame();

@@ -67,36 +67,68 @@
           </div>
         </header>
 
-        <section class="metrics-grid">
-          <article class="metric-card">
-            <span class="metric-label">Demo path</span>
-            <strong id="metric-scenario">—</strong>
-            <small id="metric-scale">Which story is active</small>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Nodes on screen</span>
-            <strong id="metric-visible">—</strong>
-            <small>Current viewport result</small>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Viewport response</span>
-            <strong id="metric-viewport">—</strong>
-            <small>Rust + WASM step</small>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">Canvas response</span>
-            <strong id="metric-render">—</strong>
-            <small>Canvas draw step</small>
-          </article>
-        </section>
+        <div class="workspace-shell">
+          <section class="stage-main">
+            <section class="metrics-grid">
+              <article class="metric-card">
+                <span class="metric-label">Demo path</span>
+                <strong id="metric-scenario">—</strong>
+                <small id="metric-scale">Which story is active</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Nodes on screen</span>
+                <strong id="metric-visible">—</strong>
+                <small>Current viewport result</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Viewport response</span>
+                <strong id="metric-viewport">—</strong>
+                <small>Rust + WASM step</small>
+              </article>
+              <article class="metric-card">
+                <span class="metric-label">Canvas response</span>
+                <strong id="metric-render">—</strong>
+                <small>Canvas draw step</small>
+              </article>
+            </section>
 
-        <section class="canvas-panel">
-          <div class="stage-caption">
-            <p id="stage-caption">Follow the steps on the left, then pan, zoom, or click a node to see the proof react in motion.</p>
-            <p id="hit-result">Step 4: click any node to confirm hit detection.</p>
-          </div>
-          <canvas id="poc-canvas" width="960" height="540"></canvas>
-        </section>
+            <section class="canvas-panel">
+              <div class="stage-caption">
+                <p id="stage-caption">Follow the steps on the left, then pan, zoom, or click a node to see the proof react in motion.</p>
+                <p id="hit-result">Step 4: click any node to confirm hit detection.</p>
+              </div>
+              <canvas id="poc-canvas" width="960" height="540"></canvas>
+            </section>
+          </section>
+
+          <aside class="inspector-panel">
+            <p class="eyebrow">Selected step</p>
+            <h3 id="inspector-node-title">Customer Ticket</h3>
+            <p id="inspector-node-subtitle" class="inspector-subtitle">Input · Configured</p>
+            <p id="inspector-node-description" class="inspector-description"></p>
+
+            <section class="inspector-section">
+              <h4>Workflow outline</h4>
+              <div id="workflow-outline" class="workflow-outline"></div>
+            </section>
+
+            <section class="inspector-section">
+              <h4>Why this step exists</h4>
+              <p id="inspector-node-why"></p>
+            </section>
+
+            <section class="inspector-section">
+              <h4>Current configuration</h4>
+              <p class="inspector-note">This panel reflects a realistic configuration surface. Some fields are preview-only in the current demo.</p>
+              <div id="inspector-config-groups" class="config-groups"></div>
+            </section>
+
+            <section class="inspector-section">
+              <h4>Example input / output</h4>
+              <pre id="inspector-example"></pre>
+            </section>
+          </aside>
+        </div>
       </section>
     </main>
 
