@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { FIXTURE_SIZES, getFixture } from "../../../benchmarks/fixtures.js";
 import {
   HyperFlowPocCanvas,
-  createPocViewport,
   fitPocViewportToNodes,
   focusPocViewportOnNode,
   type HyperFlowCanvasMode,
@@ -11,7 +10,6 @@ import {
   type PocViewport,
 } from "@hyperflow/react";
 
-import type { StarterWorkflowDetails } from "./starter-data";
 import { STARTER_SCENARIOS, WORKFLOW_DETAILS, WORKFLOW_SEQUENCE } from "./starter-data";
 import {
   getDefaultStarterViewport,
