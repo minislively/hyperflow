@@ -14,7 +14,9 @@
     "bench:poc": "pnpm run build:wasm:poc && node benchmarks/run-poc.mjs",
     "test:poc": "pnpm run build:wasm:poc && pnpm run test:poc:rust && pnpm run test:poc:js && node benchmarks/run-poc.mjs",
     "verify:poc": "pnpm run validate:workspace && pnpm run test:poc",
-    "serve:poc": "python3 -m http.server 4173"
+    "serve:poc": "python3 -m http.server 4173",
+    "dev:react-starter": "pnpm run build:wasm:poc && pnpm --filter @hyperflow/example-react-starter dev",
+    "build:react-starter": "pnpm run build:wasm:poc && pnpm --filter @hyperflow/example-react-starter build"
   },
   "type": "module"
 }

@@ -1,1 +1,1 @@
-export const bootstrapNote = "React starter example placeholder.";
+export { App } from "./App";

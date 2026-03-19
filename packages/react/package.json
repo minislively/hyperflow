@@ -2,7 +2,14 @@
   "name": "@hyperflow/react",
   "private": true,
   "version": "0.1.0",
-  "description": "React adapter placeholder for HyperFlow.",
+  "description": "Thin React adapter for the current HyperFlow PoC slice.",
   "type": "module",
-  "main": "src/index.ts"
+  "main": "src/index.ts",
+  "dependencies": {
+    "@hyperflow/sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
 }
