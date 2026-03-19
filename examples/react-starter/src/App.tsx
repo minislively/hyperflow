@@ -8,6 +8,11 @@ import {
   type PocMetrics,
   type PocViewport,
 } from "@hyperflow/react";
+import {
+  getStarterNodeRendererData,
+  getStarterNodeRendererKey,
+  starterNodeRenderers,
+} from "./custom-nodes";
 
 import {
   STARTER_SCENARIOS,
@@ -186,6 +191,9 @@ export function App() {
                 viewport={viewport}
                 selectedNodeId={mode === "inspect" ? selectedNodeId : null}
                 mode={mode}
+                nodeRenderers={starterNodeRenderers}
+                getNodeRendererKey={getStarterNodeRendererKey}
+                getNodeRendererData={getStarterNodeRendererData}
                 onNodeSelect={setSelectedNodeId}
                 onMetricsChange={setMetrics}
                 onReadyChange={setReady}

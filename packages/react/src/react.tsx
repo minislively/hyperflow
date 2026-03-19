@@ -1,6 +1,21 @@
-import { useEffect, useRef, useState } from "react";
-import { createPocEngine, type PocEngine, type PocMetrics, type PocNode, type PocViewport } from "@hyperflow/sdk";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPocEngine, type PocEngine, type PocMetrics, type PocNode, type PocViewport, type VisibleBox } from "@hyperflow/sdk";
 import { isInteractiveCanvasMode, type HyperFlowCanvasMode } from "./starter";
+
+export type HyperFlowPocNodeRendererProps<TData = unknown> = {
+  node: PocNode;
+  box: VisibleBox;
+  data: TData;
+  selected: boolean;
+  viewport: PocViewport;
+  screenX: number;
+  screenY: number;
+  screenWidth: number;
+  screenHeight: number;
+  onSelect: () => void;
+};
+
+export type HyperFlowPocNodeRenderers = Record<string, React.ComponentType<HyperFlowPocNodeRendererProps<any>>>;
 
 export type HyperFlowPocCanvasProps = {
   nodes: PocNode[];
@@ -11,6 +26,9 @@ export type HyperFlowPocCanvasProps = {
   className?: string;
   mode?: HyperFlowCanvasMode;
   interactive?: boolean;
+  nodeRenderers?: HyperFlowPocNodeRenderers;
+  getNodeRendererKey?: (node: PocNode) => string | null;
+  getNodeRendererData?: (node: PocNode) => unknown;
   onNodeSelect?: (nodeId: number | null) => void;
   onMetricsChange?: (metrics: PocMetrics) => void;
   onReadyChange?: (ready: boolean) => void;
@@ -25,6 +43,9 @@ export function HyperFlowPocCanvas({
   className,
   mode = "inspect",
   interactive,
+  nodeRenderers,
+  getNodeRendererKey,
+  getNodeRendererData,
   onNodeSelect,
   onMetricsChange,
   onReadyChange,
@@ -32,6 +53,7 @@ export function HyperFlowPocCanvas({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [engine, setEngine] = useState<PocEngine | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [visibleBoxes, setVisibleBoxes] = useState<VisibleBox[]>([]);
   const isInteractive = interactive ?? isInteractiveCanvasMode(mode);
 
   useEffect(() => {
@@ -88,8 +110,13 @@ export function HyperFlowPocCanvas({
       }
     }
 
+    setVisibleBoxes(boxes);
     onMetricsChange?.(metrics);
   }, [engine, height, nodes, onMetricsChange, selectedNodeId, viewport, width]);
+
+  function selectNode(nodeId: number | null) {
+    onNodeSelect?.(nodeId);
+  }
 
   function handleClick(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!isInteractive || !engine || !canvasRef.current) return;
@@ -102,8 +129,43 @@ export function HyperFlowPocCanvas({
       y: viewport.y + screenY / viewport.zoom,
     };
 
-    onNodeSelect?.(engine.hitTest(worldPoint));
+    selectNode(engine.hitTest(worldPoint));
   }
+
+  const renderedCustomNodes = useMemo(() => {
+    if (!nodeRenderers || !getNodeRendererKey) return [];
+
+    return visibleBoxes
+      .map((box) => {
+        const node = nodes.find((candidate) => Number(candidate.id) === Number(box.id));
+        if (!node) return null;
+        const rendererKey = getNodeRendererKey(node);
+        if (!rendererKey) return null;
+        const Renderer = nodeRenderers[rendererKey];
+        if (!Renderer) return null;
+
+        return {
+          box,
+          node,
+          Renderer,
+          data: getNodeRendererData?.(node),
+          screenX: (box.x - viewport.x) * viewport.zoom,
+          screenY: (box.y - viewport.y) * viewport.zoom,
+          screenWidth: box.width * viewport.zoom,
+          screenHeight: box.height * viewport.zoom,
+        };
+      })
+      .filter(Boolean) as Array<{
+      box: VisibleBox;
+      node: PocNode;
+      Renderer: React.ComponentType<HyperFlowPocNodeRendererProps<any>>;
+      data: unknown;
+      screenX: number;
+      screenY: number;
+      screenWidth: number;
+      screenHeight: number;
+    }>;
+  }, [getNodeRendererData, getNodeRendererKey, nodeRenderers, nodes, viewport.x, viewport.y, viewport.zoom, visibleBoxes]);
 
   return (
     <div className={className} data-interactive={isInteractive ? "true" : "false"}>
@@ -119,6 +181,43 @@ export function HyperFlowPocCanvas({
           cursor: isInteractive ? "crosshair" : "default",
         }}
       />
+
+      {renderedCustomNodes.length > 0 ? (
+        <div className="hf-node-overlay" aria-hidden={isInteractive ? undefined : true}>
+          {renderedCustomNodes.map(({ box, node, Renderer, data, screenX, screenY, screenWidth, screenHeight }) => (
+            <div
+              key={node.id}
+              className="hf-node-overlay-item"
+              style={{
+                left: `${screenX}px`,
+                top: `${screenY}px`,
+                width: `${screenWidth}px`,
+                height: `${screenHeight}px`,
+                pointerEvents: isInteractive ? "auto" : "none",
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (!isInteractive) return;
+                selectNode(node.id);
+              }}
+            >
+              <Renderer
+                node={node}
+                box={box}
+                data={data}
+                selected={Number(selectedNodeId) === Number(node.id)}
+                viewport={viewport}
+                screenX={screenX}
+                screenY={screenY}
+                screenWidth={screenWidth}
+                screenHeight={screenHeight}
+                onSelect={() => selectNode(node.id)}
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {error ? <div className="hf-canvas-error">{error}</div> : null}
     </div>
   );

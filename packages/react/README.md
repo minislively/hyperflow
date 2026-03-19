@@ -14,6 +14,8 @@ It exists to support a starter-like React product proof without pretending that 
 ## Public surface right now
 
 - `HyperFlowPocCanvas`
+- `HyperFlowPocNodeRendererProps`
+- `HyperFlowPocNodeRenderers`
 - `createPocViewport`
 - `fitPocViewportToNodes`
 - `focusPocViewportOnNode`
@@ -58,6 +60,24 @@ export function Example() {
 - `mode="read-only"` → the same canvas proof renders without selection interaction
 
 The old `interactive` boolean still works, but `mode` is the clearer starter-facing API.
+
+### Custom node seam
+
+`HyperFlowPocCanvas` also supports a thin starter-oriented custom node seam:
+
+```tsx
+<HyperFlowPocCanvas
+  nodes={nodes}
+  viewport={viewport}
+  nodeRenderers={{
+    "customer-ticket": CustomerTicketNode,
+    "draft-response": DraftResponseNode,
+  }}
+  getNodeRendererKey={(node) => node.id === 1 ? "customer-ticket" : node.id === 6 ? "draft-response" : null}
+/>
+```
+
+This is intentionally narrow: enough to prove host-side customizability, not a full stable node registry API.
 
 ## Not promised yet
 

@@ -10,6 +10,7 @@ It is intentionally bounded to prove one thing well:
 
 - HyperFlow can show a product-facing React surface, not only docs plus a vanilla PoC
 - the current validated SDK/canvas slice can power a React starter shell
+- package-level `nodeRenderers` registration can inject custom node UI into the starter surface
 - click-based inspector updates can stay tied to real current-slice proof signals
 - a bounded **read-only overview mode** can coexist with inspect mode without implying full editing
 - **guided jump** and **focus selected** affordances can make the starter shell feel more product-like without introducing palette flow
