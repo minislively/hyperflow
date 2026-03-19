@@ -9,6 +9,7 @@ type Scenario = {
   summary: string;
   proof: string;
   why: string;
+  defaultNodeId: number;
 };
 
 type WorkflowDetails = {
@@ -33,6 +34,7 @@ const STARTER_SCENARIOS: Scenario[] = [
     summary: "Use the smallest fixture to understand the React starter shell before you inspect scale.",
     proof: "Shows that the same current slice can power a React toolbar/canvas/inspector surface without pretending the full Starter Kit already exists.",
     why: "Best for quickly validating that the new product proof reads like a workflow builder, not only a renderer demo.",
+    defaultNodeId: 1,
   },
   {
     id: 300,
@@ -41,6 +43,7 @@ const STARTER_SCENARIOS: Scenario[] = [
     summary: "Move to a denser fixture and confirm the starter shell still feels readable.",
     proof: "Demonstrates that the thin React surface keeps the same product story while the graph grows.",
     why: "Useful for checking whether the shell still feels product-like beyond the smallest case.",
+    defaultNodeId: 3,
   },
   {
     id: 1000,
@@ -49,6 +52,7 @@ const STARTER_SCENARIOS: Scenario[] = [
     summary: "Inspect the largest current fixture to understand the outer limit of this bounded proof slice.",
     proof: "Shows the React starter shell under the heaviest shared demo fixture without widening scope into full editor features.",
     why: "Best for judging how honest and useful the thin slice still feels at the edge of the current proof.",
+    defaultNodeId: 6,
   },
 ];
 
@@ -202,6 +206,8 @@ const WORKFLOW_DETAILS = new Map<number, WorkflowDetails>([
   ],
 ]);
 
+const WORKFLOW_SEQUENCE = Array.from(WORKFLOW_DETAILS.keys());
+
 function getDefaultViewport() {
   return createPocViewport(CANVAS_WIDTH, CANVAS_HEIGHT, { x: 0, y: 0, zoom: 1 });
 }
@@ -221,6 +227,18 @@ function fitViewport(nodes: PocNode[]): PocViewport {
     x: Math.max(0, minX - padding),
     y: Math.max(0, minY - padding),
     zoom: Math.max(0.35, Math.min(zoom, 1.25)),
+  });
+}
+
+function focusViewportOnNode(node: PocNode, currentViewport: PocViewport): PocViewport {
+  const zoom = Math.max(currentViewport.zoom, 0.7);
+  const centeredX = Math.max(0, node.x + node.width / 2 - CANVAS_WIDTH / (2 * zoom));
+  const centeredY = Math.max(0, node.y + node.height / 2 - CANVAS_HEIGHT / (2 * zoom));
+
+  return createPocViewport(CANVAS_WIDTH, CANVAS_HEIGHT, {
+    x: centeredX,
+    y: centeredY,
+    zoom,
   });
 }
 
@@ -287,8 +305,9 @@ export function App() {
   function handleScenarioChange(size: number) {
     setScenarioSize(size);
     const nextNodes = getFixture(size);
+    const nextScenario = getScenarioBySize(size);
     setViewport(fitViewport(nextNodes));
-    setSelectedNodeId(nextNodes[0]?.id ?? null);
+    setSelectedNodeId(nextScenario.defaultNodeId ?? nextNodes[0]?.id ?? null);
   }
 
   function zoomBy(multiplier: number) {
@@ -301,8 +320,22 @@ export function App() {
   function setInteractionMode(nextMode: InteractionMode) {
     setMode(nextMode);
     if (nextMode === "inspect" && selectedNodeId === null) {
-      setSelectedNodeId(nodes[0]?.id ?? null);
+      setSelectedNodeId(activeScenario.defaultNodeId ?? nodes[0]?.id ?? null);
     }
+  }
+
+  function focusSelectedNode() {
+    if (!selectedNode) return;
+    setMode("inspect");
+    setViewport(focusViewportOnNode(selectedNode, viewport));
+  }
+
+  function jumpToNode(nodeId: number) {
+    const nextNode = nodes.find((node) => node.id === nodeId);
+    if (!nextNode) return;
+    setMode("inspect");
+    setSelectedNodeId(nodeId);
+    setViewport(focusViewportOnNode(nextNode, viewport));
   }
 
   return (
@@ -334,6 +367,7 @@ export function App() {
           <div className="toolbar-group compact">
             <button type="button" className={mode === "inspect" ? "active" : ""} onClick={() => setInteractionMode("inspect")}>Inspect mode</button>
             <button type="button" className={mode === "read-only" ? "active" : ""} onClick={() => setInteractionMode("read-only")}>Read-only overview</button>
+            <button type="button" onClick={focusSelectedNode} disabled={!selectedNode}>Focus selected</button>
             <button type="button" onClick={() => setViewport(fitViewport(nodes))}>Fit view</button>
             <button type="button" onClick={() => zoomBy(0.85)}>Zoom out</button>
             <button type="button" onClick={() => zoomBy(1.15)}>Zoom in</button>
@@ -352,6 +386,7 @@ export function App() {
               <span>{ready ? "Engine ready" : "Loading engine"}</span>
               <span>{scenarioSize} nodes</span>
               <span>{mode === "inspect" ? "Interactive inspect" : "Read-only view"}</span>
+              {selectedNode ? <span>Selected: {selectedNodeDetails.title}</span> : null}
               {metrics ? <span>{metrics.visibleCount} visible</span> : null}
             </div>
           </div>
@@ -371,7 +406,7 @@ export function App() {
 
           <p className="canvas-caption">
             {mode === "inspect"
-              ? "Click any visible node to drive the inspector with real hit-test selection."
+              ? "Click any visible node or use the quick jump buttons to drive the inspector and focus the viewport."
               : "Read-only overview keeps the shell product-like without pretending full editing exists yet."}
           </p>
 
@@ -403,6 +438,33 @@ export function App() {
             </div>
             <span className="status-chip">{mode === "inspect" ? selectedNodeDetails.status : "Read-only scenario overview"}</span>
           </div>
+
+          <section className="quick-jump-card">
+            <div className="quick-jump-header">
+              <div>
+                <p className="panel-eyebrow">Guided jump</p>
+                <h3>Focus key workflow steps</h3>
+              </div>
+              <button type="button" onClick={() => jumpToNode(activeScenario.defaultNodeId)}>Jump to scenario focus</button>
+            </div>
+            <div className="quick-jump-list">
+              {WORKFLOW_SEQUENCE.map((nodeId) => {
+                const details = WORKFLOW_DETAILS.get(nodeId)!;
+                const isActive = mode === "inspect" && selectedNodeId === nodeId;
+                return (
+                  <button
+                    key={nodeId}
+                    type="button"
+                    className={isActive ? "active" : ""}
+                    onClick={() => jumpToNode(nodeId)}
+                  >
+                    <strong>{details.title}</strong>
+                    <span>{details.status}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
           {mode === "read-only" ? (
             <>

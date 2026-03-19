@@ -12,6 +12,7 @@ It is intentionally bounded to prove one thing well:
 - the current validated SDK/canvas slice can power a React starter shell
 - click-based inspector updates can stay tied to real current-slice proof signals
 - a bounded **read-only overview mode** can coexist with inspect mode without implying full editing
+- **guided jump** and **focus selected** affordances can make the starter shell feel more product-like without introducing palette flow
 
 ## What it does not claim yet
 
