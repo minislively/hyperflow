@@ -11,280 +11,36 @@ import {
   type PocViewport,
 } from "@hyperflow/react";
 
-type Scenario = {
-  id: number;
-  label: string;
-  subtitle: string;
-  summary: string;
-  proof: string;
-  why: string;
-  defaultNodeId: number;
-};
-
-type WorkflowDetails = {
-  title: string;
-  status: string;
-  summary: string;
-  description: string;
-  why: string;
-  configGroups: { title: string; fields: { label: string; value: string }[] }[];
-  example: string;
-};
-
-
-const CANVAS_WIDTH = 960;
-const CANVAS_HEIGHT = 540;
-const STARTER_SCENARIOS: Scenario[] = [
-  {
-    id: 100,
-    label: "Fast first proof",
-    subtitle: "Starter-like small graph",
-    summary: "Use the smallest fixture to understand the React starter shell before you inspect scale.",
-    proof: "Shows that the same current slice can power a React toolbar/canvas/inspector surface without pretending the full Starter Kit already exists.",
-    why: "Best for quickly validating that the new product proof reads like a workflow builder, not only a renderer demo.",
-    defaultNodeId: 1,
-  },
-  {
-    id: 300,
-    label: "Mid graph check",
-    subtitle: "Bigger proof with same shell",
-    summary: "Move to a denser fixture and confirm the starter shell still feels readable.",
-    proof: "Demonstrates that the thin React surface keeps the same product story while the graph grows.",
-    why: "Useful for checking whether the shell still feels product-like beyond the smallest case.",
-    defaultNodeId: 3,
-  },
-  {
-    id: 1000,
-    label: "Dense graph tour",
-    subtitle: "Stress the current slice",
-    summary: "Inspect the largest current fixture to understand the outer limit of this bounded proof slice.",
-    proof: "Shows the React starter shell under the heaviest shared demo fixture without widening scope into full editor features.",
-    why: "Best for judging how honest and useful the thin slice still feels at the edge of the current proof.",
-    defaultNodeId: 6,
-  },
-];
-
-const WORKFLOW_DETAILS = new Map<number, WorkflowDetails>([
-  [
-    1,
-    {
-      title: "Customer Ticket",
-      status: "Input · Ready",
-      summary: "Starting node for incoming support work.",
-      description: "Receives the incoming support request before any automation begins.",
-      why: "Keeps the workflow grounded in a concrete customer problem instead of an abstract graph.",
-      configGroups: [
-        {
-          title: "Source",
-          fields: [
-            { label: "Type", value: "Support form" },
-            { label: "Primary fields", value: "subject, message, customer_id" },
-          ],
-        },
-        {
-          title: "Example payload",
-          fields: [
-            { label: "Subject", value: "Refund request" },
-            { label: "Customer", value: "cus_2048" },
-          ],
-        },
-      ],
-      example: `{"subject": "Refund request", "customer_id": "cus_2048"}`,
-    },
-  ],
-  [
-    2,
-    {
-      title: "Intent Classifier",
-      status: "AI step · Configured",
-      summary: "Classifies request intent before routing.",
-      description: "Maps the incoming request into a bounded label set so the workflow can choose the next route.",
-      why: "Shows that the starter proof is tied to an operational workflow step instead of generic AI branding.",
-      configGroups: [
-        {
-          title: "Model",
-          fields: [
-            { label: "Model", value: "gpt-5.4-mini" },
-            { label: "Confidence threshold", value: "0.80" },
-          ],
-        },
-      ],
-      example: "Intent: Billing · Confidence: 0.93",
-    },
-  ],
-  [
-    3,
-    {
-      title: "Priority Router",
-      status: "Logic step · Active",
-      summary: "Maps urgency and account tier to a route.",
-      description: "Routes work using simple product rules instead of exposing raw graph mechanics.",
-      why: "This is where the product proof starts to look like a real operations workflow.",
-      configGroups: [
-        {
-          title: "Routing rules",
-          fields: [
-            { label: "Billing + urgent", value: "Escalate" },
-            { label: "Fallback", value: "Standard queue" },
-          ],
-        },
-      ],
-      example: "Route selected: Billing queue",
-    },
-  ],
-  [
-    4,
-    {
-      title: "Knowledge Search",
-      status: "Tool step · Search ready",
-      summary: "Adds help-center context before drafting.",
-      description: "Pulls relevant internal knowledge before any reply is drafted.",
-      why: "Shows that the inspector is grounded in product logic, not only box coordinates.",
-      configGroups: [
-        {
-          title: "Search settings",
-          fields: [
-            { label: "Mode", value: "Hybrid search" },
-            { label: "Source", value: "Help center + policies" },
-          ],
-        },
-      ],
-      example: "Matched docs: refund-policy, duplicate-charge-faq",
-    },
-  ],
-  [
-    5,
-    {
-      title: "CRM Lookup",
-      status: "Tool step · Context ready",
-      summary: "Fetches plan and support tier context.",
-      description: "Loads customer context that changes how the request should be handled.",
-      why: "Makes the workflow feel product-specific rather than a generic canvas toy.",
-      configGroups: [
-        {
-          title: "Lookup",
-          fields: [
-            { label: "Source", value: "CRM" },
-            { label: "Key", value: "customer_id" },
-          ],
-        },
-      ],
-      example: "Plan: Pro · Support tier: Priority",
-    },
-  ],
-  [
-    6,
-    {
-      title: "Draft Response",
-      status: "AI step · Draft ready",
-      summary: "Generates an agent-ready reply draft.",
-      description: "Packages the routed context into a visible product outcome.",
-      why: "This is the clearest value-creation step in the current bounded proof.",
-      configGroups: [
-        {
-          title: "Response settings",
-          fields: [
-            { label: "Tone", value: "Support-friendly" },
-            { label: "Output", value: "Draft reply + internal notes" },
-          ],
-        },
-      ],
-      example: "Draft ready: refund-policy-based response generated",
-    },
-  ],
-  [
-    7,
-    {
-      title: "Review Output",
-      status: "Output · Human review",
-      summary: "Packages the result for approval.",
-      description: "Shows the workflow ending in a human-controlled review step.",
-      why: "Keeps the proof honest about bounded autonomy and operational control.",
-      configGroups: [
-        {
-          title: "Review policy",
-          fields: [
-            { label: "Approval required", value: "Yes" },
-            { label: "Escalation path", value: "Billing queue" },
-          ],
-        },
-      ],
-      example: "Ready for billing-team approval",
-    },
-  ],
-]);
-
-const WORKFLOW_SEQUENCE = Array.from(WORKFLOW_DETAILS.keys());
-
-function getDefaultViewport() {
-  return createPocViewport(CANVAS_WIDTH, CANVAS_HEIGHT, { x: 0, y: 0, zoom: 1 });
-}
-
-function getSelectedNodeDetails(node: PocNode | undefined, scenarioSize: number): WorkflowDetails {
-  if (!node) {
-    return {
-      title: "No node selected",
-      status: "Read-only starter proof",
-      summary: "Switch to Inspect mode and click a node on the canvas to inspect the current validated slice.",
-      description: "The bounded React starter now supports a real read-only overview mode alongside click-based node inspection.",
-      why: "This keeps the surface product-like without pretending full editing exists yet.",
-      configGroups: [
-        {
-          title: "Current scope",
-          fields: [
-            { label: "Fixture size", value: String(scenarioSize) },
-            { label: "Mode", value: "Read-only overview" },
-          ],
-        },
-      ],
-      example: "Select Inspect mode to bind the inspector to a real node.",
-    };
-  }
-
-  const details = WORKFLOW_DETAILS.get(node.id);
-  if (details) return details;
-
-  return {
-    title: `Workflow Step ${node.id}`,
-    status: "Generated proof node",
-    summary: `Grid-backed PoC node rendered through the current HyperFlow slice at (${Math.round(node.x)}, ${Math.round(node.y)}).`,
-    description: "This node comes from the shared grid fixture and proves that the React starter shell is bound to the real current slice.",
-    why: "Useful for confirming that the inspector remains tied to actual rendered nodes even outside the named workflow steps.",
-    configGroups: [
-      {
-        title: "Fixture details",
-        fields: [
-          { label: "Width × height", value: `${Math.round(node.width)} × ${Math.round(node.height)}` },
-          { label: "Scenario size", value: String(scenarioSize) },
-        ],
-      },
-    ],
-    example: `Node ${node.id} @ (${Math.round(node.x)}, ${Math.round(node.y)})`,
-  };
-}
-
-function getScenarioBySize(size: number) {
-  return STARTER_SCENARIOS.find((scenario) => scenario.id === size) ?? STARTER_SCENARIOS[0];
-}
+import type { StarterWorkflowDetails } from "./starter-data";
+import { STARTER_SCENARIOS, WORKFLOW_DETAILS, WORKFLOW_SEQUENCE } from "./starter-data";
+import {
+  getDefaultStarterViewport,
+  getNodeFocusViewportOptions,
+  getSelectedNode,
+  getSelectedNodeDetails,
+  getStarterScenarioBySize,
+  getStarterViewportOptions,
+  starterCanvasSize,
+} from "./starter-helpers";
 
 export function App() {
   const [scenarioSize, setScenarioSize] = useState(FIXTURE_SIZES[0]);
   const nodes = useMemo(() => getFixture(scenarioSize), [scenarioSize]);
-  const [viewport, setViewport] = useState<PocViewport>(() => getDefaultViewport());
+  const [viewport, setViewport] = useState<PocViewport>(() => getDefaultStarterViewport());
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(1);
   const [metrics, setMetrics] = useState<PocMetrics | null>(null);
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<HyperFlowCanvasMode>("inspect");
 
-  const selectedNode = nodes.find((node) => node.id === selectedNodeId);
+  const selectedNode = getSelectedNode(nodes, selectedNodeId);
   const selectedNodeDetails = getSelectedNodeDetails(mode === "inspect" ? selectedNode : undefined, scenarioSize);
-  const activeScenario = getScenarioBySize(scenarioSize);
+  const activeScenario = getStarterScenarioBySize(scenarioSize);
 
   function handleScenarioChange(size: number) {
     setScenarioSize(size);
     const nextNodes = getFixture(size);
-    const nextScenario = getScenarioBySize(size);
-    setViewport(fitPocViewportToNodes(nextNodes, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }));
+    const nextScenario = getStarterScenarioBySize(size);
+    setViewport(fitPocViewportToNodes(nextNodes, getStarterViewportOptions()));
     setSelectedNodeId(nextScenario.defaultNodeId ?? nextNodes[0]?.id ?? null);
   }
 
@@ -305,7 +61,7 @@ export function App() {
   function focusSelectedNode() {
     if (!selectedNode) return;
     setMode("inspect");
-    setViewport(focusPocViewportOnNode(selectedNode, viewport, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }));
+    setViewport(focusPocViewportOnNode(selectedNode, viewport, getNodeFocusViewportOptions(viewport)));
   }
 
   function jumpToNode(nodeId: number) {
@@ -313,7 +69,7 @@ export function App() {
     if (!nextNode) return;
     setMode("inspect");
     setSelectedNodeId(nodeId);
-    setViewport(focusPocViewportOnNode(nextNode, viewport, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }));
+    setViewport(focusPocViewportOnNode(nextNode, viewport, getNodeFocusViewportOptions(viewport)));
   }
 
   return (
@@ -346,7 +102,7 @@ export function App() {
             <button type="button" className={mode === "inspect" ? "active" : ""} onClick={() => setInteractionMode("inspect")}>Inspect mode</button>
             <button type="button" className={mode === "read-only" ? "active" : ""} onClick={() => setInteractionMode("read-only")}>Read-only overview</button>
             <button type="button" onClick={focusSelectedNode} disabled={!selectedNode}>Focus selected</button>
-            <button type="button" onClick={() => setViewport(fitPocViewportToNodes(nodes, { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }))}>Fit view</button>
+            <button type="button" onClick={() => setViewport(fitPocViewportToNodes(nodes, getStarterViewportOptions()))}>Fit view</button>
             <button type="button" onClick={() => zoomBy(0.85)}>Zoom out</button>
             <button type="button" onClick={() => zoomBy(1.15)}>Zoom in</button>
           </div>
@@ -378,8 +134,8 @@ export function App() {
             onNodeSelect={setSelectedNodeId}
             onMetricsChange={setMetrics}
             onReadyChange={setReady}
-            width={CANVAS_WIDTH}
-            height={CANVAS_HEIGHT}
+            width={starterCanvasSize.width}
+            height={starterCanvasSize.height}
           />
 
           <p className="canvas-caption">
