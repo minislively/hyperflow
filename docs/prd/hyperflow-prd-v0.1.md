@@ -1,297 +1,280 @@
 # PRD
 
-## 프로젝트명(가칭): HyperFlow
+## 프로젝트명: HyperFlow
 
-**부제:** Rust + WASM 기반 고성능 워크플로우 / 에이전트 빌더 오픈소스 UI 엔진
-
+**부제:** 고성능 워크플로우 빌더 SDK  
 **문서 버전:** v0.1  
-**상태:** Draft  
-**작성 목적:** xyflow 계열의 사용성을 유지하면서, 대규모 노드/엣지 환경에서 더 높은 성능과 더 낮은 렌더링 부담을 제공하는 오픈소스 제품의 요구사항 정의
+**상태:** Draft
+
+**작성 목적:** HyperFlow를 “렌더링 엔진”이 아니라 **워크플로우 제품을 빠르게 만들고, 규모가 커져도 성능 저하 없이 운영할 수 있게 해주는 Workflow Builder SDK**로 정의하기 위한 제품 요구사항 문서.
 
 ---
 
-## 1. 제품 개요
+## 1. 제품 한 줄 정의
 
-HyperFlow는 웹 애플리케이션에 임베드 가능한 **고성능 워크플로우 빌더 / 에이전트 빌더용 오픈소스 UI 엔진**이다.  
-핵심 목표는 기존 DOM 중심 노드 에디터가 겪는 렌더링 병목, pan/zoom 성능 저하, minimap 부하, 복잡한 메모리 관리 문제를 줄이면서도, 개발자가 익숙한 **TypeScript/JavaScript 기반 개발 경험**을 유지하는 것이다.
+**복잡한 워크플로우도 버벅이지 않게 만들 수 있는 production-ready workflow builder SDK**
 
-이 제품은 모든 UI를 Rust로 재작성하는 방식이 아니라, 다음과 같은 **하이브리드 구조**를 채택한다.
+보조 설명:
 
-- 그래프 코어, 히트테스트, 컬링, 레이아웃, 렌더링 draw pipeline은 **Rust + WASM**
-- 그래프 plane 렌더링은 **Canvas/OffscreenCanvas 기반**
-- 노드 내부 편집 UI, 패널, 폼, 툴바, 테마, 앱 통합은 **HTML/CSS/TypeScript**
-- React/Vue/Svelte/Vanilla JS용 래퍼를 제공하여 **메인 기능**으로도, **서브 기능 삽입형**으로도 사용할 수 있게 한다
+- React 같은 기존 앱에 붙이기 쉬운 워크플로우 빌더 SDK
+- 커스텀 노드/패널/검증 흐름을 제품에 맞게 확장할 수 있는 기반
+- 큰 그래프에서도 상호작용 품질을 지키기 위한 고성능 아키텍처를 내장한 제품
 
 ---
 
 ## 2. 문제 정의
 
-1. 노드 수와 엣지 수가 늘어날수록 DOM 렌더링 비용이 빠르게 증가한다.
-2. pan/zoom, drag, selection, minimap, edge re-routing이 겹치면 프레임 드랍이 발생한다.
-3. 커스텀 노드가 많아질수록 리렌더 제어가 어려워지고 메모리 누수 추적 비용이 커진다.
-4. 일부 서비스는 워크플로우 빌더가 핵심 기능이지만, 많은 서비스는 이를 “설정 화면의 일부”로 삽입하려 하기 때문에 프레임워크 종속성이 낮아야 한다.
-5. 기존 라이브러리는 사용성은 좋지만, 100~1000 노드 규모에서 구조적 한계가 드러나는 경우가 있다.
+많은 팀은 노드 기반 제품을 만들 때 다음 흐름을 겪는다.
 
-즉 시장에는 “개발자 경험이 좋은 라이브러리”는 있지만, “대규모 그래프를 장시간 안정적으로 다루는 고성능 임베더블 UI 엔진”은 여전히 부족하다.
+1. 범용 라이브러리로 빠르게 프로토타입한다.
+2. 노드 수, 엣지 수, 커스텀 UI, 검증 규칙, 패널 복잡도가 커진다.
+3. 렌더링 병목과 구조적 한계가 드러난다.
+4. 결국 캔버스, 인터랙션, 가상화, 성능 최적화를 직접 떠안게 된다.
 
----
+이때 팀이 실제로 원하는 것은 “빠른 엔진” 자체가 아니다.
 
-## 3. 제품 비전
+원하는 것은 아래에 가깝다.
 
-**“웹 애플리케이션 어디에나 삽입할 수 있는, 빠르고 안정적이며 확장 가능한 오픈소스 그래프 기반 워크플로우 UI 엔진을 만든다.”**
+- 서비스에 넣을 수 있는 워크플로우 빌더
+- 커스터마이즈가 쉬운 SDK
+- 규모가 커져도 느려지지 않는 편집 경험
+- 출시 시간을 줄여주는 Starter Kit 방향
 
-원칙:
+즉 HyperFlow가 해결하려는 문제는:
 
-- **성능 우선**
-- **하이브리드 우선**
-- **임베드 우선**
-- **프레임워크 중립 우선**
-- **오픈소스 친화성**
+**“프로덕션에 견디는 워크플로우 빌더를 빠르게 만들 수 있는 기반이 부족하다”** 이다.
 
 ---
 
-## 4. 목표와 비목표
+## 3. 제품 가설
 
-### 목표
+### 핵심 가설
 
-- 100~1000 노드 규모에서 실사용 가능한 워크플로우 빌더 제공
-- pan/zoom/drag/select 성능을 기존 DOM 중심 구조보다 유의미하게 개선
-- Rust+WASM 코어와 TS SDK를 결합한 공개 API 제공
-- React, Vue, Svelte, Vanilla JS 환경에서 사용 가능
-- CSS 전역 오염 없이 기존 서비스에 쉽게 삽입 가능
-- 커스텀 노드와 커스텀 엣지, 툴바, 패널 확장 가능
-- minimap, selection, grouping, undo/redo, viewport control 등 실사용 필수 기능 제공
-- 오픈소스 사용자 입장에서 “바로 설치해서 붙여볼 수 있는 수준”의 문서/예제 제공
+노드 기반 제품을 만드는 팀은 “멋진 렌더링 엔진”보다 **실제로 붙여서 바로 제품을 만들 수 있는 workflow builder SDK**를 더 높은 가치로 인식한다.
 
-### 비목표
+### 보조 가설
 
-- 서버 오케스트레이션 엔진 자체 제공
-- 워크플로우 실행기(runtime) 제공
-- 실시간 협업(CRDT/멀티유저 동시 편집)
-- 완전한 React Flow API 1:1 호환
-- 고급 AI agent runtime, MCP orchestration, tracing backend 포함
+- 성능은 메인 카피보다 **도입 정당화 요소**로 작동한다.
+- 메인 메시지는 “무엇을 만들 수 있는가”여야 한다.
+- Rust/WASM/Canvas는 headline이 아니라 **왜 가능한지 설명하는 기술 근거**다.
+- 초기 고객은 최종 사용자가 아니라 **제품팀 / 프론트엔드팀**이다.
 
 ---
 
-## 5. 타겟 사용자
+## 4. 타겟 사용자
 
-- SaaS 제품 안에 워크플로우 빌더를 넣고 싶은 프론트엔드 팀
-- 에이전트 빌더, 자동화 빌더, 데이터 파이프라인 UI를 만드는 스타트업
-- 기존 DOM 기반 노드 에디터 성능 한계에 부딪힌 개발팀
+### 1차 타겟
 
----
+- 자동화 SaaS 팀
+- AI/에이전트 오케스트레이션 UI 팀
+- 데이터 파이프라인 / ETL UI 팀
+- 내부 운영툴 / 승인 프로세스 툴 팀
+- 마케팅 플로우 / 규칙 엔진 / 여정 빌더 팀
 
-## 6. 제품 범위
+### 핵심 사용자 역할
 
-HyperFlow는 아래 네 개 층으로 구성된다.
-
-1. **Core Engine** — Rust + WASM 그래프 엔진
-2. **Renderer** — Canvas2D 또는 이후 WebGL 기반 렌더링 레이어
-3. **DOM Overlay UI** — TS/HTML/CSS 기반 패널/폼/툴바
-4. **SDK / Framework Wrappers** — vanilla, React, Vue, Svelte 진입점
-
----
-
-## 7. 제품 요구사항
-
-### 기능 요구사항 요약
-
-- 그래프 캔버스
-- 노드 / 엣지 / 포트 관리
-- viewport 제어
-- 선택 기능
-- LOD
-- minimap
-- undo/redo
-- JSON 직렬화
-- 커스텀 노드
-- 이벤트 시스템
-- 플러그인/확장성
-- 스타일링
-- 접근성
-
-### 비기능 요구사항 요약
-
-- 300~1000 노드 범위 성능 목표
-- 메모리 안정성
-- 임베드성
-- 프레임워크 독립성
-- 타입 안정성
-- 최신 브라우저 호환성
-- ESM 우선 번들 전략
+- **Product Engineer**: 화면을 빠르게 붙이고 커스터마이즈 가능한 SDK가 필요함
+- **Frontend Lead**: 노드 수 증가 시 렉과 구조적 복잡도 폭증을 피하고 싶음
+- **CTO / Founding Engineer**: 캔버스 엔진까지 직접 만들고 싶지 않음
+- **Product Manager**: 편집기 품질이 제품 경쟁력에 직접 영향을 줌
 
 ---
 
-## 8. 제안 아키텍처
+## 5. 제품 원칙
 
-- **Rust Core**: 그래프 자료구조, 히트테스트, 컬링, selection, edge path, minimap data, LOD 판단, 명령 로그
-- **WASM Bridge**: 핸들/버퍼/배치 명령 중심 API
-- **Renderer Worker**: OffscreenCanvas 가능 시 워커에서 draw 수행
-- **DOM Overlay Layer**: 인스펙터, 패널, 메뉴, 툴바
-- **Framework Adapters**: React/Vue/Svelte/Vanilla 래퍼
+1. **Product-first, engine-second**  
+   겉으로는 SDK/Starter Kit, 안쪽에서 엔진이 작동한다.
 
-핵심 결정:
+2. **Production-ready by default**  
+   데모용 캔버스가 아니라 실제 서비스에 넣을 수 있는 방향을 우선한다.
 
-1. Canvas 우선, DOM 전체 렌더링 지양
-2. v1 렌더러는 Canvas2D + Worker 중심
-3. DOM overlay 분리
-4. visible-only + LOD 기본값
-5. 프레임워크 중립 API 우선
+3. **Integrate, don’t dictate**  
+   호스트 앱의 인증, 데이터 모델, 패널, 디자인 시스템과 자연스럽게 통합되어야 한다.
 
----
+4. **Performance at scale**  
+   작은 데모에서만 빠른 것이 아니라 복잡도가 커질수록 가치가 커져야 한다.
 
-## 9. 공개 API 요구사항
-
-### Vanilla API
-
-```ts
-const app = createHyperFlow({
-  container: HTMLElement,
-  graph,
-  theme,
-  plugins,
-});
-
-app.setGraph(graph);
-app.getGraph();
-app.fitView();
-app.centerNode(nodeId);
-app.destroy();
-```
-
-### React API
-
-```tsx
-<HyperFlowProvider>
-  <HyperFlowCanvas
-    nodes={nodes}
-    edges={edges}
-    nodeTypes={nodeTypes}
-    onSelectionChange={...}
-  />
-  <HyperFlowInspector />
-</HyperFlowProvider>
-```
-
-원칙:
-
-- 선언형 + 명령형 API 동시 제공
-- import-safe / SSR-safe
-- stable serialization format
-- 경량 이벤트 payload
-- TS generics 지원
+5. **Honest maturity**  
+   현재 검증된 범위와 미래 방향을 명확히 구분한다.
 
 ---
 
-## 10. 패키지 구조 제안
+## 6. 제품 구조
 
-- `packages/core-rs`
-- `packages/wasm-bindings`
-- `packages/sdk`
-- `packages/renderer-canvas`
-- `packages/react`
-- `packages/vue`
-- `packages/svelte`
-- `packages/vanilla`
-- `packages/theme-default`
-- `packages/devtools` : 추후
-- `examples/*`
-- `docs/*`
+HyperFlow는 두 개의 제품 레이어와 하나의 기반 아키텍처로 이해한다.
 
----
+### A. Core SDK
 
-## 11. 출시 범위
+개발자가 React/TS 앱 안에서 워크플로우 에디터를 만들 수 있게 하는 핵심 레이어
 
-### v1 / MVP
+포함 방향:
 
-- 노드/엣지 렌더링
-- pan/zoom
-- selection
-- connect/disconnect
-- minimap
-- undo/redo
-- JSON serialize/deserialize
-- React wrapper
-- Vanilla wrapper
-- 기본 툴바/Inspector 예제
-- 커스텀 노드 API
-- 문서/튜토리얼/벤치 예제
+- 노드/엣지 데이터 모델
+- 캔버스 렌더링과 기본 상호작용
+- 상태 변경 훅 및 이벤트 시스템
+- 커스텀 노드/패널 통합 지점
+- 성능 최적화 레이어
 
-### v1.1
+### B. Starter Kit / Starter Surface
 
-- Vue/Svelte wrapper 안정화
-- 그룹 노드
-- 키보드 단축키
-- minimap 개선
-- edge routing 옵션 추가
+도입 속도를 높이기 위한 예제/가이드/기본 UI 뼈대
 
-### v2
+포함 방향:
 
-- WebGL2 또는 GPU 가속 렌더러
-- 클러스터/서브플로우 접기
-- 협업 준비용 command/event log 정교화
-- incremental layout
+- 기본 레이아웃 예시
+- palette / inspector / toolbar 같은 표면 예제
+- persistence / theming / custom node 예시
+- docs + examples
+
+### C. Enabling Architecture
+
+제품 약속을 가능하게 하는 내부 기술 기반
+
+- Rust + WASM 기반 코어 계산
+- Canvas 중심 렌더링 경로
+- DOM overlay 기반 제품 UI 통합
+
+외부 메시지 우선순위는 **SDK → Starter Kit → enabling architecture** 순서다.
 
 ---
 
-## 12. 리스크와 대응
+## 7. 현재 repo 기준으로 검증된 범위
 
-- WASM 브리지 비용 증가 → batched command / buffer 중심 인터페이스
-- 모든 것을 WASM으로 밀어 넣어 DX 저하 → UI 셸은 TS 유지
-- OffscreenCanvas 제약 → main-thread Canvas fallback
-- 무거운 커스텀 노드 → DOM overlay, LOD, lazy mount, complexity guide
-- API 호환 기대 혼선 → “유사 문제 영역의 대안”으로 포지셔닝
-- 초기 문서 부족 → docs-first 전략, 최소 5개 예제
+현재 저장소는 전체 제품을 구현한 상태가 아니라, 아래 **narrow validated slice**를 증명하는 단계다.
 
----
+검증됨:
 
-## 13. 오픈소스 전략
+- viewport math
+- visible culling
+- hit testing
+- thin WASM bridge
+- visible-box canvas rendering
+- guided vanilla demo surface
+- small PoC용 안정화 SDK contract
 
-- 라이선스: **MIT 또는 MIT/Apache-2.0 dual license** 검토
-- Core 성능 벤치와 예제 공개
-- `embed-first` 포지셔닝 강조
-- React만 잘 되는 프로젝트가 아니라는 점 강조
-- 설치 편의성, API 안정성, 예제 품질 우선
+아직 제품 완성으로 약속하지 않는 것:
 
----
-
-## 14. 구현 우선순위
-
-### Phase 0. 기술 검증
-- Rust core로 viewport, culling, hit test 구현
-- Canvas renderer PoC
-- 100/300/1000 노드 벤치 제작
-- bridge cost 측정
-
-### Phase 1. Core MVP
-- graph model
-- selection
-- viewport
-- edges
-- serialize/deserialize
-- undo/redo
-
-### Phase 2. Renderer MVP
-- Canvas renderer
-- worker/offscreen 경로
-- minimap
-- LOD
-
-### Phase 3. SDK/Wrapper
-- vanilla
-- react
-- typed events
-- custom node system
-
-### Phase 4. DX/OSS
-- docs
-- examples
-- performance guide
-- theming guide
-- contribution guide
+- 광범위한 wrapper maturity
+- 풍부한 editor/runtime authoring API
+- 완성형 Starter Kit UI
+- 협업 / 버전 히스토리
+- 전체 패키지 수준의 넓은 public API stabilization
 
 ---
 
-## 15. 한 줄 결론
+## 8. MVP 방향
 
-**“xyflow처럼 쓰기 좋되, 내부는 Rust+WASM + Canvas + DOM overlay 하이브리드 구조로 재설계된 고성능 임베더블 워크플로우 엔진”**
+이번 단계에서 HyperFlow가 외부에 약속해야 하는 MVP는 “완성형 플랫폼”이 아니라 다음과 같다.
+
+### 필수 약속
+
+- HyperFlow는 workflow builder SDK다.
+- 현재는 좁은 PoC contract가 검증된 상태다.
+- 제품 표면은 Starter Kit 방향으로 확장 중이다.
+- 큰 그래프와 복잡한 상호작용을 염두에 둔 아키텍처를 택하고 있다.
+
+### 방향성 약속
+
+- 제품 통합 친화적 API
+- 커스텀 노드/패널 중심 확장성
+- React-friendly integration
+- examples/docs 기반 빠른 평가 경로
+
+### 이번 단계에서 명시적으로 제외
+
+- 실시간 협업
+- 버전 히스토리 UI
+- 워크플로우 실행 엔진 자체
+- 전체 패키지 수준의 broad stable API freeze
+
+---
+
+## 9. 포지셔닝
+
+### 메인 포지션
+
+**고성능 워크플로우 빌더 SDK**
+
+### 보조 포지션
+
+**빠른 도입을 위한 Starter Kit 방향을 가진 SDK**
+
+### 피해야 할 포지션
+
+- 차세대 렌더링 엔진
+- Rust/WASM 그래프 엔진
+- Canvas 기반 시각화 기술
+
+기술적으로 맞더라도 제품 도입 관점에서는 한 단계 추상적이다.
+
+---
+
+## 10. React Flow 비교 원칙
+
+React Flow 비교는 허용하지만 **secondary bridge**로만 사용한다.
+
+올바른 순서:
+
+1. HyperFlow는 workflow builder SDK다.
+2. 대규모 그래프/커스텀 제품화에 강한 방향을 가진다.
+3. 그래서 React Flow–style 도구를 검토하던 팀에게도 대안이 될 수 있다.
+
+잘못된 순서:
+
+1. React Flow 대체재
+2. 더 빠름
+3. 그래서 HyperFlow
+
+---
+
+## 11. 비목표
+
+초기 단계에서 아래는 핵심 목표가 아니다.
+
+- 범용 다이어그램 툴
+- 화이트보드형 자유 캔버스
+- 워크플로우 실행기(runtime)
+- 백엔드 오케스트레이션 플랫폼
+- 실시간 협업 편집
+- 버전 히스토리 UI
+- 완전한 노코드 플랫폼
+- 모든 프레임워크 wrapper의 동시 성숙화
+
+---
+
+## 12. 성공 기준
+
+### Product clarity
+
+- README 첫 화면만 보고도 workflow builder SDK라는 점이 이해된다.
+- PRD와 architecture docs가 서로 다른 제품 정체성을 말하지 않는다.
+- SDK vs Starter Kit vs enabling architecture 구분이 명확하다.
+
+### Evaluation readiness
+
+- 현재 repo가 무엇을 이미 검증했고, 무엇이 아직 방향성인지 구분된다.
+- example/demo를 통해 제품 방향을 이해할 수 있다.
+- 성능 메시지가 headline이 아니라 trust signal로 동작한다.
+
+### Scope honesty
+
+- placeholder surface가 실제 완성도 이상을 암시하지 않는다.
+- collaboration/history가 이번 MVP 범위가 아님이 명확하다.
+- React Flow 비교가 메인 카테고리를 잠식하지 않는다.
+
+---
+
+## 13. 메시지 가드레일
+
+- Primary category: **workflow builder SDK**
+- Secondary support: **Starter Kit direction**
+- Technical proof: **Rust + WASM + Canvas**
+- Comparison bridge: **React Flow–style alternatives**
+
+항상 “무엇을 만들 수 있는가”를 먼저 말하고, “왜 빠른가”는 뒤에 둔다.
+
+---
+
+## 14. 한 줄 결론
+
+**HyperFlow는 렌더링 기술을 파는 제품이 아니라, 성능 문제 없이 워크플로우 제품을 만들고 출시하게 해주는 Workflow Builder SDK다.**
