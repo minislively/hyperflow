@@ -1,11 +1,51 @@
+import type { PocNode } from "@hyperflow/react";
+
 export type StarterScenario = {
-  id: number;
+  id: string;
   label: string;
   subtitle: string;
   summary: string;
   proof: string;
   why: string;
   defaultNodeId: number;
+};
+
+export type TicketNodeData = {
+  title: string;
+  status: string;
+  sourceLabel: string;
+  summary: string;
+  form: {
+    title: string;
+    status: string;
+    sourceLabel: string;
+  };
+};
+
+export type DraftResponseNodeData = {
+  title: string;
+  status: string;
+  tone: string;
+  outputSummary: string;
+  summary: string;
+  form: {
+    title: string;
+    tone: string;
+    outputSummary: string;
+  };
+};
+
+export type GenericNodeData = {
+  title: string;
+  status: string;
+  summary: string;
+};
+
+export type WorkflowNodeData = TicketNodeData | DraftResponseNodeData | GenericNodeData;
+
+export type WorkflowNode = PocNode & {
+  type: string;
+  data: WorkflowNodeData;
 };
 
 export type StarterWorkflowDetails = {
@@ -87,31 +127,120 @@ export const STARTER_SURFACE_GUIDANCE: Record<Exclude<StarterSurfaceState, "live
 
 export const STARTER_SCENARIOS: StarterScenario[] = [
   {
-    id: 100,
-    label: "Fast first proof",
-    subtitle: "Starter-like small graph",
-    summary: "Use the smallest fixture to understand the React starter shell before you inspect scale.",
-    proof: "Shows that the same current slice can power a React toolbar/canvas/inspector surface without pretending the full Starter Kit already exists.",
-    why: "Best for quickly validating that the new product proof reads like a workflow builder, not only a renderer demo.",
+    id: "automation-support",
+    label: "Automation SaaS",
+    subtitle: "Support workflow template",
+    summary: "A customer support automation flow where structured inputs and AI-generated outputs are configured through forms.",
+    proof: "Demonstrates that selecting a workflow node opens an editable inspector and that Apply updates the node UI and graph state together.",
+    why: "Best for showing how the SDK becomes a real workflow builder instead of a generic canvas demo.",
     defaultNodeId: 1,
   },
+];
+
+export const INITIAL_WORKFLOW_NODES: WorkflowNode[] = [
   {
-    id: 300,
-    label: "Mid graph check",
-    subtitle: "Bigger proof with same shell",
-    summary: "Move to a denser fixture and confirm the starter shell still feels readable.",
-    proof: "Demonstrates that the thin React surface keeps the same product story while the graph grows.",
-    why: "Useful for checking whether the shell still feels product-like beyond the smallest case.",
-    defaultNodeId: 3,
+    id: 1,
+    type: "customer-ticket",
+    x: 40,
+    y: 80,
+    width: 180,
+    height: 92,
+    data: {
+      title: "Customer Ticket",
+      status: "Input · Ready",
+      sourceLabel: "Support form",
+      summary: "Structured request enters the automation workflow.",
+      form: {
+        title: "Customer Ticket",
+        status: "Input · Ready",
+        sourceLabel: "Support form",
+      },
+    },
   },
   {
-    id: 1000,
-    label: "Dense graph tour",
-    subtitle: "Stress the current slice",
-    summary: "Inspect the largest current fixture to understand the outer limit of this bounded proof slice.",
-    proof: "Shows the React starter shell under the heaviest shared demo fixture without widening scope into full editor features.",
-    why: "Best for judging how honest and useful the thin slice still feels at the edge of the current proof.",
-    defaultNodeId: 6,
+    id: 2,
+    type: "intent-classifier",
+    x: 280,
+    y: 80,
+    width: 140,
+    height: 72,
+    data: {
+      title: "Intent Classifier",
+      status: "AI step · Configured",
+      summary: "Classifies the request before routing.",
+    },
+  },
+  {
+    id: 3,
+    type: "priority-router",
+    x: 480,
+    y: 80,
+    width: 140,
+    height: 72,
+    data: {
+      title: "Priority Router",
+      status: "Logic step · Active",
+      summary: "Routes urgency and account tier.",
+    },
+  },
+  {
+    id: 4,
+    type: "knowledge-search",
+    x: 280,
+    y: 220,
+    width: 140,
+    height: 72,
+    data: {
+      title: "Knowledge Search",
+      status: "Tool step · Search ready",
+      summary: "Pulls internal context before drafting.",
+    },
+  },
+  {
+    id: 5,
+    type: "crm-lookup",
+    x: 480,
+    y: 220,
+    width: 140,
+    height: 72,
+    data: {
+      title: "CRM Lookup",
+      status: "Tool step · Context ready",
+      summary: "Loads customer plan and tier.",
+    },
+  },
+  {
+    id: 6,
+    type: "draft-response",
+    x: 700,
+    y: 80,
+    width: 200,
+    height: 96,
+    data: {
+      title: "Draft Response",
+      status: "AI step · Draft ready",
+      tone: "Support-friendly",
+      outputSummary: "Draft reply + internal notes",
+      summary: "Agent-ready response is generated after routing and context lookup.",
+      form: {
+        title: "Draft Response",
+        tone: "Support-friendly",
+        outputSummary: "Draft reply + internal notes",
+      },
+    },
+  },
+  {
+    id: 7,
+    type: "review-output",
+    x: 700,
+    y: 220,
+    width: 140,
+    height: 72,
+    data: {
+      title: "Review Output",
+      status: "Output · Human review",
+      summary: "Packages the draft for approval.",
+    },
   },
 ];
 
@@ -121,106 +250,20 @@ export const WORKFLOW_DETAILS = new Map<number, StarterWorkflowDetails>([
     {
       title: "Customer Ticket",
       status: "Input · Ready",
-      summary: "Starting node for incoming support work.",
-      description: "Receives the incoming support request before any automation begins.",
-      why: "Keeps the workflow grounded in a concrete customer problem instead of an abstract graph.",
+      summary: "Structured support request enters the flow.",
+      description: "Receives the incoming ticket before any automation begins.",
+      why: "This node is a strong first editing target because product teams often customize intake labels and statuses.",
       configGroups: [
         {
-          title: "Source",
+          title: "Editable fields",
           fields: [
-            { label: "Type", value: "Support form" },
-            { label: "Primary fields", value: "subject, message, customer_id" },
-          ],
-        },
-        {
-          title: "Example payload",
-          fields: [
-            { label: "Subject", value: "Refund request" },
-            { label: "Customer", value: "cus_2048" },
+            { label: "Title", value: "Customer Ticket" },
+            { label: "Status", value: "Input · Ready" },
+            { label: "Source", value: "Support form" },
           ],
         },
       ],
-      example: `{"subject": "Refund request", "customer_id": "cus_2048"}`,
-    },
-  ],
-  [
-    2,
-    {
-      title: "Intent Classifier",
-      status: "AI step · Configured",
-      summary: "Classifies request intent before routing.",
-      description: "Maps the incoming request into a bounded label set so the workflow can choose the next route.",
-      why: "Shows that the starter proof is tied to an operational workflow step instead of generic AI branding.",
-      configGroups: [
-        {
-          title: "Model",
-          fields: [
-            { label: "Model", value: "gpt-5.4-mini" },
-            { label: "Confidence threshold", value: "0.80" },
-          ],
-        },
-      ],
-      example: "Intent: Billing · Confidence: 0.93",
-    },
-  ],
-  [
-    3,
-    {
-      title: "Priority Router",
-      status: "Logic step · Active",
-      summary: "Maps urgency and account tier to a route.",
-      description: "Routes work using simple product rules instead of exposing raw graph mechanics.",
-      why: "This is where the product proof starts to look like a real operations workflow.",
-      configGroups: [
-        {
-          title: "Routing rules",
-          fields: [
-            { label: "Billing + urgent", value: "Escalate" },
-            { label: "Fallback", value: "Standard queue" },
-          ],
-        },
-      ],
-      example: "Route selected: Billing queue",
-    },
-  ],
-  [
-    4,
-    {
-      title: "Knowledge Search",
-      status: "Tool step · Search ready",
-      summary: "Adds help-center context before drafting.",
-      description: "Pulls relevant internal knowledge before any reply is drafted.",
-      why: "Shows that the inspector is grounded in product logic, not only box coordinates.",
-      configGroups: [
-        {
-          title: "Search settings",
-          fields: [
-            { label: "Mode", value: "Hybrid search" },
-            { label: "Source", value: "Help center + policies" },
-          ],
-        },
-      ],
-      example: "Matched docs: refund-policy, duplicate-charge-faq",
-    },
-  ],
-  [
-    5,
-    {
-      title: "CRM Lookup",
-      status: "Tool step · Context ready",
-      summary: "Fetches plan and support tier context.",
-      description: "Loads customer context that changes how the request should be handled.",
-      why: "Makes the workflow feel product-specific rather than a generic canvas toy.",
-      configGroups: [
-        {
-          title: "Lookup",
-          fields: [
-            { label: "Source", value: "CRM" },
-            { label: "Key", value: "customer_id" },
-          ],
-        },
-      ],
-      example: "Plan: Pro · Support tier: Priority",
+      example: "Apply updates should change title, status, and source label on the node card.",
     },
   ],
   [
@@ -228,41 +271,22 @@ export const WORKFLOW_DETAILS = new Map<number, StarterWorkflowDetails>([
     {
       title: "Draft Response",
       status: "AI step · Draft ready",
-      summary: "Generates an agent-ready reply draft.",
-      description: "Packages the routed context into a visible product outcome.",
-      why: "This is the clearest value-creation step in the current bounded proof.",
+      summary: "Agent-ready response is prepared with automation context.",
+      description: "Generates the draft output that the team wants to review before sending.",
+      why: "This node is a strong second editing target because tone and output summary clearly show before/after differences.",
       configGroups: [
         {
-          title: "Response settings",
+          title: "Editable fields",
           fields: [
+            { label: "Title", value: "Draft Response" },
             { label: "Tone", value: "Support-friendly" },
             { label: "Output", value: "Draft reply + internal notes" },
           ],
         },
       ],
-      example: "Draft ready: refund-policy-based response generated",
-    },
-  ],
-  [
-    7,
-    {
-      title: "Review Output",
-      status: "Output · Human review",
-      summary: "Packages the result for approval.",
-      description: "Shows the workflow ending in a human-controlled review step.",
-      why: "Keeps the proof honest about bounded autonomy and operational control.",
-      configGroups: [
-        {
-          title: "Review policy",
-          fields: [
-            { label: "Approval required", value: "Yes" },
-            { label: "Escalation path", value: "Billing queue" },
-          ],
-        },
-      ],
-      example: "Ready for billing-team approval",
+      example: "Apply updates should change the node title, tone label, and output summary block.",
     },
   ],
 ]);
 
-export const WORKFLOW_SEQUENCE = Array.from(WORKFLOW_DETAILS.keys());
+export const WORKFLOW_SEQUENCE = INITIAL_WORKFLOW_NODES.map((node) => node.id);

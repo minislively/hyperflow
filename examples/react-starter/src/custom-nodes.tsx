@@ -1,11 +1,5 @@
-import type { HyperFlowPocNodeRenderers, HyperFlowPocNodeRendererProps, PocNode } from "@hyperflow/react";
-
-type StarterNodeData = {
-  title: string;
-  status: string;
-  summary: string;
-  badge?: string;
-};
+import type { HyperFlowPocNodeRenderers, HyperFlowPocNodeRendererProps, WorkflowNode } from "@hyperflow/react";
+import type { DraftResponseNodeData, TicketNodeData } from "./starter-data";
 
 function BaseNode({
   title,
@@ -13,9 +7,17 @@ function BaseNode({
   summary,
   badge,
   selected,
-}: StarterNodeData & { selected: boolean }) {
+  accent,
+}: {
+  title: string;
+  status: string;
+  summary: string;
+  badge?: string;
+  selected: boolean;
+  accent: string;
+}) {
   return (
-    <div className={`starter-custom-node${selected ? " is-selected" : ""}`}>
+    <div className={`starter-custom-node${selected ? " is-selected" : ""}`} style={{ borderColor: accent }}>
       <div className="starter-custom-node__header">
         <span className="starter-custom-node__title">{title}</span>
         {badge ? <span className="starter-custom-node__badge">{badge}</span> : null}
@@ -26,12 +28,30 @@ function BaseNode({
   );
 }
 
-function CustomerTicketNode({ data, selected }: HyperFlowPocNodeRendererProps<StarterNodeData>) {
-  return <BaseNode {...data} selected={selected} badge="Input" />;
+function CustomerTicketNode({ data, selected }: HyperFlowPocNodeRendererProps<TicketNodeData>) {
+  return (
+    <BaseNode
+      title={data.title}
+      status={`${data.status} · ${data.sourceLabel}`}
+      summary={data.summary}
+      selected={selected}
+      badge="Input"
+      accent="rgba(34, 197, 94, 0.5)"
+    />
+  );
 }
 
-function DraftResponseNode({ data, selected }: HyperFlowPocNodeRendererProps<StarterNodeData>) {
-  return <BaseNode {...data} selected={selected} badge="AI" />;
+function DraftResponseNode({ data, selected }: HyperFlowPocNodeRendererProps<DraftResponseNodeData>) {
+  return (
+    <BaseNode
+      title={data.title}
+      status={`${data.status} · ${data.tone}`}
+      summary={data.outputSummary}
+      selected={selected}
+      badge="AI"
+      accent="rgba(99, 102, 241, 0.5)"
+    />
+  );
 }
 
 export const starterNodeRenderers: HyperFlowPocNodeRenderers = {
@@ -39,28 +59,12 @@ export const starterNodeRenderers: HyperFlowPocNodeRenderers = {
   "draft-response": DraftResponseNode,
 };
 
-export function getStarterNodeRendererKey(node: PocNode) {
-  if (node.id === 1) return "customer-ticket";
-  if (node.id === 6) return "draft-response";
+export function getStarterNodeRendererKey(node: WorkflowNode) {
+  if (node.type === "customer-ticket") return "customer-ticket";
+  if (node.type === "draft-response") return "draft-response";
   return null;
 }
 
-export function getStarterNodeRendererData(node: PocNode): StarterNodeData | undefined {
-  if (node.id === 1) {
-    return {
-      title: "Customer Ticket",
-      status: "Input · Ready",
-      summary: "Structured support request enters the workflow with real product context.",
-    };
-  }
-
-  if (node.id === 6) {
-    return {
-      title: "Draft Response",
-      status: "AI step · Draft ready",
-      summary: "Agent-ready response is generated with supporting context and notes.",
-    };
-  }
-
-  return undefined;
+export function getStarterNodeRendererData(node: WorkflowNode) {
+  return node.data;
 }

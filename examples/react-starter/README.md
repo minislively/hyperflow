@@ -4,14 +4,14 @@
 
 It is intentionally bounded to prove one thing well:
 
-- a React-rendered `toolbar + canvas + inspector` surface can be built on the current validated HyperFlow slice
+- an automation SaaS workflow can support `select -> edit form -> Apply -> node update` on top of the current validated HyperFlow slice
 
 ## What it proves
 
 - HyperFlow can show a product-facing React surface, not only docs plus a vanilla PoC
 - the current validated SDK/canvas slice can power a React starter shell
 - package-level `nodeRenderers` registration can inject custom node UI into the starter surface
-- click-based inspector updates can stay tied to real current-slice proof signals
+- Apply-driven form editing can update those nodes through package-owned state seams
 - a bounded **read-only overview mode** can coexist with inspect mode without implying full editing
 - **guided jump** and **focus selected** affordances can make the starter shell feel more product-like without introducing palette flow
 - **live / loading / empty / error** states can be demonstrated without widening into full application logic

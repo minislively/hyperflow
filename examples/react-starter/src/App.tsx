@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import { FIXTURE_SIZES, getFixture } from "../../../benchmarks/fixtures.js";
+import { useEffect, useState } from "react";
 import {
   HyperFlowPocCanvas,
   fitPocViewportToNodes,
@@ -15,14 +14,15 @@ import {
   getStarterNodeRendererKey,
   starterNodeRenderers,
 } from "./custom-nodes";
-
 import {
+  INITIAL_WORKFLOW_NODES,
   STARTER_SCENARIOS,
   STARTER_SURFACE_GUIDANCE,
   STARTER_SURFACE_STATES,
-  WORKFLOW_DETAILS,
-  WORKFLOW_SEQUENCE,
+  type DraftResponseNodeData,
   type StarterSurfaceState,
+  type TicketNodeData,
+  type WorkflowNode,
 } from "./starter-data";
 import {
   getDefaultStarterViewport,
@@ -34,30 +34,79 @@ import {
   starterCanvasSize,
 } from "./starter-helpers";
 
+type TicketFormDraft = {
+  title: string;
+  status: string;
+  sourceLabel: string;
+};
+
+type DraftResponseFormDraft = {
+  title: string;
+  tone: string;
+  outputSummary: string;
+};
+
+type FormDraft =
+  | { kind: "customer-ticket"; values: TicketFormDraft }
+  | { kind: "draft-response"; values: DraftResponseFormDraft }
+  | null;
+
+function createDraft(node: WorkflowNode | undefined): FormDraft {
+  if (!node) return null;
+  if (node.type === "customer-ticket") {
+    const data = node.data as TicketNodeData;
+    return {
+      kind: "customer-ticket",
+      values: {
+        title: data.form.title,
+        status: data.form.status,
+        sourceLabel: data.form.sourceLabel,
+      },
+    };
+  }
+
+  if (node.type === "draft-response") {
+    const data = node.data as DraftResponseNodeData;
+    return {
+      kind: "draft-response",
+      values: {
+        title: data.form.title,
+        tone: data.form.tone,
+        outputSummary: data.form.outputSummary,
+      },
+    };
+  }
+
+  return null;
+}
+
 export function App() {
-  const [scenarioSize, setScenarioSize] = useState(FIXTURE_SIZES[0]);
-  const [nodes, setNodes, onNodesChange] = useWorkflowNodesState(getFixture(FIXTURE_SIZES[0]));
+  const activeScenario = STARTER_SCENARIOS[0];
+  const [nodes, setNodes, onNodesChange] = useWorkflowNodesState<WorkflowNode>(INITIAL_WORKFLOW_NODES);
   const [viewport, setViewport] = useState<PocViewport>(() => getDefaultStarterViewport());
-  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(1);
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(activeScenario.defaultNodeId);
   const [metrics, setMetrics] = useState<PocMetrics | null>(null);
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<HyperFlowCanvasMode>("inspect");
   const [surfaceState, setSurfaceState] = useState<StarterSurfaceState>("live");
+  const [draft, setDraft] = useState<FormDraft>(() => createDraft(INITIAL_WORKFLOW_NODES.find((node) => node.id === activeScenario.defaultNodeId)));
 
   const selectedNode = getSelectedNode(nodes, selectedNodeId);
-  const selectedNodeDetails = getSelectedNodeDetails(mode === "inspect" && surfaceState === "live" ? selectedNode : undefined, scenarioSize);
-  const activeScenario = getStarterScenarioBySize(scenarioSize);
+  const selectedNodeDetails = getSelectedNodeDetails(mode === "inspect" && surfaceState === "live" ? selectedNode : undefined, 0);
   const activeSurfaceState = STARTER_SURFACE_STATES.find((state) => state.id === surfaceState)!;
   const activeSurfaceGuidance = surfaceState === "live" ? null : STARTER_SURFACE_GUIDANCE[surfaceState];
   const isLiveSurface = surfaceState === "live";
 
-  function handleScenarioChange(size: number) {
-    setScenarioSize(size);
-    const nextNodes = getFixture(size);
-    const nextScenario = getStarterScenarioBySize(size);
-    onNodesChange(nextNodes);
-    setViewport(fitPocViewportToNodes(nextNodes, getStarterViewportOptions()));
-    setSelectedNodeId(nextScenario.defaultNodeId ?? nextNodes[0]?.id ?? null);
+  useEffect(() => {
+    if (!isLiveSurface || mode !== "inspect") return;
+    setDraft(createDraft(selectedNode));
+  }, [isLiveSurface, mode, selectedNode]);
+
+  function resetWorkflowTemplate() {
+    onNodesChange(INITIAL_WORKFLOW_NODES);
+    setViewport(fitPocViewportToNodes(INITIAL_WORKFLOW_NODES, getStarterViewportOptions()));
+    setSelectedNodeId(activeScenario.defaultNodeId);
+    setDraft(createDraft(INITIAL_WORKFLOW_NODES.find((node) => node.id === activeScenario.defaultNodeId)));
   }
 
   function zoomBy(multiplier: number) {
@@ -71,7 +120,7 @@ export function App() {
   function setInteractionMode(nextMode: HyperFlowCanvasMode) {
     setMode(nextMode);
     if (nextMode === "inspect" && selectedNodeId === null) {
-      setSelectedNodeId(activeScenario.defaultNodeId ?? nodes[0]?.id ?? null);
+      setSelectedNodeId(activeScenario.defaultNodeId);
     }
   }
 
@@ -88,33 +137,25 @@ export function App() {
     setMode("inspect");
     setSelectedNodeId(nodeId);
     setViewport(focusPocViewportOnNode(nextNode, viewport, getNodeFocusViewportOptions(viewport)));
+    setDraft(createDraft(nextNode));
   }
 
   function restoreLiveSurface(nextMode: HyperFlowCanvasMode) {
     setSurfaceState("live");
     setMode(nextMode);
     setViewport(fitPocViewportToNodes(nodes, getStarterViewportOptions()));
-    setSelectedNodeId(activeScenario.defaultNodeId ?? nodes[0]?.id ?? null);
-  }
-
-  function previewNodeUpdate(nodeId: number) {
-    updateNodeData(setNodes, nodeId, (node) => ({
-      width: Math.min(node.width + 28, 180),
-      height: Math.min(node.height + 12, 120),
-    }));
-  }
-
-  function resetNodePreview(nodeId: number) {
-    updateNodeData(setNodes, nodeId, { width: 96, height: 56 });
+    setSelectedNodeId(activeScenario.defaultNodeId);
   }
 
   function handleSurfaceAction(actionId: string) {
     if (actionId === "load-starter-workflow") {
+      resetWorkflowTemplate();
       restoreLiveSurface("inspect");
       return;
     }
 
     if (actionId === "open-starter-template") {
+      resetWorkflowTemplate();
       restoreLiveSurface("read-only");
       return;
     }
@@ -129,40 +170,73 @@ export function App() {
     }
   }
 
+  function applyDraft() {
+    if (!selectedNode || !draft) return;
+
+    if (draft.kind === "customer-ticket") {
+      updateNodeData(setNodes, selectedNode.id, (node) => {
+        const current = node as WorkflowNode;
+        const currentData = current.data as TicketNodeData;
+        return {
+          data: {
+            ...currentData,
+            title: draft.values.title,
+            status: draft.values.status,
+            sourceLabel: draft.values.sourceLabel,
+            summary: `${draft.values.sourceLabel} requests enter the automation workflow through ${draft.values.status.toLowerCase()}.`,
+            form: { ...draft.values },
+          },
+        };
+      });
+      return;
+    }
+
+    if (draft.kind === "draft-response") {
+      updateNodeData(setNodes, selectedNode.id, (node) => {
+        const current = node as WorkflowNode;
+        const currentData = current.data as DraftResponseNodeData;
+        return {
+          data: {
+            ...currentData,
+            title: draft.values.title,
+            tone: draft.values.tone,
+            outputSummary: draft.values.outputSummary,
+            summary: `${draft.values.tone} response prepared with ${draft.values.outputSummary.toLowerCase()}.`,
+            form: { ...draft.values },
+          },
+        };
+      });
+    }
+  }
+
+  function resetDraft() {
+    setDraft(createDraft(selectedNode));
+  }
+
   return (
     <main className="starter-shell">
       <header className="starter-toolbar">
         <div>
-          <p className="eyebrow">HyperFlow React thin slice</p>
-          <h1>Starter-like workflow builder surface</h1>
+          <p className="eyebrow">HyperFlow automation SaaS proof</p>
+          <h1>Apply-driven workflow editing surface</h1>
           <p className="toolbar-copy">
-            This proof keeps the scope honest: toolbar, canvas, and inspector on top of the current validated HyperFlow slice.
-          </p>
-          <p className="toolbar-subcopy">
-            Nodes are now owned through `useWorkflowNodesState`, so the starter demonstrates the package usage model rather than only local demo state.
+            This proof shows the product experience directly: select a workflow node, edit fields in the inspector, click Apply, and see the node plus graph state update together.
           </p>
         </div>
 
         <div className="toolbar-actions">
           <div className="toolbar-group">
-            {STARTER_SCENARIOS.map((scenario) => (
-              <button
-                key={scenario.id}
-                className={scenario.id === scenarioSize ? "active" : ""}
-                onClick={() => handleScenarioChange(scenario.id)}
-                type="button"
-              >
-                <strong>{scenario.label}</strong>
-                <span>{scenario.subtitle}</span>
-              </button>
-            ))}
+            <button className="active" type="button">
+              <strong>{activeScenario.label}</strong>
+              <span>{activeScenario.subtitle}</span>
+            </button>
           </div>
 
           <div className="toolbar-group compact">
             <button type="button" className={mode === "inspect" ? "active" : ""} onClick={() => setInteractionMode("inspect")}>Inspect mode</button>
             <button type="button" className={mode === "read-only" ? "active" : ""} onClick={() => setInteractionMode("read-only")}>Read-only overview</button>
             <button type="button" onClick={focusSelectedNode} disabled={!isLiveSurface || !selectedNode}>Focus selected</button>
-            <button type="button" onClick={() => setViewport(fitPocViewportToNodes(nodes, getStarterViewportOptions()))} disabled={!isLiveSurface}>Fit view</button>
+            <button type="button" onClick={resetWorkflowTemplate} disabled={!isLiveSurface}>Reset workflow</button>
             <button type="button" onClick={() => zoomBy(0.85)} disabled={!isLiveSurface}>Zoom out</button>
             <button type="button" onClick={() => zoomBy(1.15)} disabled={!isLiveSurface}>Zoom in</button>
           </div>
@@ -188,13 +262,12 @@ export function App() {
           <div className="panel-header">
             <div>
               <p className="panel-eyebrow">Canvas proof</p>
-              <h2>{isLiveSurface ? "React-rendered current slice" : `${activeSurfaceState.label} state`}</h2>
+              <h2>{isLiveSurface ? "Automation SaaS workflow" : `${activeSurfaceState.label} state`}</h2>
             </div>
             <div className="panel-badges">
               <span>{isLiveSurface ? (ready ? "Engine ready" : "Loading engine") : activeSurfaceState.label}</span>
-              <span>{scenarioSize} nodes</span>
-              <span>{mode === "inspect" ? "Interactive inspect" : "Read-only view"}</span>
-              <span>Surface: {activeSurfaceState.label}</span>
+              <span>{nodes.length} nodes</span>
+              <span>{mode === "inspect" ? "Editing flow" : "Read-only context"}</span>
               {isLiveSurface && selectedNode ? <span>Selected: {selectedNodeDetails.title}</span> : null}
               {isLiveSurface && metrics ? <span>{metrics.visibleCount} visible</span> : null}
             </div>
@@ -220,35 +293,15 @@ export function App() {
 
               <p className="canvas-caption">
                 {mode === "inspect"
-                  ? "Click any visible node or use the quick jump buttons to drive the inspector and focus the viewport."
-                  : "Read-only overview keeps the shell product-like without pretending full editing exists yet."}
+                  ? "Select Customer Ticket or Draft Response, update the form, then press Apply to commit the workflow change."
+                  : "Read-only overview keeps the workflow context visible while editing remains scoped to inspect mode."}
               </p>
-
-              <div className="metrics-strip">
-                <div>
-                  <span>Fixture</span>
-                  <strong>{metrics?.fixtureSize ?? scenarioSize}</strong>
-                </div>
-                <div>
-                  <span>Visible</span>
-                  <strong>{metrics?.visibleCount ?? "—"}</strong>
-                </div>
-                <div>
-                  <span>Viewport</span>
-                  <strong>{metrics ? `${metrics.x.toFixed(0)}, ${metrics.y.toFixed(0)} @ ${metrics.zoom.toFixed(2)}` : "—"}</strong>
-                </div>
-                <div>
-                  <span>Render</span>
-                  <strong>{metrics ? `${metrics.renderMs.toFixed(2)} ms` : "—"}</strong>
-                </div>
-              </div>
             </>
           ) : (
             <section className={`starter-state-card starter-state-card--${surfaceState}`}>
               <p className="panel-eyebrow">Starter surface state</p>
               <h3>{activeSurfaceGuidance?.title}</h3>
               <p>{activeSurfaceGuidance?.description}</p>
-
               <div className="state-actions">
                 {surfaceState === "loading" ? <div className="loading-pulse" aria-hidden="true" /> : null}
                 {activeSurfaceGuidance?.actions.map((action) => (
@@ -294,13 +347,15 @@ export function App() {
                 <div className="quick-jump-header">
                   <div>
                     <p className="panel-eyebrow">Guided jump</p>
-                    <h3>Focus key workflow steps</h3>
+                    <h3>Choose the proof node</h3>
                   </div>
-                  <button type="button" onClick={() => jumpToNode(activeScenario.defaultNodeId)}>Jump to scenario focus</button>
+                  <button type="button" onClick={() => jumpToNode(activeScenario.defaultNodeId)}>Jump to default proof</button>
                 </div>
                 <div className="quick-jump-list">
                   {WORKFLOW_SEQUENCE.map((nodeId) => {
-                    const details = WORKFLOW_DETAILS.get(nodeId)!;
+                    const details = WORKFLOW_DETAILS.get(nodeId);
+                    const label = details?.title ?? `Workflow Step ${nodeId}`;
+                    const status = details?.status ?? "Supporting node";
                     const isActive = mode === "inspect" && selectedNodeId === nodeId;
                     return (
                       <button
@@ -309,8 +364,8 @@ export function App() {
                         className={isActive ? "active" : ""}
                         onClick={() => jumpToNode(nodeId)}
                       >
-                        <strong>{details.title}</strong>
-                        <span>{details.status}</span>
+                        <strong>{label}</strong>
+                        <span>{status}</span>
                       </button>
                     );
                   })}
@@ -320,100 +375,89 @@ export function App() {
               {mode === "read-only" ? (
                 <>
                   <p className="inspector-summary">{activeScenario.summary}</p>
-
                   <div className="scenario-proof-card">
                     <h3>Proof focus</h3>
                     <p>{activeScenario.proof}</p>
                   </div>
-
                   <div className="scenario-proof-card">
                     <h3>Why this scenario</h3>
                     <p>{activeScenario.why}</p>
                   </div>
-
-                  <dl className="inspector-grid">
-                    <div>
-                      <dt>Mode</dt>
-                      <dd>Read-only overview</dd>
+                </>
+              ) : selectedNode?.type === "customer-ticket" && draft?.kind === "customer-ticket" ? (
+                <>
+                  <p className="inspector-summary">Edit the intake node the same way a product team would tune a support automation flow.</p>
+                  <div className="config-group-card form-card">
+                    <h3>Customer Ticket form</h3>
+                    <label>
+                      <span>Title</span>
+                      <input
+                        value={draft.values.title}
+                        onChange={(event) => setDraft({ kind: "customer-ticket", values: { ...draft.values, title: event.target.value } })}
+                      />
+                    </label>
+                    <label>
+                      <span>Status</span>
+                      <input
+                        value={draft.values.status}
+                        onChange={(event) => setDraft({ kind: "customer-ticket", values: { ...draft.values, status: event.target.value } })}
+                      />
+                    </label>
+                    <label>
+                      <span>Source label</span>
+                      <input
+                        value={draft.values.sourceLabel}
+                        onChange={(event) => setDraft({ kind: "customer-ticket", values: { ...draft.values, sourceLabel: event.target.value } })}
+                      />
+                    </label>
+                    <div className="state-actions">
+                      <button type="button" className="primary" onClick={applyDraft}>Apply</button>
+                      <button type="button" className="secondary" onClick={resetDraft}>Reset</button>
                     </div>
-                    <div>
-                      <dt>Fixture size</dt>
-                      <dd>{scenarioSize}</dd>
+                  </div>
+                </>
+              ) : selectedNode?.type === "draft-response" && draft?.kind === "draft-response" ? (
+                <>
+                  <p className="inspector-summary">Edit the AI response node and apply the configuration the same way a workflow product team would.</p>
+                  <div className="config-group-card form-card">
+                    <h3>Draft Response form</h3>
+                    <label>
+                      <span>Title</span>
+                      <input
+                        value={draft.values.title}
+                        onChange={(event) => setDraft({ kind: "draft-response", values: { ...draft.values, title: event.target.value } })}
+                      />
+                    </label>
+                    <label>
+                      <span>Tone</span>
+                      <input
+                        value={draft.values.tone}
+                        onChange={(event) => setDraft({ kind: "draft-response", values: { ...draft.values, tone: event.target.value } })}
+                      />
+                    </label>
+                    <label>
+                      <span>Output summary</span>
+                      <textarea
+                        value={draft.values.outputSummary}
+                        onChange={(event) => setDraft({ kind: "draft-response", values: { ...draft.values, outputSummary: event.target.value } })}
+                      />
+                    </label>
+                    <div className="state-actions">
+                      <button type="button" className="primary" onClick={applyDraft}>Apply</button>
+                      <button type="button" className="secondary" onClick={resetDraft}>Reset</button>
                     </div>
-                    <div>
-                      <dt>Visible nodes</dt>
-                      <dd>{metrics?.visibleCount ?? "—"}</dd>
-                    </div>
-                    <div>
-                      <dt>Current proof</dt>
-                      <dd>Toolbar + canvas + inspector</dd>
-                    </div>
-                  </dl>
+                  </div>
                 </>
               ) : (
                 <>
                   <p className="inspector-summary">{selectedNodeDetails.summary}</p>
-                  <p className="inspector-description">{selectedNodeDetails.description}</p>
-                  <div className="scenario-proof-card emphasis">
-                    <h3>Why this node matters</h3>
-                    <p>{selectedNodeDetails.why}</p>
-                  </div>
-
-                  <dl className="inspector-grid">
-                    <div>
-                      <dt>Selected node</dt>
-                      <dd>{selectedNode?.id ?? "None"}</dd>
-                    </div>
-                    <div>
-                      <dt>Coordinates</dt>
-                      <dd>{selectedNode ? `${Math.round(selectedNode.x)}, ${Math.round(selectedNode.y)}` : "—"}</dd>
-                    </div>
-                    <div>
-                      <dt>Canvas status</dt>
-                      <dd>{ready ? "Connected" : "Loading"}</dd>
-                    </div>
-                    <div>
-                      <dt>Interaction scope</dt>
-                      <dd>Click-based proof</dd>
-                    </div>
-                  </dl>
-
-                  <div className="config-groups">
-                    {selectedNodeDetails.configGroups.map((group) => (
-                      <section key={group.title} className="config-group-card">
-                        <h3>{group.title}</h3>
-                        <dl>
-                          {group.fields.map((field) => (
-                            <div key={`${group.title}-${field.label}`}>
-                              <dt>{field.label}</dt>
-                              <dd>{field.value}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                      </section>
-                    ))}
-                  </div>
-
-                  <div className="scenario-proof-card code-card">
-                    <h3>Example output</h3>
-                    <pre>{selectedNodeDetails.example}</pre>
-                  </div>
-
-                  <div className="scenario-proof-card utility-card">
-                    <h3>Host state utility proof</h3>
-                    <p>Use the package-owned `updateNodeData(...)` path to mutate the selected node from the host side.</p>
-                    <div className="state-actions">
-                      <button type="button" className="primary" onClick={() => previewNodeUpdate(selectedNode?.id ?? 0)} disabled={!selectedNode}>Expand selected node</button>
-                      <button type="button" className="secondary" onClick={() => resetNodePreview(selectedNode?.id ?? 0)} disabled={!selectedNode}>Reset node size</button>
-                    </div>
-                  </div>
+                  <p className="inspector-description">This supporting node stays read-only in the first form-editing proof.</p>
                 </>
               )}
             </>
           ) : (
             <section className={`starter-state-card starter-state-card--${surfaceState}`}>
               <p className="inspector-summary">{activeSurfaceGuidance?.inspectorSummary}</p>
-
               <dl className="inspector-grid">
                 <div>
                   <dt>State</dt>
