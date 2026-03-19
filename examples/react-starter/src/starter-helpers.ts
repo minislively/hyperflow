@@ -56,9 +56,6 @@ export function getSelectedNodeDetails(
   };
 }
 
-export function getSelectedNode(nodes: WorkflowNode[], nodeId: number | null) {
-  return nodes.find((node) => node.id === nodeId);
-}
 
 export function getStarterViewportOptions() {
   return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };

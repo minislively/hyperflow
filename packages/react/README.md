@@ -14,6 +14,8 @@ It exists to support a starter-like React product proof without pretending that 
 ## Public surface right now
 
 - `useWorkflowNodesState`
+- `useWorkflowSelection`
+- `useSelectedNode`
 - `updateNodeData`
 - `HyperFlowPocCanvas`
 - `HyperFlowPocNodeRendererProps`
@@ -26,12 +28,14 @@ It exists to support a starter-like React product proof without pretending that 
 ## Quickstart
 
 ```tsx
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   HyperFlowPocCanvas,
   fitPocViewportToNodes,
   updateNodeData,
+  useSelectedNode,
   useWorkflowNodesState,
+  useWorkflowSelection,
   type HyperFlowCanvasMode,
   type PocNode,
 } from "@hyperflow/react";
@@ -59,15 +63,16 @@ const initialNodes: WorkflowNode[] = [
 export function Example() {
   const [mode, setMode] = useState<HyperFlowCanvasMode>("inspect");
   const [nodes, setNodes] = useWorkflowNodesState(initialNodes);
-  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(nodes[0]?.id ?? null);
-  const [draftTitle, setDraftTitle] = useState(nodes[0].data.title);
+  const [selection, setSelection] = useWorkflowSelection({ nodeId: initialNodes[0]?.id ?? null });
+  const selectedNode = useSelectedNode({ nodes, selection });
+  const [draftTitle, setDraftTitle] = useState(initialNodes[0].data.title);
   const [viewport] = useState(() =>
     fitPocViewportToNodes(initialNodes, { width: 960, height: 540 }),
   );
 
   function applyChanges() {
-    if (!selectedNodeId) return;
-    updateNodeData(setNodes, selectedNodeId, (node) => ({
+    if (!selection.nodeId) return;
+    updateNodeData(setNodes, selection.nodeId, (node) => ({
       data: { ...node.data, title: draftTitle },
     }));
   }
@@ -78,10 +83,10 @@ export function Example() {
         nodes={nodes}
         viewport={viewport}
         mode={mode}
-        selectedNodeId={selectedNodeId}
-        onNodeSelect={setSelectedNodeId}
+        selectedNodeId={selection.nodeId}
+        onNodeSelect={(nodeId) => setSelection({ nodeId })}
       />
-      <button onClick={applyChanges}>Apply</button>
+      <button onClick={applyChanges} disabled={!selectedNode}>Apply</button>
     </>
   );
 }
@@ -93,11 +98,13 @@ The intended mental model is:
 
 ```tsx
 const [nodes, setNodes, onNodesChange] = useWorkflowNodesState(initialNodes)
+const [selection, setSelection] = useWorkflowSelection({ nodeId: initialNodes[0]?.id ?? null })
 ```
 
 - the host app owns `nodes`
-- the builder consumes `nodes`
-- the inspector holds draft form state locally
+- the host app also owns `selection`
+- the builder consumes both
+- the inspector can derive the selected node through `useSelectedNode(...)`
 - clicking `Apply` commits through package-owned mutation paths such as `updateNodeData(...)`
 
 ### Mode semantics

@@ -11,3 +11,6 @@ export type { HyperFlowCanvasMode } from "./starter";
 
 export { useWorkflowNodesState, updateNodeData } from "./state";
 export type { WorkflowNodesUpdater, WorkflowNodeDataPatch } from "./state";
+
+export { useWorkflowSelection, useSelectedNode } from "./selection";
+export type { WorkflowSelection, WorkflowSelectionUpdater } from "./selection";

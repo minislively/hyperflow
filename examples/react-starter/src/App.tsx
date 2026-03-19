@@ -4,7 +4,9 @@ import {
   fitPocViewportToNodes,
   focusPocViewportOnNode,
   updateNodeData,
+  useSelectedNode,
   useWorkflowNodesState,
+  useWorkflowSelection,
   type HyperFlowCanvasMode,
   type PocMetrics,
   type PocViewport,
@@ -27,7 +29,6 @@ import {
 import {
   getDefaultStarterViewport,
   getNodeFocusViewportOptions,
-  getSelectedNode,
   getSelectedNodeDetails,
   getStarterScenarioBySize,
   getStarterViewportOptions,
@@ -84,14 +85,15 @@ export function App() {
   const activeScenario = STARTER_SCENARIOS[0];
   const [nodes, setNodes, onNodesChange] = useWorkflowNodesState<WorkflowNode>(INITIAL_WORKFLOW_NODES);
   const [viewport, setViewport] = useState<PocViewport>(() => getDefaultStarterViewport());
-  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(activeScenario.defaultNodeId);
+  const [selection, setSelection, onSelectionChange] = useWorkflowSelection({ nodeId: activeScenario.defaultNodeId });
   const [metrics, setMetrics] = useState<PocMetrics | null>(null);
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<HyperFlowCanvasMode>("inspect");
   const [surfaceState, setSurfaceState] = useState<StarterSurfaceState>("live");
   const [draft, setDraft] = useState<FormDraft>(() => createDraft(INITIAL_WORKFLOW_NODES.find((node) => node.id === activeScenario.defaultNodeId)));
 
-  const selectedNode = getSelectedNode(nodes, selectedNodeId);
+  const selectedNode = useSelectedNode({ nodes, selection });
+  const selectedNodeId = selection.nodeId;
   const selectedNodeDetails = getSelectedNodeDetails(mode === "inspect" && surfaceState === "live" ? selectedNode : undefined, 0);
   const activeSurfaceState = STARTER_SURFACE_STATES.find((state) => state.id === surfaceState)!;
   const activeSurfaceGuidance = surfaceState === "live" ? null : STARTER_SURFACE_GUIDANCE[surfaceState];
@@ -105,7 +107,7 @@ export function App() {
   function resetWorkflowTemplate() {
     onNodesChange(INITIAL_WORKFLOW_NODES);
     setViewport(fitPocViewportToNodes(INITIAL_WORKFLOW_NODES, getStarterViewportOptions()));
-    setSelectedNodeId(activeScenario.defaultNodeId);
+    onSelectionChange({ nodeId: activeScenario.defaultNodeId });
     setDraft(createDraft(INITIAL_WORKFLOW_NODES.find((node) => node.id === activeScenario.defaultNodeId)));
   }
 
@@ -120,7 +122,7 @@ export function App() {
   function setInteractionMode(nextMode: HyperFlowCanvasMode) {
     setMode(nextMode);
     if (nextMode === "inspect" && selectedNodeId === null) {
-      setSelectedNodeId(activeScenario.defaultNodeId);
+      onSelectionChange({ nodeId: activeScenario.defaultNodeId });
     }
   }
 
@@ -135,7 +137,7 @@ export function App() {
     const nextNode = nodes.find((node) => node.id === nodeId);
     if (!nextNode) return;
     setMode("inspect");
-    setSelectedNodeId(nodeId);
+    onSelectionChange({ nodeId });
     setViewport(focusPocViewportOnNode(nextNode, viewport, getNodeFocusViewportOptions(viewport)));
     setDraft(createDraft(nextNode));
   }
@@ -144,7 +146,7 @@ export function App() {
     setSurfaceState("live");
     setMode(nextMode);
     setViewport(fitPocViewportToNodes(nodes, getStarterViewportOptions()));
-    setSelectedNodeId(activeScenario.defaultNodeId);
+    onSelectionChange({ nodeId: activeScenario.defaultNodeId });
   }
 
   function handleSurfaceAction(actionId: string) {
@@ -284,7 +286,7 @@ export function App() {
                 nodeRenderers={starterNodeRenderers}
                 getNodeRendererKey={getStarterNodeRendererKey}
                 getNodeRendererData={getStarterNodeRendererData}
-                onNodeSelect={setSelectedNodeId}
+                onNodeSelect={(nodeId) => onSelectionChange({ nodeId })}
                 onMetricsChange={setMetrics}
                 onReadyChange={setReady}
                 width={starterCanvasSize.width}

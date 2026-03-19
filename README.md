@@ -140,6 +140,7 @@ Supporting proof that makes that possible:
 - bounded starter states (`live / loading / empty / error`)
 - package-level custom node injection through `nodeRenderers`
 - React-like host state ownership through `useWorkflowNodesState`
+- explicit package-level selection handling through `useWorkflowSelection`
 
 Minimal custom-node seam example:
 
