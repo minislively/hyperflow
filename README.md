@@ -53,6 +53,7 @@ Validated now:
 - canvas visible-box rendering
 - a guided vanilla demo surface
 - a minimal stable SDK contract for the current PoC
+- a React starter proof with package-level `nodeRenderers` custom-node injection
 
 Not yet product-complete:
 
@@ -110,6 +111,48 @@ pnpm test
 ```
 
 At this stage, `pnpm test` validates repository structure. Use the PoC commands below to exercise the currently validated rendering/interaction slice.
+
+
+## Fastest React proof path
+
+If you want to see the current Workflow Builder SDK direction in a React surface first, run:
+
+```bash
+pnpm run dev:react-starter
+```
+
+Then open:
+
+```text
+http://localhost:5173/
+```
+
+The current React starter proves three things together:
+
+- starter-like `toolbar + canvas + inspector` composition
+- bounded starter states (`live / loading / empty / error`)
+- package-level custom node injection through `nodeRenderers`
+
+Minimal custom-node seam example:
+
+```tsx
+import { HyperFlowPocCanvas } from "@hyperflow/react";
+
+<HyperFlowPocCanvas
+  nodes={nodes}
+  viewport={viewport}
+  nodeRenderers={{
+    "customer-ticket": CustomerTicketNode,
+    "draft-response": DraftResponseNode,
+  }}
+  getNodeRendererKey={(node) =>
+    node.id === 1 ? "customer-ticket" : node.id === 6 ? "draft-response" : null
+  }
+/>
+```
+
+This is still a thin proof seam, not a full stable node registry API.
+
 
 ## PoC commands
 
