@@ -291,3 +291,51 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+
+.state-group button {
+  min-width: 148px;
+}
+
+.starter-state-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  min-height: 540px;
+  align-content: center;
+  justify-items: start;
+  border: 1px dashed rgba(148, 163, 184, 0.26);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.82));
+}
+
+.starter-state-card--loading {
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.starter-state-card--empty {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.starter-state-card--error {
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.state-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.loading-pulse {
+  width: 96px;
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.15), rgba(129, 140, 248, 0.55), rgba(99, 102, 241, 0.15));
+  background-size: 200% 100%;
+  animation: starterPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes starterPulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

@@ -18,6 +18,19 @@ export type StarterWorkflowDetails = {
   example: string;
 };
 
+export type StarterSurfaceState = "live" | "loading" | "empty" | "error";
+
+export const STARTER_SURFACE_STATES: {
+  id: StarterSurfaceState;
+  label: string;
+  subtitle: string;
+}[] = [
+  { id: "live", label: "Live proof", subtitle: "Current validated slice" },
+  { id: "loading", label: "Loading", subtitle: "Starter shell waiting on data" },
+  { id: "empty", label: "Empty", subtitle: "No workflow loaded yet" },
+  { id: "error", label: "Error", subtitle: "Surface failed gracefully" },
+];
+
 export const STARTER_SCENARIOS: StarterScenario[] = [
   {
     id: 100,

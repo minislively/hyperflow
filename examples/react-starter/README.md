@@ -13,6 +13,7 @@ It is intentionally bounded to prove one thing well:
 - click-based inspector updates can stay tied to real current-slice proof signals
 - a bounded **read-only overview mode** can coexist with inspect mode without implying full editing
 - **guided jump** and **focus selected** affordances can make the starter shell feel more product-like without introducing palette flow
+- **live / loading / empty / error** states can be demonstrated without widening into full application logic
 
 ## What it does not claim yet
 
