@@ -4,6 +4,8 @@ import {
   HyperFlowPocCanvas,
   fitPocViewportToNodes,
   focusPocViewportOnNode,
+  updateNodeData,
+  useWorkflowNodesState,
   type HyperFlowCanvasMode,
   type PocMetrics,
   type PocViewport,
@@ -34,7 +36,7 @@ import {
 
 export function App() {
   const [scenarioSize, setScenarioSize] = useState(FIXTURE_SIZES[0]);
-  const nodes = useMemo(() => getFixture(scenarioSize), [scenarioSize]);
+  const [nodes, setNodes, onNodesChange] = useWorkflowNodesState(getFixture(FIXTURE_SIZES[0]));
   const [viewport, setViewport] = useState<PocViewport>(() => getDefaultStarterViewport());
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(1);
   const [metrics, setMetrics] = useState<PocMetrics | null>(null);
@@ -53,6 +55,7 @@ export function App() {
     setScenarioSize(size);
     const nextNodes = getFixture(size);
     const nextScenario = getStarterScenarioBySize(size);
+    onNodesChange(nextNodes);
     setViewport(fitPocViewportToNodes(nextNodes, getStarterViewportOptions()));
     setSelectedNodeId(nextScenario.defaultNodeId ?? nextNodes[0]?.id ?? null);
   }
@@ -94,6 +97,17 @@ export function App() {
     setSelectedNodeId(activeScenario.defaultNodeId ?? nodes[0]?.id ?? null);
   }
 
+  function previewNodeUpdate(nodeId: number) {
+    updateNodeData(setNodes, nodeId, (node) => ({
+      width: Math.min(node.width + 28, 180),
+      height: Math.min(node.height + 12, 120),
+    }));
+  }
+
+  function resetNodePreview(nodeId: number) {
+    updateNodeData(setNodes, nodeId, { width: 96, height: 56 });
+  }
+
   function handleSurfaceAction(actionId: string) {
     if (actionId === "load-starter-workflow") {
       restoreLiveSurface("inspect");
@@ -123,6 +137,9 @@ export function App() {
           <h1>Starter-like workflow builder surface</h1>
           <p className="toolbar-copy">
             This proof keeps the scope honest: toolbar, canvas, and inspector on top of the current validated HyperFlow slice.
+          </p>
+          <p className="toolbar-subcopy">
+            Nodes are now owned through `useWorkflowNodesState`, so the starter demonstrates the package usage model rather than only local demo state.
           </p>
         </div>
 
@@ -380,6 +397,15 @@ export function App() {
                   <div className="scenario-proof-card code-card">
                     <h3>Example output</h3>
                     <pre>{selectedNodeDetails.example}</pre>
+                  </div>
+
+                  <div className="scenario-proof-card utility-card">
+                    <h3>Host state utility proof</h3>
+                    <p>Use the package-owned `updateNodeData(...)` path to mutate the selected node from the host side.</p>
+                    <div className="state-actions">
+                      <button type="button" className="primary" onClick={() => previewNodeUpdate(selectedNode?.id ?? 0)} disabled={!selectedNode}>Expand selected node</button>
+                      <button type="button" className="secondary" onClick={() => resetNodePreview(selectedNode?.id ?? 0)} disabled={!selectedNode}>Reset node size</button>
+                    </div>
                   </div>
                 </>
               )}

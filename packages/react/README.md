@@ -13,6 +13,8 @@ It exists to support a starter-like React product proof without pretending that 
 
 ## Public surface right now
 
+- `useWorkflowNodesState`
+- `updateNodeData`
 - `HyperFlowPocCanvas`
 - `HyperFlowPocNodeRendererProps`
 - `HyperFlowPocNodeRenderers`
@@ -24,23 +26,35 @@ It exists to support a starter-like React product proof without pretending that 
 ## Quickstart
 
 ```tsx
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   HyperFlowPocCanvas,
-  createPocViewport,
   fitPocViewportToNodes,
+  updateNodeData,
+  useWorkflowNodesState,
   type HyperFlowCanvasMode,
+  type PocNode,
 } from "@hyperflow/react";
-import { getFixture } from "../../../benchmarks/fixtures.js";
 
-const nodes = getFixture(100);
+type WorkflowNode = PocNode & {
+  title: string;
+};
+
+const initialNodes: WorkflowNode[] = [
+  { id: 1, x: 0, y: 0, width: 96, height: 56, title: "Customer Ticket" },
+];
 
 export function Example() {
   const [mode, setMode] = useState<HyperFlowCanvasMode>("inspect");
+  const [nodes, setNodes, onNodesChange] = useWorkflowNodesState(initialNodes);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(nodes[0]?.id ?? null);
   const [viewport, setViewport] = useState(() =>
-    fitPocViewportToNodes(nodes, { width: 960, height: 540 }),
+    fitPocViewportToNodes(initialNodes, { width: 960, height: 540 }),
   );
+
+  function applyTitle(nodeId: number, title: string) {
+    updateNodeData(setNodes, nodeId, { title });
+  }
 
   return (
     <HyperFlowPocCanvas
@@ -53,6 +67,18 @@ export function Example() {
   );
 }
 ```
+
+### Host-controlled state model
+
+The intended mental model is:
+
+```tsx
+const [nodes, setNodes, onNodesChange] = useWorkflowNodesState(initialNodes)
+```
+
+- the host app owns `nodes`
+- the builder consumes `nodes`
+- node data changes should go through package-owned mutation paths such as `updateNodeData(...)`
 
 ### Mode semantics
 

@@ -127,11 +127,12 @@ Then open:
 http://localhost:5173/
 ```
 
-The current React starter proves three things together:
+The current React starter proves four things together:
 
 - starter-like `toolbar + canvas + inspector` composition
 - bounded starter states (`live / loading / empty / error`)
 - package-level custom node injection through `nodeRenderers`
+- React-like host state ownership through `useWorkflowNodesState`
 
 Minimal custom-node seam example:
 
@@ -171,17 +172,19 @@ http://localhost:4173/examples/vanilla-starter/index.html
 
 ## Canonical product direction
 
-See the main product definition in [`docs/prd/hyperflow-prd-v0.1.md`](./docs/prd/hyperflow-prd-v0.1.md).
+See the main product definition in [`docs/prd/workflow-builder-sdk-prd-v0.1.md`](./docs/prd/workflow-builder-sdk-prd-v0.1.md).
 
 ## Current validated slice
 
-The first proof slice intentionally stays narrow:
+The current validated slice now covers both the original PoC seam and the first package-facing React usage proof:
 
 - `packages/core-rs`: viewport math, visible culling, hit testing
 - `packages/wasm-bindings`: raw WASM bridge without extra toolchain dependencies
 - `packages/renderer-canvas`: visible-node box rendering only
-- `packages/sdk`: the current validated SDK contract for this PoC slice
-- `examples/vanilla-starter`: guided product-demo surface for `100 / 300 / 1000` proof scenarios
+- `packages/sdk`: the current validated SDK contract for the PoC slice
+- `packages/react`: thin React adapter with `nodeRenderers` and `useWorkflowNodesState`-class package seams
+- `examples/react-starter`: starter-like React proof for custom nodes, state previews, and host-controlled usage model
+- `examples/vanilla-starter`: legacy guided product-demo surface for the earlier proof story
 
 Deferred intentionally in this slice:
 
@@ -206,11 +209,11 @@ Current SDK precondition: call `loadFixture(nodes)` before rendering a frame.
 
 ## Near-term next step
 
-The next public-facing milestone is a **product-surface refresh**:
+The next public-facing milestone is a **host-controlled usage-model uplift**:
 
-- align README + PRD + architecture docs with the workflow builder SDK framing
-- keep the current PoC contract honest and narrow
-- make demo and SDK surfaces easier to evaluate without overstating maturity
+- make `useWorkflowNodesState`-class ergonomics the first-class package story
+- keep the current custom-node starter proof honest and narrow
+- use that helper foundation to prepare the next automation-SaaS form-editing proof
 
 ## Evaluator workflow
 
