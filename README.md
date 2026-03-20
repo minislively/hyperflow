@@ -101,6 +101,8 @@ Today it is mostly a **working proof that the core stack and first React integra
 
 ## Beginner mental model: how the pieces connect
 
+Korean beginner guide: [`docs/architecture/hyperflow-beginner-guide-ko.md`](./docs/architecture/hyperflow-beginner-guide-ko.md)
+
 When you run the React starter, the flow is roughly:
 
 1. `examples/react-starter` provides the demo app UI
