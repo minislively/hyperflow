@@ -1,5 +1,5 @@
 import type { HyperFlowPocNodeRenderers, HyperFlowPocNodeRendererProps, WorkflowNode } from "@hyperflow/react";
-import type { DraftResponseNodeData, TicketNodeData } from "./starter-data";
+import type { ManagerResponseNodeData, TaskBriefNodeData } from "./starter-data";
 
 function BaseNode({
   title,
@@ -28,40 +28,40 @@ function BaseNode({
   );
 }
 
-function CustomerTicketNode({ data, selected }: HyperFlowPocNodeRendererProps<TicketNodeData>) {
+function TaskBriefNode({ data, selected }: HyperFlowPocNodeRendererProps<TaskBriefNodeData>) {
   return (
     <BaseNode
       title={data.title}
       status={`${data.status} · ${data.sourceLabel}`}
       summary={data.summary}
       selected={selected}
-      badge="Input"
+      badge="Task"
       accent="rgba(34, 197, 94, 0.5)"
     />
   );
 }
 
-function DraftResponseNode({ data, selected }: HyperFlowPocNodeRendererProps<DraftResponseNodeData>) {
+function ManagerResponseNode({ data, selected }: HyperFlowPocNodeRendererProps<ManagerResponseNodeData>) {
   return (
     <BaseNode
       title={data.title}
       status={`${data.status} · ${data.tone}`}
       summary={data.outputSummary}
       selected={selected}
-      badge="AI"
+      badge="Agent"
       accent="rgba(99, 102, 241, 0.5)"
     />
   );
 }
 
 export const starterNodeRenderers: HyperFlowPocNodeRenderers = {
-  "customer-ticket": CustomerTicketNode,
-  "draft-response": DraftResponseNode,
+  "task-brief": TaskBriefNode,
+  "manager-response": ManagerResponseNode,
 };
 
 export function getStarterNodeRendererKey(node: WorkflowNode) {
-  if (node.type === "customer-ticket") return "customer-ticket";
-  if (node.type === "draft-response") return "draft-response";
+  if (node.type === "task-brief") return "task-brief";
+  if (node.type === "manager-response") return "manager-response";
   return null;
 }
 

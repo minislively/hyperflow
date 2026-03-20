@@ -6,17 +6,32 @@
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "validate:workspace": "node tooling/validate-workspace.mjs",
-    "lint": "pnpm run validate:workspace",
-    "test": "pnpm run validate:workspace",
-    "build:wasm:poc": "cargo build --manifest-path packages/core-rs/Cargo.toml --target wasm32-unknown-unknown --release",
-    "test:poc:rust": "cargo test --manifest-path packages/core-rs/Cargo.toml",
-    "test:poc:js": "node --test packages/sdk/test/*.test.js packages/renderer-canvas/test/*.test.js packages/wasm-bindings/test/*.test.js",
-    "bench:poc": "pnpm run build:wasm:poc && node benchmarks/run-poc.mjs",
-    "test:poc": "pnpm run build:wasm:poc && pnpm run test:poc:rust && pnpm run test:poc:js && node benchmarks/run-poc.mjs",
-    "verify:poc": "pnpm run validate:workspace && pnpm run test:poc",
-    "serve:poc": "python3 -m http.server 4173",
-    "dev:react-starter": "pnpm run build:wasm:poc && pnpm --filter @hyperflow/example-react-starter dev",
-    "build:react-starter": "pnpm run build:wasm:poc && pnpm --filter @hyperflow/example-react-starter build"
+    "dev": "pnpm run dev:react-starter",
+    "build": "pnpm run build:react-starter",
+    "check": "pnpm run validate:workspace",
+    "lint": "pnpm run check",
+    "test": "pnpm run test:runtime",
+    "build:wasm": "cargo build --manifest-path packages/core-rs/Cargo.toml --target wasm32-unknown-unknown --release",
+    "test:rust": "cargo test --manifest-path packages/core-rs/Cargo.toml",
+    "test:js": "node --test packages/sdk/test/*.test.js packages/renderer-canvas/test/*.test.js packages/wasm-bindings/test/*.test.js",
+    "test:e2e": "playwright test",
+    "bench": "node benchmarks/run-poc.mjs",
+    "test:runtime": "pnpm run build:wasm && pnpm run test:rust && pnpm run test:js",
+    "verify": "pnpm run check && pnpm run test",
+    "verify:full": "pnpm run verify && pnpm run bench",
+    "serve": "python3 -m http.server 4173",
+    "build:wasm:poc": "pnpm run build:wasm",
+    "test:poc:rust": "pnpm run test:rust",
+    "test:poc:js": "pnpm run test:js",
+    "bench:poc": "pnpm run bench",
+    "test:poc": "pnpm run test:runtime && pnpm run bench",
+    "verify:poc": "pnpm run verify:full",
+    "serve:poc": "pnpm run serve",
+    "dev:react-starter": "pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter dev",
+    "build:react-starter": "pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter build"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
 }

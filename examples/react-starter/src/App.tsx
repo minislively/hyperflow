@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import {
   HyperFlowPocCanvas,
   fitPocViewportToNodes,
@@ -21,16 +22,17 @@ import {
   STARTER_SCENARIOS,
   STARTER_SURFACE_GUIDANCE,
   STARTER_SURFACE_STATES,
-  type DraftResponseNodeData,
+  WORKFLOW_DETAILS,
+  WORKFLOW_SEQUENCE,
+  type ManagerResponseNodeData,
   type StarterSurfaceState,
-  type TicketNodeData,
+  type TaskBriefNodeData,
   type WorkflowNode,
 } from "./starter-data";
 import {
   getDefaultStarterViewport,
   getNodeFocusViewportOptions,
   getSelectedNodeDetails,
-  getStarterScenarioBySize,
   getStarterViewportOptions,
   starterCanvasSize,
 } from "./starter-helpers";
@@ -47,50 +49,117 @@ type DraftResponseFormDraft = {
   outputSummary: string;
 };
 
-type FormDraft =
-  | { kind: "customer-ticket"; values: TicketFormDraft }
-  | { kind: "draft-response"; values: DraftResponseFormDraft }
-  | null;
+function getTicketFormValues(node: WorkflowNode): TicketFormDraft {
+  const data = node.data as TaskBriefNodeData;
+  return {
+    title: data.form.title,
+    status: data.form.status,
+    sourceLabel: data.form.sourceLabel,
+  };
+}
 
-function createDraft(node: WorkflowNode | undefined): FormDraft {
-  if (!node) return null;
-  if (node.type === "customer-ticket") {
-    const data = node.data as TicketNodeData;
-    return {
-      kind: "customer-ticket",
-      values: {
-        title: data.form.title,
-        status: data.form.status,
-        sourceLabel: data.form.sourceLabel,
-      },
-    };
-  }
+function getDraftResponseFormValues(node: WorkflowNode): DraftResponseFormDraft {
+  const data = node.data as ManagerResponseNodeData;
+  return {
+    title: data.form.title,
+    tone: data.form.tone,
+    outputSummary: data.form.outputSummary,
+  };
+}
 
-  if (node.type === "draft-response") {
-    const data = node.data as DraftResponseNodeData;
-    return {
-      kind: "draft-response",
-      values: {
-        title: data.form.title,
-        tone: data.form.tone,
-        outputSummary: data.form.outputSummary,
-      },
-    };
-  }
+function CustomerTicketInspectorForm({
+  node,
+  onApply,
+}: {
+  node: WorkflowNode;
+  onApply: (values: TicketFormDraft) => void;
+}) {
+  const values = getTicketFormValues(node);
+  const { register, handleSubmit, reset, formState } = useForm<TicketFormDraft>({
+    defaultValues: values,
+  });
 
-  return null;
+  useEffect(() => {
+    reset(values);
+  }, [node.id, values.sourceLabel, values.status, values.title, reset]);
+
+  return (
+    <>
+      <p className="inspector-summary">Edit the task-intake workflow step with the same graph-state-first seam a host app would connect to react-hook-form.</p>
+      <form className="config-group-card form-card" onSubmit={handleSubmit(onApply)}>
+        <h3>Task Brief form</h3>
+        <label>
+          <span>Title</span>
+          <input {...register("title")} />
+        </label>
+        <label>
+          <span>Status</span>
+          <input {...register("status")} />
+        </label>
+        <label>
+          <span>Source label</span>
+          <input {...register("sourceLabel")} />
+        </label>
+        <div className="state-actions">
+          <button type="submit" className="primary">Apply</button>
+          <button type="button" className="secondary" onClick={() => reset(values)} disabled={!formState.isDirty}>Reset</button>
+        </div>
+      </form>
+    </>
+  );
+}
+
+function DraftResponseInspectorForm({
+  node,
+  onApply,
+}: {
+  node: WorkflowNode;
+  onApply: (values: DraftResponseFormDraft) => void;
+}) {
+  const values = getDraftResponseFormValues(node);
+  const { register, handleSubmit, reset, formState } = useForm<DraftResponseFormDraft>({
+    defaultValues: values,
+  });
+
+  useEffect(() => {
+    reset(values);
+  }, [node.id, values.outputSummary, values.title, values.tone, reset]);
+
+  return (
+    <>
+      <p className="inspector-summary">Edit the manager-response workflow step through react-hook-form and commit the result back through `updateNodeData(...)`.</p>
+      <form className="config-group-card form-card" onSubmit={handleSubmit(onApply)}>
+        <h3>Manager Response form</h3>
+        <label>
+          <span>Title</span>
+          <input {...register("title")} />
+        </label>
+        <label>
+          <span>Tone</span>
+          <input {...register("tone")} />
+        </label>
+        <label>
+          <span>Output summary</span>
+          <textarea {...register("outputSummary")} />
+        </label>
+        <div className="state-actions">
+          <button type="submit" className="primary">Apply</button>
+          <button type="button" className="secondary" onClick={() => reset(values)} disabled={!formState.isDirty}>Reset</button>
+        </div>
+      </form>
+    </>
+  );
 }
 
 export function App() {
   const activeScenario = STARTER_SCENARIOS[0];
   const [nodes, setNodes, onNodesChange] = useWorkflowNodesState<WorkflowNode>(INITIAL_WORKFLOW_NODES);
   const [viewport, setViewport] = useState<PocViewport>(() => getDefaultStarterViewport());
-  const [selection, setSelection, onSelectionChange] = useWorkflowSelection({ nodeId: activeScenario.defaultNodeId });
+  const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: activeScenario.defaultNodeId });
   const [metrics, setMetrics] = useState<PocMetrics | null>(null);
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<HyperFlowCanvasMode>("inspect");
   const [surfaceState, setSurfaceState] = useState<StarterSurfaceState>("live");
-  const [draft, setDraft] = useState<FormDraft>(() => createDraft(INITIAL_WORKFLOW_NODES.find((node) => node.id === activeScenario.defaultNodeId)));
 
   const selectedNode = useSelectedNode({ nodes, selection });
   const selectedNodeId = selection.nodeId;
@@ -98,17 +167,22 @@ export function App() {
   const activeSurfaceState = STARTER_SURFACE_STATES.find((state) => state.id === surfaceState)!;
   const activeSurfaceGuidance = surfaceState === "live" ? null : STARTER_SURFACE_GUIDANCE[surfaceState];
   const isLiveSurface = surfaceState === "live";
-
-  useEffect(() => {
-    if (!isLiveSurface || mode !== "inspect") return;
-    setDraft(createDraft(selectedNode));
-  }, [isLiveSurface, mode, selectedNode]);
+  const integrationSeams = [
+    { label: "Host owns", value: "nodes + selection" },
+    { label: "Custom UI", value: "nodeRenderers injection" },
+    { label: "Inspector commit", value: "updateNodeData(...)" },
+    { label: "AI-friendly seam", value: "discoverable React hooks + state helpers" },
+  ];
+  const shellHighlights = [
+    { label: "Primary fit", value: "Agent builder UI" },
+    { label: "Promise", value: "Low-friction integration seams" },
+    { label: "Proof slice", value: "Select → configure → Apply" },
+  ];
 
   function resetWorkflowTemplate() {
     onNodesChange(INITIAL_WORKFLOW_NODES);
     setViewport(fitPocViewportToNodes(INITIAL_WORKFLOW_NODES, getStarterViewportOptions()));
     onSelectionChange({ nodeId: activeScenario.defaultNodeId });
-    setDraft(createDraft(INITIAL_WORKFLOW_NODES.find((node) => node.id === activeScenario.defaultNodeId)));
   }
 
   function zoomBy(multiplier: number) {
@@ -139,7 +213,6 @@ export function App() {
     setMode("inspect");
     onSelectionChange({ nodeId });
     setViewport(focusPocViewportOnNode(nextNode, viewport, getNodeFocusViewportOptions(viewport)));
-    setDraft(createDraft(nextNode));
   }
 
   function restoreLiveSurface(nextMode: HyperFlowCanvasMode) {
@@ -172,89 +245,124 @@ export function App() {
     }
   }
 
-  function applyDraft() {
-    if (!selectedNode || !draft) return;
+  function applyTicketDraft(values: TicketFormDraft) {
+    if (!selectedNode || selectedNode.type !== "task-brief") return;
 
-    if (draft.kind === "customer-ticket") {
-      updateNodeData(setNodes, selectedNode.id, (node) => {
-        const current = node as WorkflowNode;
-        const currentData = current.data as TicketNodeData;
-        return {
-          data: {
-            ...currentData,
-            title: draft.values.title,
-            status: draft.values.status,
-            sourceLabel: draft.values.sourceLabel,
-            summary: `${draft.values.sourceLabel} requests enter the automation workflow through ${draft.values.status.toLowerCase()}.`,
-            form: { ...draft.values },
-          },
-        };
-      });
-      return;
-    }
-
-    if (draft.kind === "draft-response") {
-      updateNodeData(setNodes, selectedNode.id, (node) => {
-        const current = node as WorkflowNode;
-        const currentData = current.data as DraftResponseNodeData;
-        return {
-          data: {
-            ...currentData,
-            title: draft.values.title,
-            tone: draft.values.tone,
-            outputSummary: draft.values.outputSummary,
-            summary: `${draft.values.tone} response prepared with ${draft.values.outputSummary.toLowerCase()}.`,
-            form: { ...draft.values },
-          },
-        };
-      });
-    }
+    updateNodeData(setNodes, selectedNode.id, (node) => {
+      const current = node as WorkflowNode;
+      const currentData = current.data as TaskBriefNodeData;
+      return {
+        data: {
+          ...currentData,
+          title: values.title,
+          status: values.status,
+          sourceLabel: values.sourceLabel,
+          summary: `${values.sourceLabel} tasks enter the agent workflow through ${values.status.toLowerCase()}.`,
+          form: { ...values },
+        },
+      };
+    });
   }
 
-  function resetDraft() {
-    setDraft(createDraft(selectedNode));
+  function applyDraftResponse(values: DraftResponseFormDraft) {
+    if (!selectedNode || selectedNode.type !== "manager-response") return;
+
+    updateNodeData(setNodes, selectedNode.id, (node) => {
+      const current = node as WorkflowNode;
+      const currentData = current.data as ManagerResponseNodeData;
+      return {
+        data: {
+          ...currentData,
+          title: values.title,
+          tone: values.tone,
+          outputSummary: values.outputSummary,
+          summary: `${values.tone} response prepared with ${values.outputSummary.toLowerCase()}.`,
+          form: { ...values },
+        },
+      };
+    });
   }
 
   return (
     <main className="starter-shell">
       <header className="starter-toolbar">
-        <div>
-          <p className="eyebrow">HyperFlow automation SaaS proof</p>
-          <h1>Apply-driven workflow editing surface</h1>
-          <p className="toolbar-copy">
-            This proof shows the product experience directly: select a workflow node, edit fields in the inspector, click Apply, and see the node plus graph state update together.
-          </p>
+        <div className="starter-toolbar__hero">
+          <div>
+            <p className="eyebrow">HyperFlow workflow builder SDK</p>
+            <h1>Agent builder workflow starter</h1>
+            <p className="toolbar-copy">
+              This starter shows the product experience directly: select an agent workflow step, edit fields in the inspector, click Apply, and see the workflow state plus node UI update together with low integration friction.
+            </p>
+          </div>
+
+          <div className="starter-summary-strip" aria-label="Product summary">
+            {shellHighlights.map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="toolbar-actions">
-          <div className="toolbar-group">
-            <button className="active" type="button">
-              <strong>{activeScenario.label}</strong>
-              <span>{activeScenario.subtitle}</span>
-            </button>
-          </div>
-
-          <div className="toolbar-group compact">
-            <button type="button" className={mode === "inspect" ? "active" : ""} onClick={() => setInteractionMode("inspect")}>Inspect mode</button>
-            <button type="button" className={mode === "read-only" ? "active" : ""} onClick={() => setInteractionMode("read-only")}>Read-only overview</button>
-            <button type="button" onClick={focusSelectedNode} disabled={!isLiveSurface || !selectedNode}>Focus selected</button>
-            <button type="button" onClick={resetWorkflowTemplate} disabled={!isLiveSurface}>Reset workflow</button>
-            <button type="button" onClick={() => zoomBy(0.85)} disabled={!isLiveSurface}>Zoom out</button>
-            <button type="button" onClick={() => zoomBy(1.15)} disabled={!isLiveSurface}>Zoom in</button>
-          </div>
-
-          <div className="toolbar-group state-group">
-            {STARTER_SURFACE_STATES.map((state) => (
-              <button
-                key={state.id}
-                type="button"
-                className={state.id === surfaceState ? "active" : ""}
-                onClick={() => setSurfaceState(state.id)}
-              >
-                <strong>{state.label}</strong>
-                <span>{state.subtitle}</span>
+          <section className="toolbar-section">
+            <div className="toolbar-section__header">
+              <p className="panel-eyebrow">Scenario</p>
+              <h2>{activeScenario.label}</h2>
+            </div>
+            <div className="toolbar-group">
+              <button className="active" type="button">
+                <strong>{activeScenario.label}</strong>
+                <span>{activeScenario.subtitle}</span>
               </button>
-            ))}
+            </div>
+          </section>
+
+          <section className="toolbar-section">
+            <div className="toolbar-section__header">
+              <p className="panel-eyebrow">Workflow actions</p>
+              <h2>Primary workflow controls</h2>
+            </div>
+            <div className="toolbar-group compact toolbar-group--primary">
+              <button type="button" className={mode === "inspect" ? "active" : ""} onClick={() => setInteractionMode("inspect")}>Inspect mode</button>
+              <button type="button" className={mode === "read-only" ? "active" : ""} onClick={() => setInteractionMode("read-only")}>Overview mode</button>
+              <button type="button" onClick={focusSelectedNode} disabled={!isLiveSurface || !selectedNode}>Focus selected</button>
+              <button type="button" onClick={resetWorkflowTemplate} disabled={!isLiveSurface}>Reset template</button>
+            </div>
+          </section>
+
+          <div className="toolbar-meta-grid">
+            <section className="toolbar-section toolbar-section--utility">
+              <div className="toolbar-section__header">
+                <p className="panel-eyebrow">Canvas utilities</p>
+                <h2>Viewport tools</h2>
+              </div>
+              <div className="toolbar-group compact toolbar-group--utility">
+                <button type="button" onClick={() => zoomBy(0.85)} disabled={!isLiveSurface}>Zoom out</button>
+                <button type="button" onClick={() => zoomBy(1.15)} disabled={!isLiveSurface}>Zoom in</button>
+              </div>
+            </section>
+
+            <section className="toolbar-section toolbar-section--states">
+              <div className="toolbar-section__header">
+                <p className="panel-eyebrow">Starter states</p>
+                <h2>Evaluating bounded shell states</h2>
+              </div>
+              <div className="toolbar-group state-group">
+                {STARTER_SURFACE_STATES.map((state) => (
+                  <button
+                    key={state.id}
+                    type="button"
+                    className={state.id === surfaceState ? "active" : ""}
+                    onClick={() => setSurfaceState(state.id)}
+                  >
+                    <strong>{state.label}</strong>
+                    <span>{state.subtitle}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
           </div>
         </div>
       </header>
@@ -263,14 +371,14 @@ export function App() {
         <section className="starter-canvas-card">
           <div className="panel-header">
             <div>
-              <p className="panel-eyebrow">Canvas proof</p>
-              <h2>{isLiveSurface ? "Automation SaaS workflow" : `${activeSurfaceState.label} state`}</h2>
+              <p className="panel-eyebrow">Workflow canvas</p>
+              <h2>{isLiveSurface ? "Agent builder workflow" : `${activeSurfaceState.label} state`}</h2>
             </div>
             <div className="panel-badges">
               <span>{isLiveSurface ? (ready ? "Engine ready" : "Loading engine") : activeSurfaceState.label}</span>
-              <span>{nodes.length} nodes</span>
-              <span>{mode === "inspect" ? "Editing flow" : "Read-only context"}</span>
-              {isLiveSurface && selectedNode ? <span>Selected: {selectedNodeDetails.title}</span> : null}
+              <span>{nodes.length} workflow steps</span>
+              <span>{mode === "inspect" ? "Inspector editing" : "Product overview"}</span>
+              {isLiveSurface && selectedNode ? <span>Selected step: {selectedNodeDetails.title}</span> : null}
               {isLiveSurface && metrics ? <span>{metrics.visibleCount} visible</span> : null}
             </div>
           </div>
@@ -295,8 +403,8 @@ export function App() {
 
               <p className="canvas-caption">
                 {mode === "inspect"
-                  ? "Select Customer Ticket or Draft Response, update the form, then press Apply to commit the workflow change."
-                  : "Read-only overview keeps the workflow context visible while editing remains scoped to inspect mode."}
+                  ? "Select Task Brief or Manager Response, update the form, then press Apply to commit the workflow change."
+                  : "Overview mode keeps the workflow context visible while editing remains scoped to inspect mode."}
               </p>
             </>
           ) : (
@@ -325,7 +433,7 @@ export function App() {
         <aside className="starter-inspector-card">
           <div className="panel-header">
             <div>
-              <p className="panel-eyebrow">Inspector</p>
+              <p className="panel-eyebrow">Workflow inspector</p>
               <h2>
                 {surfaceState === "live"
                   ? mode === "inspect"
@@ -338,7 +446,7 @@ export function App() {
               {surfaceState === "live"
                 ? mode === "inspect"
                   ? selectedNodeDetails.status
-                  : "Read-only scenario overview"
+                  : "Workflow overview"
                 : `${activeSurfaceState.label} state`}
             </span>
           </div>
@@ -348,13 +456,18 @@ export function App() {
               <section className="quick-jump-card">
                 <div className="quick-jump-header">
                   <div>
-                    <p className="panel-eyebrow">Guided jump</p>
-                    <h3>Choose the proof node</h3>
+                    <p className="panel-eyebrow">Workflow path</p>
+                    <h3>Current step and path</h3>
                   </div>
-                  <button type="button" onClick={() => jumpToNode(activeScenario.defaultNodeId)}>Jump to default proof</button>
+                  <button type="button" onClick={() => jumpToNode(activeScenario.defaultNodeId)}>Jump to primary step</button>
+                </div>
+                <div className="current-step-card">
+                  <span>Current step</span>
+                  <strong>{mode === "inspect" ? selectedNodeDetails.title : activeScenario.label}</strong>
+                  <p>{mode === "inspect" ? selectedNodeDetails.description : activeScenario.summary}</p>
                 </div>
                 <div className="quick-jump-list">
-                  {WORKFLOW_SEQUENCE.map((nodeId) => {
+                  {WORKFLOW_SEQUENCE.map((nodeId, index) => {
                     const details = WORKFLOW_DETAILS.get(nodeId);
                     const label = details?.title ?? `Workflow Step ${nodeId}`;
                     const status = details?.status ?? "Supporting node";
@@ -366,6 +479,7 @@ export function App() {
                         className={isActive ? "active" : ""}
                         onClick={() => jumpToNode(nodeId)}
                       >
+                        <span className="quick-jump-step">Step {index + 1}</span>
                         <strong>{label}</strong>
                         <span>{status}</span>
                       </button>
@@ -374,86 +488,43 @@ export function App() {
                 </div>
               </section>
 
+              <section className="scenario-proof-card emphasis">
+                <h3>Integration seam proof</h3>
+                <p>This starter is intentionally showing the host-app seams an AI coding assistant has to wire without heavy bespoke glue.</p>
+                <dl className="inspector-grid">
+                  {integrationSeams.map((item) => (
+                    <div key={item.label}>
+                      <dt>{item.label}</dt>
+                      <dd>{item.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+
               {mode === "read-only" ? (
                 <>
                   <p className="inspector-summary">{activeScenario.summary}</p>
                   <div className="scenario-proof-card">
-                    <h3>Proof focus</h3>
+                    <h3>Starter proof</h3>
                     <p>{activeScenario.proof}</p>
                   </div>
                   <div className="scenario-proof-card">
-                    <h3>Why this scenario</h3>
+                    <h3>Why this workflow</h3>
                     <p>{activeScenario.why}</p>
                   </div>
-                </>
-              ) : selectedNode?.type === "customer-ticket" && draft?.kind === "customer-ticket" ? (
-                <>
-                  <p className="inspector-summary">Edit the intake node the same way a product team would tune a support automation flow.</p>
-                  <div className="config-group-card form-card">
-                    <h3>Customer Ticket form</h3>
-                    <label>
-                      <span>Title</span>
-                      <input
-                        value={draft.values.title}
-                        onChange={(event) => setDraft({ kind: "customer-ticket", values: { ...draft.values, title: event.target.value } })}
-                      />
-                    </label>
-                    <label>
-                      <span>Status</span>
-                      <input
-                        value={draft.values.status}
-                        onChange={(event) => setDraft({ kind: "customer-ticket", values: { ...draft.values, status: event.target.value } })}
-                      />
-                    </label>
-                    <label>
-                      <span>Source label</span>
-                      <input
-                        value={draft.values.sourceLabel}
-                        onChange={(event) => setDraft({ kind: "customer-ticket", values: { ...draft.values, sourceLabel: event.target.value } })}
-                      />
-                    </label>
-                    <div className="state-actions">
-                      <button type="button" className="primary" onClick={applyDraft}>Apply</button>
-                      <button type="button" className="secondary" onClick={resetDraft}>Reset</button>
-                    </div>
+                  <div className="scenario-proof-card code-card">
+                    <h3>Implementation path</h3>
+                    <pre>{`Host state -> HyperFlow canvas -> Inspector form -> updateNodeData(...)`}</pre>
                   </div>
                 </>
-              ) : selectedNode?.type === "draft-response" && draft?.kind === "draft-response" ? (
-                <>
-                  <p className="inspector-summary">Edit the AI response node and apply the configuration the same way a workflow product team would.</p>
-                  <div className="config-group-card form-card">
-                    <h3>Draft Response form</h3>
-                    <label>
-                      <span>Title</span>
-                      <input
-                        value={draft.values.title}
-                        onChange={(event) => setDraft({ kind: "draft-response", values: { ...draft.values, title: event.target.value } })}
-                      />
-                    </label>
-                    <label>
-                      <span>Tone</span>
-                      <input
-                        value={draft.values.tone}
-                        onChange={(event) => setDraft({ kind: "draft-response", values: { ...draft.values, tone: event.target.value } })}
-                      />
-                    </label>
-                    <label>
-                      <span>Output summary</span>
-                      <textarea
-                        value={draft.values.outputSummary}
-                        onChange={(event) => setDraft({ kind: "draft-response", values: { ...draft.values, outputSummary: event.target.value } })}
-                      />
-                    </label>
-                    <div className="state-actions">
-                      <button type="button" className="primary" onClick={applyDraft}>Apply</button>
-                      <button type="button" className="secondary" onClick={resetDraft}>Reset</button>
-                    </div>
-                  </div>
-                </>
+              ) : selectedNode?.type === "task-brief" ? (
+                <CustomerTicketInspectorForm node={selectedNode} onApply={applyTicketDraft} />
+              ) : selectedNode?.type === "manager-response" ? (
+                <DraftResponseInspectorForm node={selectedNode} onApply={applyDraftResponse} />
               ) : (
                 <>
                   <p className="inspector-summary">{selectedNodeDetails.summary}</p>
-                  <p className="inspector-description">This supporting node stays read-only in the first form-editing proof.</p>
+                  <p className="inspector-description">This supporting node stays read-only in the first agent-builder editing proof.</p>
                 </>
               )}
             </>

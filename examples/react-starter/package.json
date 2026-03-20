@@ -13,7 +13,8 @@
   "dependencies": {
     "@hyperflow/react": "workspace:*",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.71.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.0",

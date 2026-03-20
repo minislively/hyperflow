@@ -10,5 +10,5 @@ This directory holds the shared fixture generator and simple PoC benchmark harne
 Run with:
 
 ```bash
-pnpm bench:poc
+pnpm run bench
 ```

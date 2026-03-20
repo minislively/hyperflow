@@ -21,8 +21,7 @@ This workflow helps you run lightweight sessions, capture hesitation points, and
 1. Open the guided demo:
    - `http://localhost:4173/examples/vanilla-starter/index.html`
 2. Use the current repo branch/build that already passes:
-   - `pnpm test`
-   - `pnpm run verify:poc`
+   - `pnpm run verify`
 3. Recruit a first-time evaluator who has not been coached on the intended story.
 4. Decide upfront whether the session will be recorded; if not, make sure the facilitator can capture notes live without slowing the session down.
 

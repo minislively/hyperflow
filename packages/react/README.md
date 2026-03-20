@@ -3,13 +3,21 @@
 `packages/react` is the first **thin React adapter** for HyperFlow's current validated PoC slice.
 
 It exists to support a starter-like React product proof without pretending that the full future React API is already stabilized.
+The current strongest wedge is **agent builder UI**: host apps should be able to wire custom nodes, inspector panels, and workflow state with low integration friction, including when AI coding tools are helping assemble the surface.
+
+This package is intentionally **graph-state-first** and **form-library-agnostic**:
+
+- HyperFlow owns graph state seams and canvas interaction
+- host apps choose how to build inspector forms
+- `react-hook-form` is a recommended integration pattern, not a package dependency
 
 ## Current role
 
 - render the validated canvas proof inside React
 - expose a minimal canvas host for starter-like surfaces
 - provide a host-controlled state model for workflow nodes
-- support product-facing editing examples such as `select -> edit form -> Apply -> node update`
+- support product-facing agent/workflow editing examples such as `select -> edit form -> Apply -> node update`
+- keep the key seams small enough that AI-assisted implementation can discover and reuse them
 
 ## Public surface right now
 
@@ -28,7 +36,8 @@ It exists to support a starter-like React product proof without pretending that 
 ## Quickstart
 
 ```tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import {
   HyperFlowPocCanvas,
   fitPocViewportToNodes,
@@ -55,25 +64,32 @@ const initialNodes: WorkflowNode[] = [
     y: 0,
     width: 180,
     height: 92,
-    type: "customer-ticket",
-    data: { title: "Customer Ticket", status: "Input · Ready" },
+    type: "task-brief",
+    data: { title: "Task Brief", status: "Input · Ready" },
   },
 ];
 
 export function Example() {
   const [mode, setMode] = useState<HyperFlowCanvasMode>("inspect");
   const [nodes, setNodes] = useWorkflowNodesState(initialNodes);
-  const [selection, setSelection] = useWorkflowSelection({ nodeId: initialNodes[0]?.id ?? null });
+  const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: initialNodes[0]?.id ?? null });
   const selectedNode = useSelectedNode({ nodes, selection });
-  const [draftTitle, setDraftTitle] = useState(initialNodes[0].data.title);
   const [viewport] = useState(() =>
     fitPocViewportToNodes(initialNodes, { width: 960, height: 540 }),
   );
+  const { register, handleSubmit, reset } = useForm({
+    defaultValues: { title: initialNodes[0].data.title },
+  });
 
-  function applyChanges() {
-    if (!selection.nodeId) return;
-    updateNodeData(setNodes, selection.nodeId, (node) => ({
-      data: { ...node.data, title: draftTitle },
+  useEffect(() => {
+    if (!selectedNode) return;
+    reset({ title: selectedNode.data.title });
+  }, [selectedNode, reset]);
+
+  function applyChanges(values: { title: string }) {
+    if (!selectedNode) return;
+    updateNodeData(setNodes, selectedNode.id, (node) => ({
+      data: { ...node.data, title: values.title },
     }));
   }
 
@@ -84,9 +100,12 @@ export function Example() {
         viewport={viewport}
         mode={mode}
         selectedNodeId={selection.nodeId}
-        onNodeSelect={(nodeId) => setSelection({ nodeId })}
+        onNodeSelect={(nodeId) => onSelectionChange({ nodeId })}
       />
-      <button onClick={applyChanges} disabled={!selectedNode}>Apply</button>
+      <form onSubmit={handleSubmit(applyChanges)}>
+        <input {...register("title")} />
+        <button type="submit" disabled={!selectedNode}>Apply</button>
+      </form>
     </>
   );
 }
@@ -98,7 +117,7 @@ The intended mental model is:
 
 ```tsx
 const [nodes, setNodes, onNodesChange] = useWorkflowNodesState(initialNodes)
-const [selection, setSelection] = useWorkflowSelection({ nodeId: initialNodes[0]?.id ?? null })
+const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: initialNodes[0]?.id ?? null })
 ```
 
 - the host app owns `nodes`
@@ -106,6 +125,31 @@ const [selection, setSelection] = useWorkflowSelection({ nodeId: initialNodes[0]
 - the builder consumes both
 - the inspector can derive the selected node through `useSelectedNode(...)`
 - clicking `Apply` commits through package-owned mutation paths such as `updateNodeData(...)`
+
+### Recommended `react-hook-form` pattern
+
+Use the package seams first, then layer RHF on top:
+
+1. `useWorkflowNodesState(...)` owns node state
+2. `useWorkflowSelection(...)` owns selection
+3. `useSelectedNode(...)` derives the currently edited node
+4. RHF `reset(...)` repopulates the inspector when selection changes
+5. RHF `handleSubmit(...)` commits through `updateNodeData(...)`
+
+That keeps the adapter thin while still giving host apps a familiar inspector/form workflow.
+
+Install `react-hook-form` in the host app or example package that renders the inspector. `@hyperflow/react` itself stays free of RHF-specific dependencies.
+
+### Why this matters for AI-assisted implementation
+
+The package is intentionally opinion-light so AI coding assistants can find a short path:
+
+1. host owns `nodes`
+2. host owns `selection`
+3. `useSelectedNode(...)` resolves the edited node
+4. the inspector form commits through `updateNodeData(...)`
+
+That is the current low-friction implementation story HyperFlow is trying to make legible.
 
 ### Mode semantics
 
@@ -123,10 +167,10 @@ The old `interactive` boolean still works, but `mode` is the clearer starter-fac
   nodes={nodes}
   viewport={viewport}
   nodeRenderers={{
-    "customer-ticket": CustomerTicketNode,
-    "draft-response": DraftResponseNode,
+    "task-brief": TaskBriefNode,
+    "manager-response": ManagerResponseNode,
   }}
-  getNodeRendererKey={(node) => node.id === 1 ? "customer-ticket" : node.id === 6 ? "draft-response" : null}
+  getNodeRendererKey={(node) => node.id === 1 ? "task-brief" : node.id === 6 ? "manager-response" : null}
 />
 ```
 

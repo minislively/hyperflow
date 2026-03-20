@@ -27,8 +27,8 @@ It is the current proof surface beneath that broader product direction.
 From the repo root:
 
 ```bash
-pnpm build:wasm:poc
-pnpm serve:poc
+pnpm run build:wasm
+pnpm run serve
 ```
 
 Then open:

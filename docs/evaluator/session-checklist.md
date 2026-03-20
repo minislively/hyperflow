@@ -3,8 +3,7 @@
 ## Before the session
 
 - [ ] Confirm the current branch/build is the intended demo baseline
-- [ ] Run `pnpm test`
-- [ ] Run `pnpm run verify:poc`
+- [ ] Run `pnpm run verify`
 - [ ] Open `http://localhost:4173/examples/vanilla-starter/index.html`
 - [ ] Clear old notes and prepare the feedback template
 - [ ] Confirm the evaluator has not already been coached on the expected story

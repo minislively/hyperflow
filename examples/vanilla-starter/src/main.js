@@ -40,142 +40,142 @@ const SCENARIOS = [
 const WORKFLOW_NODES = [
   {
     id: 1,
-    title: "Customer Ticket",
+    title: "Task Brief",
     subtitle: "Input · Configured",
-    description: "Receives the incoming support request before any automation begins.",
-    why: "This keeps the flow grounded in a real customer problem instead of an abstract test graph.",
+    description: "Receives the incoming user task before planning, tools, or memory steps begin.",
+    why: "This keeps the flow grounded in a concrete operator request instead of an abstract graph node.",
     configGroups: [
       {
         title: "Source",
         fields: [
-          { label: "Type", value: "Support form" },
-          { label: "Primary fields", value: "subject, message, customer_id" },
+          { label: "Type", value: "Task intake" },
+          { label: "Primary fields", value: "goal, constraints, context" },
         ],
       },
       {
         title: "Example payload",
         fields: [
-          { label: "Subject", value: "Refund request" },
-          { label: "Customer", value: "cus_2048" },
+          { label: "Goal", value: "Refactor the auth flow" },
+          { label: "Context", value: "React app + shared UI kit" },
         ],
       },
     ],
-    example: `{\n  "subject": "Refund request",\n  "message": "I was charged twice this month.",\n  "customer_id": "cus_2048"\n}`,
+    example: `{\n  "goal": "Refactor the auth flow",\n  "constraints": ["keep behavior stable", "preserve current routes"],\n  "context": "React app + shared UI kit"\n}`,
   },
   {
     id: 2,
-    title: "Intent Classifier",
+    title: "Planner Agent",
     subtitle: "AI step · Configured",
-    description: "Classifies the incoming request so the workflow can choose the right route.",
+    description: "Breaks the incoming task into steps before execution begins.",
     why: "If this step is unclear, the evaluator cannot see how the workflow becomes operationally useful.",
     configGroups: [
       {
-        title: "Model",
+        title: "Planning",
         fields: [
           { label: "Model", value: "gpt-5.4-mini" },
-          { label: "Confidence threshold", value: "0.80" },
+          { label: "Plan depth", value: "Medium" },
         ],
       },
       {
-        title: "Labels",
+        title: "Outputs",
         fields: [
-          { label: "Enabled", value: "Billing, Technical, Account, General" },
+          { label: "Generated", value: "Plan, substeps, risk notes" },
         ],
       },
     ],
-    example: "Intent: Billing\nConfidence: 0.93",
+    example: "Plan ready: auth audit -> route mapping -> component refactor",
   },
   {
     id: 3,
-    title: "Priority Router",
+    title: "Delegation Router",
     subtitle: "Logic step · Rules active",
-    description: "Routes the request based on urgency, intent, and account context.",
-    why: "This is where the workflow stops being generic AI and starts looking like an operational support system.",
+    description: "Routes work to the right agent lane or execution path.",
+    why: "This is where the workflow stops being generic AI and starts looking like a real agent product.",
     configGroups: [
       {
         title: "Routing rules",
         fields: [
-          { label: "Billing + urgent", value: "Escalate" },
-          { label: "Technical + enterprise", value: "Priority support" },
-          { label: "Fallback", value: "Standard queue" },
+          { label: "Planning + low risk", value: "Direct executor" },
+          { label: "Cross-cutting + risky", value: "Architect review" },
+          { label: "Fallback", value: "Manual triage" },
         ],
       },
     ],
-    example: "Route selected: Billing queue",
+    example: "Route selected: executor + reviewer lane",
   },
   {
     id: 4,
-    title: "Knowledge Search",
+    title: "Memory Retrieval",
     subtitle: "Tool step · Search ready",
-    description: "Pulls relevant help-center context before a reply is drafted.",
-    why: "It shows that the workflow can use internal knowledge instead of generating unsupported answers.",
+    description: "Pulls relevant project memory and prior context before action.",
+    why: "It shows that the workflow can use stored context instead of acting without grounding.",
     configGroups: [
       {
         title: "Search settings",
         fields: [
-          { label: "Mode", value: "Hybrid search" },
-          { label: "Source", value: "Help center + policies" },
+          { label: "Mode", value: "Hybrid retrieval" },
+          { label: "Source", value: "Project memory + docs" },
         ],
       },
     ],
-    example: "Matched docs: refund-policy, duplicate-charge-faq",
+    example: "Matched context: auth-guidelines, component-map",
   },
   {
     id: 5,
-    title: "CRM Lookup",
-    subtitle: "Tool step · Customer context",
-    description: "Fetches plan and support-tier context for the current customer.",
-    why: "The same issue should feel different for priority customers versus standard accounts.",
+    title: "Tool Executor",
+    subtitle: "Tool step · Connected",
+    description: "Runs code, shell, or API tools and returns execution output.",
+    why: "The same agent surface should show where tool execution happens, not only reasoning steps.",
     configGroups: [
       {
-        title: "Lookup",
+        title: "Execution",
         fields: [
-          { label: "Source", value: "CRM" },
-          { label: "Key", value: "customer_id" },
+          { label: "Tools", value: "shell, grep, codeintel" },
+          { label: "Sandbox", value: "Scoped" },
         ],
       },
       {
         title: "Returned fields",
         fields: [
-          { label: "Fields", value: "plan, status, support tier" },
+          { label: "Fields", value: "stdout, diagnostics, artifacts" },
         ],
       },
     ],
-    example: "Plan: Pro\nSupport tier: Priority",
+    example: "Tool result: typecheck passed, patch artifact generated",
   },
   {
     id: 6,
-    title: "Draft Response",
+    title: "Manager Response",
     subtitle: "AI step · Draft ready",
-    description: "Generates an agent-ready support draft using the routed context and tool outputs.",
+    description: "Generates the operator-facing response after planning, memory, and tool execution.",
     why: "This is where the evaluator sees the workflow create visible product value, not just move data around.",
     configGroups: [
       {
         title: "Response settings",
         fields: [
-          { label: "Tone", value: "Support-friendly" },
-          { label: "Output", value: "Draft reply + internal notes" },
+          { label: "Tone", value: "Concise operator" },
+          { label: "Output", value: "Answer + execution trace" },
         ],
       },
     ],
-    example: "Draft ready: refund-policy-based response generated",
+    example: "Draft ready: recommended patch + execution summary",
   },
   {
     id: 7,
-    title: "Review Output",
+    title: "Human Review",
     subtitle: "Output step · Human review",
-    description: "Packages the draft and route decision for a final support-agent review.",
+    description: "Packages the draft and route decision for a final operator review.",
     why: "It reassures evaluators that the flow supports human control instead of pretending everything is fully autonomous.",
     configGroups: [
       {
         title: "Review policy",
         fields: [
           { label: "Approval required", value: "Yes" },
-          { label: "Escalation path", value: "Billing queue" },
+          { label: "Escalation path", value: "Operator handoff" },
         ],
       },
     ],
-    example: "Ready for billing-team approval",
+    example: "Ready for operator approval",
   },
 ];
 
@@ -507,6 +507,6 @@ try {
   metricViewportEl.textContent = "—";
   metricRenderEl.textContent = "—";
   flowStatusEl.textContent = "Build the WASM module first, then reload the page.";
-  hitResultEl.textContent = "Build the WASM module with `pnpm build:wasm:poc` and reload the page.";
+  hitResultEl.textContent = "Build the WASM module with `pnpm run build:wasm` and reload the page.";
   console.error(error);
 }

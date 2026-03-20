@@ -53,6 +53,40 @@ button:disabled {
   padding: 24px;
 }
 
+.starter-toolbar__hero {
+  display: grid;
+  gap: 18px;
+}
+
+.starter-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.starter-summary-strip div,
+.current-step-card {
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.82);
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.starter-summary-strip span,
+.current-step-card span,
+.toolbar-section__header h2 {
+  display: block;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.starter-summary-strip strong,
+.current-step-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+}
+
 .eyebrow,
 .panel-eyebrow {
   margin: 0 0 8px;
@@ -83,6 +117,32 @@ button:disabled {
 .toolbar-actions {
   display: grid;
   gap: 12px;
+}
+
+.toolbar-section {
+  display: grid;
+  gap: 10px;
+}
+
+.toolbar-section__header {
+  display: grid;
+  gap: 4px;
+}
+
+.toolbar-section__header .panel-eyebrow {
+  margin-bottom: 0;
+}
+
+.toolbar-section__header h2 {
+  margin: 0;
+  font-weight: 500;
+}
+
+.toolbar-meta-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+  gap: 12px;
+  align-items: start;
 }
 
 .toolbar-group {
@@ -124,6 +184,22 @@ button:disabled {
 .toolbar-group.compact button {
   min-width: auto;
   text-align: center;
+}
+
+.toolbar-group--primary button:not(.active) {
+  border-color: rgba(99, 102, 241, 0.28);
+  background: rgba(30, 41, 59, 0.96);
+}
+
+.toolbar-group--utility button,
+.state-group button {
+  min-width: auto;
+  background: rgba(15, 23, 42, 0.7);
+  color: #cbd5e1;
+}
+
+.toolbar-group--utility button {
+  padding-inline: 12px;
 }
 
 .starter-content {
@@ -222,6 +298,16 @@ button:disabled {
   text-align: left;
 }
 
+.quick-jump-step {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.16);
+  color: #c7d2fe;
+  font-size: 11px;
+}
+
 .scenario-proof-card.emphasis {
   border-color: rgba(99, 102, 241, 0.36);
 }
@@ -258,6 +344,17 @@ button:disabled {
   align-content: start;
 }
 
+.current-step-card {
+  display: grid;
+  gap: 6px;
+}
+
+.current-step-card p {
+  margin: 0;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
 .inspector-grid,
 .config-groups {
   display: grid;
@@ -276,6 +373,8 @@ button:disabled {
 }
 
 @media (max-width: 1080px) {
+  .starter-summary-strip,
+  .toolbar-meta-grid,
   .starter-content {
     grid-template-columns: 1fr;
   }
@@ -286,9 +385,18 @@ button:disabled {
     padding: 16px;
   }
 
+  .starter-summary-strip,
   .metrics-strip,
   .inspector-grid {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .starter-summary-strip,
+  .metrics-strip,
+  .inspector-grid {
+    grid-template-columns: 1fr;
   }
 }
 

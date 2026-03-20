@@ -10,7 +10,7 @@ export type StarterScenario = {
   defaultNodeId: number;
 };
 
-export type TicketNodeData = {
+export type TaskBriefNodeData = {
   title: string;
   status: string;
   sourceLabel: string;
@@ -22,7 +22,7 @@ export type TicketNodeData = {
   };
 };
 
-export type DraftResponseNodeData = {
+export type ManagerResponseNodeData = {
   title: string;
   status: string;
   tone: string;
@@ -41,7 +41,7 @@ export type GenericNodeData = {
   summary: string;
 };
 
-export type WorkflowNodeData = TicketNodeData | DraftResponseNodeData | GenericNodeData;
+export type WorkflowNodeData = TaskBriefNodeData | ManagerResponseNodeData | GenericNodeData;
 
 export type WorkflowNode = PocNode & {
   type: string;
@@ -80,25 +80,25 @@ export const STARTER_SURFACE_STATES: {
   label: string;
   subtitle: string;
 }[] = [
-  { id: "live", label: "Live proof", subtitle: "Current validated slice" },
-  { id: "loading", label: "Loading", subtitle: "Starter shell waiting on data" },
-  { id: "empty", label: "Empty", subtitle: "No workflow loaded yet" },
-  { id: "error", label: "Error", subtitle: "Surface failed gracefully" },
+  { id: "live", label: "Live starter", subtitle: "Workflow builder proof" },
+  { id: "loading", label: "Loading", subtitle: "Preparing workflow data" },
+  { id: "empty", label: "Empty", subtitle: "No workflow template loaded" },
+  { id: "error", label: "Error", subtitle: "Starter surface recovered safely" },
 ];
 
 export const STARTER_SURFACE_GUIDANCE: Record<Exclude<StarterSurfaceState, "live">, StarterSurfaceGuidance> = {
   loading: {
-    title: "Preparing workflow surface",
+    title: "Preparing agent workflow surface",
     description:
       "Use this state when fixture data, remote config, or runtime resources are still being prepared before the starter surface becomes interactive.",
     inspectorSummary:
       "The shell is still visible while data or runtime resources are being prepared, so the host app can show progress without collapsing the starter surface.",
     interactionLabel: "Blocked temporarily",
     shellNote: "Still visible",
-    actions: [{ id: "syncing", label: "Syncing workflow data", disabled: true }],
+    actions: [{ id: "syncing", label: "Syncing agent workflow data", disabled: true }],
   },
   empty: {
-    title: "No workflow loaded yet",
+    title: "No agent workflow loaded yet",
     description:
       "Use this state when the host app has no workflow to render yet and should guide the user toward loading or creating one later.",
     inspectorSummary:
@@ -106,8 +106,8 @@ export const STARTER_SURFACE_GUIDANCE: Record<Exclude<StarterSurfaceState, "live
     interactionLabel: "Awaiting data",
     shellNote: "Ready for host action",
     actions: [
-      { id: "load-starter-workflow", label: "Load starter workflow", tone: "primary" },
-      { id: "open-starter-template", label: "Open starter template", tone: "secondary" },
+      { id: "load-starter-workflow", label: "Load agent workflow", tone: "primary" },
+      { id: "open-starter-template", label: "Open agent template", tone: "secondary" },
     ],
   },
   error: {
@@ -127,12 +127,12 @@ export const STARTER_SURFACE_GUIDANCE: Record<Exclude<StarterSurfaceState, "live
 
 export const STARTER_SCENARIOS: StarterScenario[] = [
   {
-    id: "automation-support",
-    label: "Automation SaaS",
-    subtitle: "Support workflow template",
-    summary: "A customer support automation flow where structured inputs and AI-generated outputs are configured through forms.",
-    proof: "Demonstrates that selecting a workflow node opens an editable inspector and that Apply updates the node UI and graph state together.",
-    why: "Best for showing how the SDK becomes a real workflow builder instead of a generic canvas demo.",
+    id: "agent-builder",
+    label: "Agent builder UI",
+    subtitle: "AI-assisted starter",
+    summary: "An agent workflow where task intake, planning, tools, memory, and review are edited through a product-style inspector.",
+    proof: "Demonstrates that selecting a workflow step opens an editable inspector and that Apply updates the workflow state and node UI together.",
+    why: "Best for showing HyperFlow as a workflow builder SDK for agent products instead of a generic node canvas.",
     defaultNodeId: 1,
   },
 ];
@@ -140,20 +140,20 @@ export const STARTER_SCENARIOS: StarterScenario[] = [
 export const INITIAL_WORKFLOW_NODES: WorkflowNode[] = [
   {
     id: 1,
-    type: "customer-ticket",
+    type: "task-brief",
     x: 40,
     y: 80,
     width: 180,
     height: 92,
     data: {
-      title: "Customer Ticket",
+      title: "Task Brief",
       status: "Input · Ready",
-      sourceLabel: "Support form",
-      summary: "Structured request enters the automation workflow.",
+      sourceLabel: "Chat input",
+      summary: "Structured task request enters the agent workflow.",
       form: {
-        title: "Customer Ticket",
+        title: "Task Brief",
         status: "Input · Ready",
-        sourceLabel: "Support form",
+        sourceLabel: "Chat input",
       },
     },
   },
@@ -165,9 +165,9 @@ export const INITIAL_WORKFLOW_NODES: WorkflowNode[] = [
     width: 140,
     height: 72,
     data: {
-      title: "Intent Classifier",
-      status: "AI step · Configured",
-      summary: "Classifies the request before routing.",
+      title: "Planner Agent",
+      status: "Agent step · Configured",
+      summary: "Breaks the task into steps before execution.",
     },
   },
   {
@@ -178,9 +178,9 @@ export const INITIAL_WORKFLOW_NODES: WorkflowNode[] = [
     width: 140,
     height: 72,
     data: {
-      title: "Priority Router",
+      title: "Delegation Router",
       status: "Logic step · Active",
-      summary: "Routes urgency and account tier.",
+      summary: "Routes work to the right agent or tool path.",
     },
   },
   {
@@ -191,9 +191,9 @@ export const INITIAL_WORKFLOW_NODES: WorkflowNode[] = [
     width: 140,
     height: 72,
     data: {
-      title: "Knowledge Search",
-      status: "Tool step · Search ready",
-      summary: "Pulls internal context before drafting.",
+      title: "Memory Retrieval",
+      status: "Context step · Ready",
+      summary: "Pulls project context before the agent acts.",
     },
   },
   {
@@ -204,28 +204,28 @@ export const INITIAL_WORKFLOW_NODES: WorkflowNode[] = [
     width: 140,
     height: 72,
     data: {
-      title: "CRM Lookup",
-      status: "Tool step · Context ready",
-      summary: "Loads customer plan and tier.",
+      title: "Tool Executor",
+      status: "Tool step · Connected",
+      summary: "Runs tools and returns execution output.",
     },
   },
   {
     id: 6,
-    type: "draft-response",
+    type: "manager-response",
     x: 700,
     y: 80,
     width: 200,
     height: 96,
     data: {
-      title: "Draft Response",
+      title: "Manager Response",
       status: "AI step · Draft ready",
-      tone: "Support-friendly",
-      outputSummary: "Draft reply + internal notes",
-      summary: "Agent-ready response is generated after routing and context lookup.",
+      tone: "Concise operator",
+      outputSummary: "Answer + execution trace",
+      summary: "Manager-ready response is generated after planning, tools, and memory lookup.",
       form: {
-        title: "Draft Response",
-        tone: "Support-friendly",
-        outputSummary: "Draft reply + internal notes",
+        title: "Manager Response",
+        tone: "Concise operator",
+        outputSummary: "Answer + execution trace",
       },
     },
   },
@@ -237,9 +237,9 @@ export const INITIAL_WORKFLOW_NODES: WorkflowNode[] = [
     width: 140,
     height: 72,
     data: {
-      title: "Review Output",
-      status: "Output · Human review",
-      summary: "Packages the draft for approval.",
+      title: "Human Review",
+      status: "Review · Optional gate",
+      summary: "Lets an operator approve before final handoff.",
     },
   },
 ];
@@ -248,43 +248,43 @@ export const WORKFLOW_DETAILS = new Map<number, StarterWorkflowDetails>([
   [
     1,
     {
-      title: "Customer Ticket",
+      title: "Task Brief",
       status: "Input · Ready",
-      summary: "Structured support request enters the flow.",
-      description: "Receives the incoming ticket before any automation begins.",
-      why: "This node is a strong first editing target because product teams often customize intake labels and statuses.",
+      summary: "Structured task request enters the flow.",
+      description: "Receives the incoming user goal before any planning or tool execution begins.",
+      why: "This step is a strong first editing target because agent products often customize task labels, intake status, and source naming.",
       configGroups: [
         {
           title: "Editable fields",
           fields: [
-            { label: "Title", value: "Customer Ticket" },
+            { label: "Title", value: "Task Brief" },
             { label: "Status", value: "Input · Ready" },
-            { label: "Source", value: "Support form" },
+            { label: "Source", value: "Chat input" },
           ],
         },
       ],
-      example: "Apply updates should change title, status, and source label on the node card.",
+      example: "Apply updates should change title, status, and source label on the workflow step card.",
     },
   ],
   [
     6,
     {
-      title: "Draft Response",
+      title: "Manager Response",
       status: "AI step · Draft ready",
-      summary: "Agent-ready response is prepared with automation context.",
-      description: "Generates the draft output that the team wants to review before sending.",
-      why: "This node is a strong second editing target because tone and output summary clearly show before/after differences.",
+      summary: "Manager-ready response is prepared with workflow context.",
+      description: "Generates the synthesized response after planning, tool execution, and memory retrieval.",
+      why: "This step is a strong second editing target because tone and output summary clearly show how the host product shapes final agent output.",
       configGroups: [
         {
           title: "Editable fields",
           fields: [
-            { label: "Title", value: "Draft Response" },
-            { label: "Tone", value: "Support-friendly" },
-            { label: "Output", value: "Draft reply + internal notes" },
+            { label: "Title", value: "Manager Response" },
+            { label: "Tone", value: "Concise operator" },
+            { label: "Output", value: "Answer + execution trace" },
           ],
         },
       ],
-      example: "Apply updates should change the node title, tone label, and output summary block.",
+      example: "Apply updates should change the workflow step title, tone label, and output summary block.",
     },
   ],
 ]);

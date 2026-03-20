@@ -1,6 +1,6 @@
 import { createPocViewport, type PocViewport } from "@hyperflow/react";
-import type { StarterScenario, StarterWorkflowDetails, WorkflowNode } from "./starter-data";
-import { STARTER_SCENARIOS, WORKFLOW_DETAILS } from "./starter-data";
+import type { StarterWorkflowDetails, WorkflowNode } from "./starter-data";
+import { WORKFLOW_DETAILS } from "./starter-data";
 
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 540;
@@ -14,10 +14,6 @@ export function getDefaultStarterViewport() {
   return createPocViewport(CANVAS_WIDTH, CANVAS_HEIGHT, { x: 0, y: 0, zoom: 1 });
 }
 
-export function getStarterScenarioBySize(_: number): StarterScenario {
-  return STARTER_SCENARIOS[0];
-}
-
 export function getSelectedNodeDetails(
   node: WorkflowNode | undefined,
   _scenarioId: number,
@@ -25,20 +21,20 @@ export function getSelectedNodeDetails(
   if (!node) {
     return {
       title: "No node selected",
-      status: "Editing proof",
-      summary: "Select a proof node to open its form and apply changes.",
-      description: "This proof now focuses on Apply-driven editing rather than generic canvas inspection.",
-      why: "The product should feel like a workflow builder editing surface, not a canvas demo.",
+      status: "Inspector ready",
+      summary: "Select a workflow step to open its form and apply changes.",
+      description: "This starter focuses on agent-builder editing flow rather than generic canvas inspection.",
+      why: "The product should feel like a workflow builder surface with clear host-owned seams.",
       configGroups: [
         {
           title: "Current scope",
           fields: [
-            { label: "Proof", value: "Automation SaaS form editing" },
+            { label: "Proof", value: "Agent builder inspector editing" },
             { label: "Interaction", value: "Select -> edit -> Apply" },
           ],
         },
       ],
-      example: "Choose Customer Ticket or Draft Response to begin editing.",
+      example: "Choose Task Brief or Manager Response to begin editing.",
     };
   }
 

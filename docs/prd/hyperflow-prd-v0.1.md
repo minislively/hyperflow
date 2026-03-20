@@ -65,11 +65,24 @@
 
 ### 1차 타겟
 
-- 자동화 SaaS 팀
 - AI/에이전트 오케스트레이션 UI 팀
+- Agent builder UI 팀
+- 자동화 SaaS 팀
 - 데이터 파이프라인 / ETL UI 팀
 - 내부 운영툴 / 승인 프로세스 툴 팀
 - 마케팅 플로우 / 규칙 엔진 / 여정 빌더 팀
+
+### 초기 wedge
+
+초기 첫 메시지와 첫 데모에서 가장 강하게 잡아야 하는 대상은:
+
+- **Agent builder UI 팀**
+
+이유:
+
+- 커스텀 노드 / inspector / workflow state 연결이 제품 경험의 핵심이다.
+- AI 코딩 도구를 활용한 구현 과정에서 패키징/통합 마찰이 곧 도입 장벽이 된다.
+- HyperFlow의 현재 강점(그래프 상태, starter-like surface, custom node seams, React integration)이 가장 자연스럽게 읽힌다.
 
 ### 핵심 사용자 역할
 
@@ -253,7 +266,7 @@ React Flow 비교는 허용하지만 **secondary bridge**로만 사용한다.
 ### Evaluation readiness
 
 - 현재 repo가 무엇을 이미 검증했고, 무엇이 아직 방향성인지 구분된다.
-- example/demo를 통해 제품 방향을 이해할 수 있다.
+- example/demo를 통해 **agent builder UI** 방향을 빠르게 이해할 수 있다.
 - 성능 메시지가 headline이 아니라 trust signal로 동작한다.
 
 ### Scope honesty
