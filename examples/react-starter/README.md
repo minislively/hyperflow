@@ -1,6 +1,6 @@
 # example-react-starter
 
-`examples/react-starter` is the first **starter-like React thin slice** for HyperFlow's workflow builder SDK positioning, with an **agent builder UI** wedge.
+`examples/react-starter` is the first **starter-like React thin slice** for HyperFlow's open-foundation positioning, delivered through its current workflow builder SDK packages and focused on an **agent builder UI** wedge.
 
 It is intentionally bounded to prove one thing well:
 
@@ -9,7 +9,7 @@ It is intentionally bounded to prove one thing well:
 
 ## What it proves
 
-- HyperFlow can show a product-facing workflow builder surface, not only docs plus a vanilla PoC
+- HyperFlow can show a product-facing workflow builder surface that makes the broader foundation story concrete, not only docs plus a vanilla PoC
 - the current validated SDK/canvas slice can power a React starter shell
 - package-level `nodeRenderers` registration can inject custom node UI into the starter surface
 - Apply-driven `react-hook-form` editing can update those nodes through package-owned state seams
@@ -54,4 +54,4 @@ The official pattern shown here is:
 4. RHF `reset(...)` follows node selection
 5. RHF `handleSubmit(...)` applies changes through `updateNodeData(...)`
 
-This keeps the example product-like while preserving the package's thin, form-library-agnostic boundary.
+This keeps the example product-like while preserving the delivery layer's thin, form-library-agnostic boundary.

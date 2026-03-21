@@ -1,11 +1,11 @@
 # react
 
-`packages/react` is the first **thin React adapter** for HyperFlow's current validated PoC slice.
+`packages/react` is the first **thin React adapter** inside HyperFlow's broader open-foundation story.
 
-It exists to support a starter-like React product proof without pretending that the full future React API is already stabilized.
+It is the current TypeScript/React delivery layer for the validated PoC slice, and it exists to support a starter-like React product proof without pretending that the full future React API is already stabilized.
 The current strongest wedge is **agent builder UI**: host apps should be able to wire custom nodes, inspector panels, and workflow state with low integration friction, including when AI coding tools are helping assemble the surface.
 
-This package is intentionally **graph-state-first** and **form-library-agnostic**:
+This package is intentionally **graph-state-first** and **form-library-agnostic** within that broader foundation story:
 
 - HyperFlow owns graph state seams and canvas interaction
 - host apps choose how to build inspector forms
@@ -13,7 +13,7 @@ This package is intentionally **graph-state-first** and **form-library-agnostic*
 
 ## Current role
 
-- render the validated canvas proof inside React
+- render the validated foundation proof inside React
 - expose a minimal canvas host for starter-like surfaces
 - provide a host-controlled state model for workflow nodes
 - support product-facing agent/workflow editing examples such as `select -> edit form -> Apply -> node update`
@@ -149,7 +149,7 @@ The package is intentionally opinion-light so AI coding assistants can find a sh
 3. `useSelectedNode(...)` resolves the edited node
 4. the inspector form commits through `updateNodeData(...)`
 
-That is the current low-friction implementation story HyperFlow is trying to make legible.
+That is the current low-friction implementation story HyperFlow is trying to make legible through its React delivery layer.
 
 ### Mode semantics
 

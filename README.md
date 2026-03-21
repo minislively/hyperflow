@@ -1,11 +1,13 @@
 # HyperFlow
 
-HyperFlow is an open-source **workflow builder SDK** for teams building agent, automation, and ops products with node-based workflow editors inside existing apps.
+HyperFlow is an open foundation for modern workflow builders.
+
+Today, teams adopt it through installable **SDK packages for TypeScript/React apps** when they want to build agent, automation, and ops workflow products inside existing software.
 
 The product promise is simple:
 
-- **ship workflow editors faster** without building a canvas stack from scratch
-- **stay usable as graphs grow** through a Rust + WASM + canvas-backed architecture
+- **ship workflow builders faster** without assembling a canvas stack from scratch
+- **stay usable as workflow complexity grows** through a Rust + WASM + canvas-backed core path
 - **embed naturally into existing products** instead of forcing a full-platform rewrite
 
 HyperFlow is aimed first at teams building:
@@ -20,21 +22,21 @@ The **first wedge** is agent builder UI: HyperFlow should feel especially good w
 
 HyperFlow is **not** currently positioned as a generic diagramming, whiteboard, or mind-map library.
 
-This repository is the current public bootstrap. It already contains a validated small PoC for the rendering/interaction core, plus the package and documentation structure needed to grow toward the broader SDK + Starter Kit surface.
+This repository is the current public bootstrap of that foundation story. It already contains a validated narrow slice of the rendering/interaction core, plus the packages and example surfaces needed to grow toward the broader workflow-builder system.
 
 ## What HyperFlow is
 
-HyperFlow is positioned as a:
+HyperFlow should be read in three layers:
 
-- **high-performance workflow builder SDK** for product teams
-- **Starter Kit direction** for faster evaluation and adoption
-- **product-first, engine-second** system
+- **identity:** an open foundation for modern workflow builders
+- **delivery model:** installable SDK packages for TypeScript/React product teams
+- **proof layer:** a product-first system whose core evolved from TS/React surfaces toward Rust + WASM + canvas as scale and complexity grew
 
-Rust, WASM, and canvas are important here, but they are the enabling implementation — not the category definition.
+Rust, WASM, and canvas matter here, but they are the enabling architecture — not the category definition.
 
 ## Why teams would use it
 
-Teams usually start with a general-purpose node editor, then hit friction as they add:
+Many teams start with a general-purpose node editor, then hit friction as they add:
 
 - larger graphs
 - heavier custom node UI
@@ -42,13 +44,14 @@ Teams usually start with a general-purpose node editor, then hit friction as the
 - product-specific interaction rules
 - long-term maintenance expectations
 
-HyperFlow is being built for that moment: when a team wants a workflow builder surface that still feels product-ready as complexity grows.
+HyperFlow is being built for that moment: when a team wants a workflow builder surface that still feels product-ready as complexity grows, without abandoning the TypeScript/React product surface they already ship.
 
 ## Product promise
 
 HyperFlow aims to be:
 
 - **workflow-builder-first**: optimize for real product surfaces, not just graphics tech
+- **foundation-minded**: support reusable workflow-building patterns, not only a single demo package
 - **performance-aware at scale**: use Rust + WASM + canvas where DOM-heavy editors usually degrade
 - **embed-first**: fit into existing SaaS products and internal tools
 - **framework-friendly**: keep a framework-neutral core with adapter surfaces for React and beyond
@@ -79,25 +82,25 @@ Not yet product-complete:
 
 If you are new to this repo, the easiest way to think about HyperFlow is:
 
-- imagine you want to build an **agent builder UI** inside an existing product
-- you need a big canvas with boxes/nodes
-- users should be able to click a node, inspect it, and edit its data
+- a **product team installs HyperFlow** to build an agent builder or workflow builder inside an existing app
+- that team needs a canvas, selectable nodes, inspector flows, and host-controlled workflow state
+- their end users then interact with the resulting workflow surface inside that product
 - AI coding tools should be able to discover the integration seams without lots of bespoke glue
-- you do **not** want to build the rendering/math/performance layer from scratch
+- the team does **not** want to build the rendering/math/performance layer from scratch
 
-HyperFlow is trying to be the reusable foundation for that kind of product.
+HyperFlow is trying to be the reusable foundation for that kind of product surface.
 
 In plain language:
 
 - **Rust core** does the heavy math work
-- **WASM bridge** lets JavaScript talk to that Rust core
-- **Canvas renderer** draws the visible boxes
-- **SDK** wraps those lower-level pieces in a simpler API
-- **React package** makes that SDK usable in a React app
-- **examples/** shows what the current proof looks like in a real UI
+- **WASM bridge** lets TypeScript/JavaScript talk to that Rust core
+- **Canvas renderer** draws the visible nodes
+- **SDK packages** wrap those lower-level pieces in a simpler product-facing API
+- **React package** makes that SDK usable in a React app today
+- **examples/** show what the current proof looks like in a real UI
 
 Important: this repo is **not yet a full workflow builder product**.
-Today it is mostly a **working proof that the core stack and first React integration can work together**.
+Today it is a **working narrow slice that proves the foundation story can be real in a React product surface**.
 
 ## Beginner mental model: how the pieces connect
 
@@ -141,7 +144,8 @@ So if you are evaluating the repo, the most important truth is:
 
 HyperFlow can be evaluated by teams who are also considering React Flow–style tools, but that comparison is **secondary**.
 
-- **Primary framing:** HyperFlow is a **workflow builder SDK**
+- **Primary framing:** HyperFlow is an **open foundation for modern workflow builders**
+- **Delivery reality:** teams adopt it through **workflow-builder SDK packages** for TypeScript/React apps
 - **Secondary framing:** if you are hitting scale, customization, or long-term architecture limits with DOM-first editors, HyperFlow is a relevant alternative to evaluate
 
 ## What this bootstrap includes
@@ -190,7 +194,7 @@ Use `pnpm run check` for quick workspace validation and `pnpm run verify` for ru
 
 ## Fastest React proof path
 
-If you want to see the current Workflow Builder SDK direction in a React surface first, run:
+If you want to see the current workflow-builder foundation direction in a React surface first, run:
 
 ```bash
 pnpm run dev

@@ -2,23 +2,23 @@
 
 ## 프로젝트명: HyperFlow
 
-**부제:** 고성능 워크플로우 빌더 SDK  
+**부제:** 현대적 워크플로우 빌더를 위한 오픈 파운데이션  
 **문서 버전:** v0.1  
 **상태:** Draft
 
-**작성 목적:** HyperFlow를 “렌더링 엔진”이 아니라 **워크플로우 제품을 빠르게 만들고, 규모가 커져도 성능 저하 없이 운영할 수 있게 해주는 Workflow Builder SDK**로 정의하기 위한 제품 요구사항 문서.
+**작성 목적:** HyperFlow를 단순한 “렌더링 엔진”이나 패키지 하나가 아니라, **현대적 워크플로우 제품을 만들기 위한 open foundation**으로 정의하되, 현재의 실제 도입 방식은 **TypeScript/React 앱용 workflow builder SDK**라는 점을 함께 명확히 하기 위한 제품 요구사항 문서.
 
 ---
 
 ## 1. 제품 한 줄 정의
 
-**복잡한 워크플로우도 버벅이지 않게 만들 수 있는 production-ready workflow builder SDK**
+**현대적 워크플로우 빌더를 만들기 위한 open foundation**
 
 보조 설명:
 
-- React 같은 기존 앱에 붙이기 쉬운 워크플로우 빌더 SDK
-- 커스텀 노드/패널/검증 흐름을 제품에 맞게 확장할 수 있는 기반
-- 큰 그래프에서도 상호작용 품질을 지키기 위한 고성능 아키텍처를 내장한 제품
+- 현재는 React 같은 기존 앱에 붙이기 쉬운 **workflow builder SDK 패키지**로 도입된다
+- 커스텀 노드/패널/검증 흐름을 제품에 맞게 확장할 수 있는 기반이다
+- 큰 그래프에서도 상호작용 품질을 지키기 위해 Rust + WASM + Canvas 기반 proof layer를 가진다
 
 ---
 
@@ -50,7 +50,7 @@
 
 ### 핵심 가설
 
-노드 기반 제품을 만드는 팀은 “멋진 렌더링 엔진”보다 **실제로 붙여서 바로 제품을 만들 수 있는 workflow builder SDK**를 더 높은 가치로 인식한다.
+노드 기반 제품을 만드는 팀은 “멋진 렌더링 엔진”보다 **실제로 붙여서 바로 제품을 만들 수 있는 workflow-builder foundation**을 더 높은 가치로 인식하고, 그 foundation이 SDK 형태로 도입되길 원한다.
 
 ### 보조 가설
 
@@ -95,8 +95,8 @@
 
 ## 5. 제품 원칙
 
-1. **Product-first, engine-second**  
-   겉으로는 SDK/Starter Kit, 안쪽에서 엔진이 작동한다.
+1. **Foundation-first, engine-second**  
+   겉으로는 workflow builder foundation과 SDK/Starter surface가 보이고, 안쪽에서 엔진이 작동한다.
 
 2. **Production-ready by default**  
    데모용 캔버스가 아니라 실제 서비스에 넣을 수 있는 방향을 우선한다.
@@ -114,11 +114,21 @@
 
 ## 6. 제품 구조
 
-HyperFlow는 두 개의 제품 레이어와 하나의 기반 아키텍처로 이해한다.
+HyperFlow는 하나의 외부 정체성, 하나의 도입 레이어, 하나의 supporting surface, 그리고 하나의 기반 아키텍처로 이해한다.
 
-### A. Core SDK
+### A. Identity Layer
 
-개발자가 React/TS 앱 안에서 워크플로우 에디터를 만들 수 있게 하는 핵심 레이어
+외부에서 HyperFlow를 읽는 가장 큰 카테고리: modern workflow builders를 위한 open foundation
+
+이 레이어는 다음을 뜻한다:
+
+- 단순한 패키지보다 큰 제품/시스템 정체성
+- workflow-builder-first 문제 정의
+- 최종 사용자가 만지는 workflow surface까지 상상되게 하는 이야기
+
+### B. Delivery Layer (SDK)
+
+개발자가 React/TS 앱 안에서 워크플로우 에디터를 만들 수 있게 하는 실제 도입 레이어
 
 포함 방향:
 
@@ -128,7 +138,7 @@ HyperFlow는 두 개의 제품 레이어와 하나의 기반 아키텍처로 이
 - 커스텀 노드/패널 통합 지점
 - 성능 최적화 레이어
 
-### B. Starter Kit / Starter Surface
+### C. Starter Kit / Starter Surface
 
 도입 속도를 높이기 위한 예제/가이드/기본 UI 뼈대
 
@@ -139,7 +149,7 @@ HyperFlow는 두 개의 제품 레이어와 하나의 기반 아키텍처로 이
 - persistence / theming / custom node 예시
 - docs + examples
 
-### C. Enabling Architecture
+### D. Enabling Architecture
 
 제품 약속을 가능하게 하는 내부 기술 기반
 
@@ -147,7 +157,7 @@ HyperFlow는 두 개의 제품 레이어와 하나의 기반 아키텍처로 이
 - Canvas 중심 렌더링 경로
 - DOM overlay 기반 제품 UI 통합
 
-외부 메시지 우선순위는 **SDK → Starter Kit → enabling architecture** 순서다.
+외부 메시지 우선순위는 **foundation identity → SDK delivery → Starter surface → enabling architecture** 순서다.
 
 ---
 
@@ -181,10 +191,11 @@ HyperFlow는 두 개의 제품 레이어와 하나의 기반 아키텍처로 이
 
 ### 필수 약속
 
-- HyperFlow는 workflow builder SDK다.
+- HyperFlow의 **identity는 modern workflow builders를 위한 open foundation**이다.
+- 현재의 실제 도입 방식은 **workflow builder SDK 패키지**다.
 - 현재는 좁은 PoC contract가 검증된 상태다.
 - 제품 표면은 Starter Kit 방향으로 확장 중이다.
-- 큰 그래프와 복잡한 상호작용을 염두에 둔 아키텍처를 택하고 있다.
+- 큰 그래프와 복잡한 상호작용을 염두에 둔 Rust + WASM + Canvas 기반 proof layer를 택하고 있다.
 
 ### 방향성 약속
 
@@ -206,11 +217,11 @@ HyperFlow는 두 개의 제품 레이어와 하나의 기반 아키텍처로 이
 
 ### 메인 포지션
 
-**고성능 워크플로우 빌더 SDK**
+**modern workflow builders를 위한 open foundation**
 
 ### 보조 포지션
 
-**빠른 도입을 위한 Starter Kit 방향을 가진 SDK**
+**TypeScript/React 앱용 workflow builder SDK + Starter surface direction**
 
 ### 피해야 할 포지션
 
@@ -228,9 +239,10 @@ React Flow 비교는 허용하지만 **secondary bridge**로만 사용한다.
 
 올바른 순서:
 
-1. HyperFlow는 workflow builder SDK다.
-2. 대규모 그래프/커스텀 제품화에 강한 방향을 가진다.
-3. 그래서 React Flow–style 도구를 검토하던 팀에게도 대안이 될 수 있다.
+1. HyperFlow는 modern workflow builders를 위한 open foundation이다.
+2. 현재는 workflow builder SDK 패키지로 도입된다.
+3. 대규모 그래프/커스텀 제품화에 강한 방향을 가진다.
+4. 그래서 React Flow–style 도구를 검토하던 팀에게도 대안이 될 수 있다.
 
 잘못된 순서:
 
@@ -259,9 +271,9 @@ React Flow 비교는 허용하지만 **secondary bridge**로만 사용한다.
 
 ### Product clarity
 
-- README 첫 화면만 보고도 workflow builder SDK라는 점이 이해된다.
+- README 첫 화면만 보고도 **open foundation + SDK delivery model** 구조가 이해된다.
 - PRD와 architecture docs가 서로 다른 제품 정체성을 말하지 않는다.
-- SDK vs Starter Kit vs enabling architecture 구분이 명확하다.
+- foundation vs SDK vs Starter Kit vs enabling architecture 구분이 명확하다.
 
 ### Evaluation readiness
 
@@ -279,7 +291,8 @@ React Flow 비교는 허용하지만 **secondary bridge**로만 사용한다.
 
 ## 13. 메시지 가드레일
 
-- Primary category: **workflow builder SDK**
+- Primary category: **open foundation for modern workflow builders**
+- Delivery model: **workflow builder SDK for TypeScript/React apps**
 - Secondary support: **Starter Kit direction**
 - Technical proof: **Rust + WASM + Canvas**
 - Comparison bridge: **React Flow–style alternatives**
@@ -290,4 +303,4 @@ React Flow 비교는 허용하지만 **secondary bridge**로만 사용한다.
 
 ## 14. 한 줄 결론
 
-**HyperFlow는 렌더링 기술을 파는 제품이 아니라, 성능 문제 없이 워크플로우 제품을 만들고 출시하게 해주는 Workflow Builder SDK다.**
+**HyperFlow는 렌더링 기술을 파는 제품이 아니라, 현대적 워크플로우 빌더를 만들게 해주는 open foundation이며, 오늘은 그 foundation이 workflow builder SDK 형태로 제공된다.**
