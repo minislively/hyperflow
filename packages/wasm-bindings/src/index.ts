@@ -91,16 +91,6 @@ function packNodes(nodes: HyperflowNode[]): Float32Array {
   return packed;
 }
 
-function cloneTypedArray<TArray extends Float32Array | Uint32Array>(
-  Type: { new (buffer: ArrayBufferLike, byteOffset: number, length: number): TArray; new (array: TArray): TArray },
-  memory: WebAssembly.Memory,
-  pointer: number,
-  length: number,
-): TArray {
-  const view = new Type(memory.buffer, pointer, length);
-  return new Type(view);
-}
-
 export async function createHyperflowWasmBridge(options: HyperflowWasmSourceOptions = {}): Promise<HyperflowWasmBridge> {
   const wasmBytes = await loadWasmBytes(options);
   const { instance } = await WebAssembly.instantiate(wasmBytes, {});
@@ -141,23 +131,29 @@ export async function createHyperflowWasmBridge(options: HyperflowWasmSourceOpti
     getVisibleNodeIds() {
       const pointer = exports.visible_ids_ptr();
       const length = exports.visible_ids_len();
-      return Array.from(cloneTypedArray(Uint32Array, exports.memory, pointer, length));
+      if (length === 0) {
+        return [];
+      }
+      return Array.from(new Uint32Array(exports.memory.buffer, pointer, length));
     },
 
     getVisibleBoxes() {
       const pointer = exports.visible_boxes_ptr();
       const length = exports.visible_boxes_len();
-      const values = cloneTypedArray(Float32Array, exports.memory, pointer, length);
-      const boxes: HyperflowNode[] = [];
+      if (length === 0) {
+        return [];
+      }
+      const values = new Float32Array(exports.memory.buffer, pointer, length);
+      const boxes = new Array<HyperflowNode>(values.length / 5);
 
       for (let index = 0; index < values.length; index += 5) {
-        boxes.push({
+        boxes[index / 5] = {
           id: values[index],
           x: values[index + 1],
           y: values[index + 2],
           width: values[index + 3],
           height: values[index + 4],
-        });
+        };
       }
 
       return boxes;

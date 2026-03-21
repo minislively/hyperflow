@@ -33,10 +33,6 @@ function packNodes(nodes) {
     });
     return packed;
 }
-function cloneTypedArray(Type, memory, pointer, length) {
-    const view = new Type(memory.buffer, pointer, length);
-    return new Type(view);
-}
 export async function createHyperflowWasmBridge(options = {}) {
     const wasmBytes = await loadWasmBytes(options);
     const { instance } = await WebAssembly.instantiate(wasmBytes, {});
@@ -69,21 +65,27 @@ export async function createHyperflowWasmBridge(options = {}) {
         getVisibleNodeIds () {
             const pointer = exports.visible_ids_ptr();
             const length = exports.visible_ids_len();
-            return Array.from(cloneTypedArray(Uint32Array, exports.memory, pointer, length));
+            if (length === 0) {
+                return [];
+            }
+            return Array.from(new Uint32Array(exports.memory.buffer, pointer, length));
         },
         getVisibleBoxes () {
             const pointer = exports.visible_boxes_ptr();
             const length = exports.visible_boxes_len();
-            const values = cloneTypedArray(Float32Array, exports.memory, pointer, length);
-            const boxes = [];
+            if (length === 0) {
+                return [];
+            }
+            const values = new Float32Array(exports.memory.buffer, pointer, length);
+            const boxes = new Array(values.length / 5);
             for(let index = 0; index < values.length; index += 5){
-                boxes.push({
+                boxes[index / 5] = {
                     id: values[index],
                     x: values[index + 1],
                     y: values[index + 2],
                     width: values[index + 3],
                     height: values[index + 4]
-                });
+                };
             }
             return boxes;
         },

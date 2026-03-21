@@ -95,26 +95,37 @@ impl KernelState {
             });
         }
 
+        self.visible_ids.reserve(self.nodes.len());
+        self.visible_boxes.reserve(self.nodes.len() * 5);
+
         self.nodes.len()
     }
 
     fn update_visible(&mut self) -> usize {
-        self.visible_ids.clear();
-        self.visible_boxes.clear();
-
-        for node in compute_visible_nodes(&self.nodes, self.viewport) {
-            self.visible_ids.push(node.id);
-            self.visible_boxes.extend_from_slice(&[
-                node.id as f32,
-                node.x,
-                node.y,
-                node.width,
-                node.height,
-            ]);
-        }
-
-        self.visible_ids.len()
+        update_visible_buffers(
+            &self.nodes,
+            self.viewport,
+            &mut self.visible_ids,
+            &mut self.visible_boxes,
+        )
     }
+}
+
+fn update_visible_buffers(
+    nodes: &[Node],
+    viewport: Viewport,
+    visible_ids: &mut Vec<u32>,
+    visible_boxes: &mut Vec<f32>,
+) -> usize {
+    visible_ids.clear();
+    visible_boxes.clear();
+
+    for node in nodes.iter().filter(|node| node.intersects(&viewport)) {
+        visible_ids.push(node.id);
+        visible_boxes.extend_from_slice(&[node.id as f32, node.x, node.y, node.width, node.height]);
+    }
+
+    visible_ids.len()
 }
 
 pub fn compute_visible_nodes(nodes: &[Node], viewport: Viewport) -> Vec<Node> {
@@ -269,5 +280,47 @@ mod tests {
             Viewport { x: 0.0, y: 0.0, width: 180.0, height: 80.0, zoom: 2.0 },
         );
         assert_eq!(zoomed_in.iter().map(|node| node.id).collect::<Vec<_>>(), vec![1]);
+    }
+
+    #[test]
+    fn update_visible_buffers_keeps_ids_and_boxes_in_sync() {
+        let nodes = sample_nodes();
+        let mut visible_ids = vec![999];
+        let mut visible_boxes = vec![999.0];
+
+        let initial_visible_count = update_visible_buffers(
+            &nodes,
+            Viewport { x: 0.0, y: 0.0, width: 120.0, height: 80.0, zoom: 1.0 },
+            &mut visible_ids,
+            &mut visible_boxes,
+        );
+
+        assert_eq!(initial_visible_count, 2);
+        assert_eq!(visible_ids, vec![1, 4]);
+        assert_eq!(
+            visible_boxes,
+            vec![
+                1.0, 0.0, 0.0, 100.0, 60.0,
+                4.0, 40.0, 20.0, 80.0, 40.0,
+            ],
+        );
+
+        let shifted_visible_count = update_visible_buffers(
+            &nodes,
+            Viewport { x: 120.0, y: 0.0, width: 140.0, height: 80.0, zoom: 1.0 },
+            &mut visible_ids,
+            &mut visible_boxes,
+        );
+
+        assert_eq!(shifted_visible_count, 2);
+        assert_eq!(visible_ids, vec![2, 4]);
+        assert_eq!(visible_boxes.len(), visible_ids.len() * 5);
+        assert_eq!(
+            visible_boxes,
+            vec![
+                2.0, 140.0, 0.0, 100.0, 60.0,
+                4.0, 40.0, 20.0, 80.0, 40.0,
+            ],
+        );
     }
 }
