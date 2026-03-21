@@ -11,7 +11,7 @@ export default defineConfig({
     headless: true,
   },
   webServer: {
-    command: "pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter exec vite --host 127.0.0.1 --port 4174 --strictPort",
+    command: "pnpm run sync:ts-artifacts && pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter exec vite --host 127.0.0.1 --port 4174 --strictPort",
     url: "http://127.0.0.1:4174",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

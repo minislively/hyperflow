@@ -4,5 +4,6 @@
   "version": "0.1.0",
   "description": "Vanilla harness for the HyperFlow small PoC.",
   "type": "module",
-  "main": "src/main.js"
+  "main": "src/main.js",
+  "types": "src/main.ts"
 }

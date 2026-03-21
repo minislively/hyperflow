@@ -5,7 +5,7 @@
   "description": "HyperFlow monorepo bootstrap",
   "packageManager": "pnpm@10.32.1",
   "scripts": {
-    "validate:workspace": "node tooling/validate-workspace.mjs",
+    "validate:workspace": "pnpm run sync:ts-artifacts && node tooling/validate-workspace.mjs",
     "dev": "pnpm run dev:react-starter",
     "build": "pnpm run build:react-starter",
     "check": "pnpm run validate:workspace",
@@ -13,13 +13,13 @@
     "test": "pnpm run test:runtime",
     "build:wasm": "cargo build --manifest-path packages/core-rs/Cargo.toml --target wasm32-unknown-unknown --release",
     "test:rust": "cargo test --manifest-path packages/core-rs/Cargo.toml",
-    "test:js": "node --test packages/sdk/test/*.test.js packages/renderer-canvas/test/*.test.js packages/wasm-bindings/test/*.test.js",
-    "test:e2e": "playwright test",
-    "bench": "node benchmarks/run-poc.mjs",
+    "test:js": "pnpm run sync:ts-artifacts && node --test packages/sdk/test/*.test.js packages/renderer-canvas/test/*.test.js packages/wasm-bindings/test/*.test.js",
+    "test:e2e": "pnpm run sync:ts-artifacts && playwright test",
+    "bench": "pnpm run sync:ts-artifacts && node benchmarks/run-poc.mjs",
     "test:runtime": "pnpm run build:wasm && pnpm run test:rust && pnpm run test:js",
     "verify": "pnpm run check && pnpm run test",
     "verify:full": "pnpm run verify && pnpm run bench",
-    "serve": "python3 -m http.server 4173",
+    "serve": "pnpm run sync:ts-artifacts && python3 -m http.server 4173",
     "build:wasm:poc": "pnpm run build:wasm",
     "test:poc:rust": "pnpm run test:rust",
     "test:poc:js": "pnpm run test:js",
@@ -28,7 +28,8 @@
     "verify:poc": "pnpm run verify:full",
     "serve:poc": "pnpm run serve",
     "dev:react-starter": "pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter dev",
-    "build:react-starter": "pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter build"
+    "build:react-starter": "pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter build",
+    "sync:ts-artifacts": "NODE_NO_WARNINGS=1 node tooling/sync-ts-artifacts.mjs"
   },
   "type": "module",
   "devDependencies": {
