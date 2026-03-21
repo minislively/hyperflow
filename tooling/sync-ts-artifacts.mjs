@@ -1,9 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { stripTypeScriptTypes } from "node:module";
+import * as nodeModule from "node:module";
+import { pathToFileURL } from "node:url";
 
 const ROOT = process.cwd();
 const GENERATED_BANNER = "// Generated from TypeScript source by tooling/sync-ts-artifacts.mjs. Do not edit directly.\n\n";
+const FORCE_FALLBACK = process.env.HYPERFLOW_FORCE_TRANSPILE_FALLBACK === "1";
 
 const generatedPairs = [
   ["packages/sdk/src/index.ts", "packages/sdk/src/index.js"],
@@ -16,11 +18,48 @@ const generatedPairs = [
   ["tests/e2e/react-starter.apply-flow.spec.ts", "tests/e2e/react-starter.apply-flow.spec.js"]
 ];
 
+async function resolveEsbuildTransform() {
+  const candidates = [
+    path.join(ROOT, "node_modules/esbuild/lib/main.js"),
+    path.join(ROOT, "node_modules/.pnpm/node_modules/esbuild/lib/main.js"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate);
+      const esbuild = await import(pathToFileURL(candidate).href);
+      if (typeof esbuild.transform === "function") {
+        return esbuild.transform;
+      }
+    } catch {}
+  }
+
+  throw new Error(
+    "sync-ts-artifacts could not find node:module.stripTypeScriptTypes or an installed esbuild fallback.",
+  );
+}
+
+async function transformTypeScript(source, sourceRelative) {
+  if (!FORCE_FALLBACK && typeof nodeModule.stripTypeScriptTypes === "function") {
+    return nodeModule.stripTypeScriptTypes(source, { mode: "transform" });
+  }
+
+  const transform = await resolveEsbuildTransform();
+  const result = await transform(source, {
+    loader: "ts",
+    format: "esm",
+    target: "esnext",
+    sourcemap: false,
+    sourcefile: sourceRelative,
+  });
+  return result.code.trimEnd();
+}
+
 async function writeGeneratedArtifact(sourceRelative, targetRelative) {
   const sourcePath = path.join(ROOT, sourceRelative);
   const targetPath = path.join(ROOT, targetRelative);
   const source = await fs.readFile(sourcePath, "utf8");
-  const transformed = stripTypeScriptTypes(source, { mode: "transform" });
+  const transformed = await transformTypeScript(source, sourceRelative);
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
   await fs.writeFile(targetPath, `${GENERATED_BANNER}${transformed}`);
 }
