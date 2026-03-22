@@ -1,8 +1,8 @@
 # HyperFlow
 
-HyperFlow is an open foundation for modern workflow builders.
+HyperFlow should first read like the screen where teams **design agent workflows by connecting agents, tools, and human review steps**.
 
-Today, teams adopt it through installable **SDK packages for TypeScript/React apps** when they want to build agent, automation, and ops workflow products inside existing software.
+Under that first impression, HyperFlow is an open foundation for modern workflow builders, adopted today through installable **SDK packages for TypeScript/React apps**.
 
 The product promise is simple:
 
@@ -20,14 +20,17 @@ HyperFlow is aimed first at teams building:
 
 The **first wedge** is agent builder UI: HyperFlow should feel especially good when teams use AI coding tools to wire custom nodes, inspector panels, and workflow state without the integration story becoming tangled.
 
+Important honesty guardrail: HyperFlow is **not** a finished SaaS product. The current repo is a bounded starter/foundation surface that should feel product-like first, then explain the foundation and SDK truth beneath it.
+
 HyperFlow is **not** currently positioned as a generic diagramming, whiteboard, or mind-map library.
 
 This repository is the current public bootstrap of that foundation story. It already contains a validated narrow slice of the rendering/interaction core, plus the packages and example surfaces needed to grow toward the broader workflow-builder system.
 
 ## What HyperFlow is
 
-HyperFlow should be read in three layers:
+HyperFlow should be read in four layers:
 
+- **first impression:** a product-like agent builder surface
 - **identity:** an open foundation for modern workflow builders
 - **delivery model:** installable SDK packages for TypeScript/React product teams
 - **proof layer:** a product-first system whose core evolved from TS/React surfaces toward Rust + WASM + canvas as scale and complexity grew
@@ -51,6 +54,7 @@ HyperFlow is being built for that moment: when a team wants a workflow builder s
 HyperFlow aims to be:
 
 - **workflow-builder-first**: optimize for real product surfaces, not just graphics tech
+- **product-shell-legible**: let people picture the actual agent-builder screen before they parse the platform story
 - **foundation-minded**: support reusable workflow-building patterns, not only a single demo package
 - **performance-aware at scale**: use Rust + WASM + canvas where DOM-heavy editors usually degrade
 - **embed-first**: fit into existing SaaS products and internal tools
@@ -208,9 +212,11 @@ http://localhost:5173/
 
 If the page loads correctly, you should immediately see:
 
-- a toolbar at the top
+- a product-like action bar at the top
+- a left rail with agent/tool building blocks
 - a workflow canvas in the center
-- an inspector panel for the selected node
+- an inspector panel for the selected step
+- a visible starter/maturity cue so the shell stays honest about scope
 
 Quick 30-second user check:
 

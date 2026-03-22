@@ -129,10 +129,10 @@ export const STARTER_SCENARIOS: StarterScenario[] = [
   {
     id: "agent-builder",
     label: "Agent builder UI",
-    subtitle: "AI-assisted starter",
-    summary: "An agent workflow where task intake, planning, tools, memory, and review are edited through a product-style inspector.",
-    proof: "Demonstrates that selecting a workflow step opens an editable inspector and that Apply updates the workflow state and node UI together.",
-    why: "Best for showing HyperFlow as a workflow builder SDK for agent products instead of a generic node canvas.",
+    subtitle: "Product-like starter shell",
+    summary: "A product-style agent workflow surface where task intake, planning, tools, memory, and review are designed through a visible shell instead of a bare canvas proof.",
+    proof: "Demonstrates that the surface reads like an agent builder first, while selecting a workflow step still opens an editable inspector and Apply updates the workflow state plus node UI together.",
+    why: "Best for showing HyperFlow as the foundation behind agent-builder products instead of a generic node canvas.",
     defaultNodeId: 1,
   },
 ];
@@ -148,12 +148,12 @@ export const INITIAL_WORKFLOW_NODES: WorkflowNode[] = [
     data: {
       title: "Task Brief",
       status: "Input · Ready",
-      sourceLabel: "Chat input",
+      sourceLabel: "Task request",
       summary: "Structured task request enters the agent workflow.",
       form: {
         title: "Task Brief",
         status: "Input · Ready",
-        sourceLabel: "Chat input",
+        sourceLabel: "Task request",
       },
     },
   },
@@ -259,7 +259,7 @@ export const WORKFLOW_DETAILS = new Map<number, StarterWorkflowDetails>([
           fields: [
             { label: "Title", value: "Task Brief" },
             { label: "Status", value: "Input · Ready" },
-            { label: "Source", value: "Chat input" },
+            { label: "Source", value: "Task request" },
           ],
         },
       ],

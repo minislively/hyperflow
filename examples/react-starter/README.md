@@ -1,9 +1,10 @@
 # example-react-starter
 
-`examples/react-starter` is the first **starter-like React thin slice** for HyperFlow's open-foundation positioning, delivered through its current workflow builder SDK packages and focused on an **agent builder UI** wedge.
+`examples/react-starter` is the first **product-like React starter shell** for HyperFlow's open-foundation positioning, delivered through its current workflow builder SDK packages and focused on an **agent builder UI** wedge.
 
 It is intentionally bounded to prove one thing well:
 
+- a first-time evaluator can immediately read the surface as an **agent builder shell**, then discover the foundation/SDK seams underneath
 - an agent builder workflow can support `select -> edit form -> Apply -> node update` on top of the current validated HyperFlow slice
 - the inspector can be powered by `react-hook-form` without pushing form-library ownership into `@hyperflow/react`
 
@@ -18,6 +19,7 @@ It is intentionally bounded to prove one thing well:
 - a bounded **read-only overview mode** can coexist with inspect mode without implying full editing
 - **workflow path jump** and **focus selected** affordances can make the starter shell feel more product-like without introducing palette flow
 - **live / loading / empty / error** states can be demonstrated without widening into full application logic
+- the shell can show **run/save/publish-style product cues** while still carrying a visible starter/maturity status
 - empty and error states can show realistic host-action copy such as loading a workflow, opening a starter template, or retrying a failed load
 
 ## What it does not claim yet
@@ -55,3 +57,14 @@ The official pattern shown here is:
 5. RHF `handleSubmit(...)` applies changes through `updateNodeData(...)`
 
 This keeps the example product-like while preserving the delivery layer's thin, form-library-agnostic boundary.
+
+## First-impression rule
+
+This starter should be understood in this order:
+
+1. **What is this screen?**  
+   A place to design agent workflows with connected agents, tools, and review steps.
+2. **What is HyperFlow actually?**  
+   The foundation/SDK behind that product surface.
+
+That means the shell should feel product-like first, while still carrying a visible starter/maturity cue so it does not pretend to be a complete SaaS product.
