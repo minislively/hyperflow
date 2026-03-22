@@ -37,7 +37,7 @@ import {
   starterCanvasSize,
 } from "./starter-helpers";
 
-type TaskBriefFormDraft = {
+type TicketFormDraft = {
   title: string;
   status: string;
   sourceLabel: string;
@@ -49,7 +49,7 @@ type DraftResponseFormDraft = {
   outputSummary: string;
 };
 
-function getTaskBriefFormValues(node: WorkflowNode): TaskBriefFormDraft {
+function getTicketFormValues(node: WorkflowNode): TicketFormDraft {
   const data = node.data as TaskBriefNodeData;
   return {
     title: data.form.title,
@@ -67,15 +67,15 @@ function getDraftResponseFormValues(node: WorkflowNode): DraftResponseFormDraft 
   };
 }
 
-function TaskBriefInspectorForm({
+function CustomerTicketInspectorForm({
   node,
   onApply,
 }: {
   node: WorkflowNode;
-  onApply: (values: TaskBriefFormDraft) => void;
+  onApply: (values: TicketFormDraft) => void;
 }) {
-  const values = getTaskBriefFormValues(node);
-  const { register, handleSubmit, reset, formState } = useForm<TaskBriefFormDraft>({
+  const values = getTicketFormValues(node);
+  const { register, handleSubmit, reset, formState } = useForm<TicketFormDraft>({
     defaultValues: values,
   });
 
@@ -174,32 +174,9 @@ export function App() {
     { label: "AI-friendly seam", value: "discoverable React hooks + state helpers" },
   ];
   const shellHighlights = [
-    { label: "First impression", value: "Agent builder shell" },
-    { label: "Product truth", value: "Foundation + SDK" },
-    { label: "First-wave scope", value: "Canvas-first editing" },
-  ];
-  const actionBarCues = [
-    { label: "Run draft", detail: "Starter cue" },
-    { label: "Save version", detail: "Starter cue" },
-    { label: "Publish flow", detail: "Starter cue" },
-  ];
-  const librarySections = [
-    { title: "Templates", items: ["Research agent", "Support copilot", "Human-review loop"] },
-    { title: "Agents", items: ["Planner", "Researcher", "Writer"] },
-    { title: "Tools", items: ["Web search", "Code exec", "CRM lookup"] },
-    { title: "Memory", items: ["Knowledge lookup", "Session context", "Project notes"] },
-    { title: "Review", items: ["Human gate", "Manager response"] },
-  ];
-  const proofStrip = [
-    { label: "Surface truth", value: "Agent workflow design shell" },
-    { label: "Delivery", value: "Installable React/TS SDK" },
-    { label: "Core path", value: "Rust + WASM + Canvas" },
-    { label: "Maturity", value: "Starter surface · bounded proof" },
-  ];
-  const starterCapabilities = [
-    { label: "Interactive now", value: "Select step → edit form → Apply" },
-    { label: "Also works", value: "Focus selected · zoom · state switching" },
-    { label: "Not in this slice", value: "Drag-to-build · add from rail · run/save/publish" },
+    { label: "Primary fit", value: "Agent builder UI" },
+    { label: "Promise", value: "Low-friction integration seams" },
+    { label: "Proof slice", value: "Select → configure → Apply" },
   ];
 
   function resetWorkflowTemplate() {
@@ -268,7 +245,7 @@ export function App() {
     }
   }
 
-  function applyTaskBriefDraft(values: TaskBriefFormDraft) {
+  function applyTicketDraft(values: TicketFormDraft) {
     if (!selectedNode || selectedNode.type !== "task-brief") return;
 
     updateNodeData(setNodes, selectedNode.id, (node) => {
@@ -311,10 +288,10 @@ export function App() {
       <header className="starter-toolbar">
         <div className="starter-toolbar__hero">
           <div>
-            <p className="eyebrow">HyperFlow starter surface</p>
-            <h1>Design agent workflows with connected agents, tools, and review steps</h1>
+            <p className="eyebrow">HyperFlow workflow builder SDK</p>
+            <h1>Agent builder workflow starter</h1>
             <p className="toolbar-copy">
-              This starter makes HyperFlow legible as an agent builder product shell first, then shows the foundation and SDK seams underneath: select a workflow step, edit it in the inspector, click Apply, and watch the workflow state plus node UI update together.
+              This starter shows the product experience directly: select an agent workflow step, edit fields in the inspector, click Apply, and see the workflow state plus node UI update together with low integration friction.
             </p>
           </div>
 
@@ -339,37 +316,6 @@ export function App() {
                 <strong>{activeScenario.label}</strong>
                 <span>{activeScenario.subtitle}</span>
               </button>
-            </div>
-          </section>
-
-          <section className="toolbar-section">
-            <div className="toolbar-section__header">
-              <p className="panel-eyebrow">Product shell cues</p>
-              <h2>Visible action bar</h2>
-            </div>
-            <div className="toolbar-cue-strip" aria-label="Visual starter cues">
-              {actionBarCues.map((cue) => (
-                <div key={cue.label} className="toolbar-cue-pill">
-                  <strong>{cue.label}</strong>
-                  <span>{cue.detail}</span>
-                </div>
-              ))}
-            </div>
-            <p className="toolbar-note">These are visual product-shell cues only. This starter does not support run/save/publish actions or drag-to-build workflow editing yet.</p>
-          </section>
-
-          <section className="toolbar-section">
-            <div className="toolbar-section__header">
-              <p className="panel-eyebrow">Current starter interactions</p>
-              <h2>What actually works today</h2>
-            </div>
-            <div className="starter-capability-strip" aria-label="Current starter capabilities">
-              {starterCapabilities.map((item) => (
-                <div key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                </div>
-              ))}
             </div>
           </section>
 
@@ -422,31 +368,6 @@ export function App() {
       </header>
 
       <section className="starter-content">
-        <aside className="starter-library-card">
-          <div className="panel-header">
-            <div>
-              <p className="panel-eyebrow">Builder library</p>
-              <h2>Agents, tools, and templates</h2>
-            </div>
-            <span className="status-chip">Starter library</span>
-          </div>
-
-          <p className="inspector-summary">The left rail gives the surface a product-shell shape first, instead of reading like a generic canvas proof.</p>
-
-          <div className="library-section-list">
-            {librarySections.map((section) => (
-              <section key={section.title} className="library-section-card">
-                <h3>{section.title}</h3>
-                <div className="library-chip-list">
-                  {section.items.map((item) => (
-                    <span key={item}>{item}</span>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        </aside>
-
         <section className="starter-canvas-card">
           <div className="panel-header">
             <div>
@@ -454,7 +375,6 @@ export function App() {
               <h2>{isLiveSurface ? "Agent builder workflow" : `${activeSurfaceState.label} state`}</h2>
             </div>
             <div className="panel-badges">
-              <span>Starter surface · bounded proof</span>
               <span>{isLiveSurface ? (ready ? "Engine ready" : "Loading engine") : activeSurfaceState.label}</span>
               <span>{nodes.length} workflow steps</span>
               <span>{mode === "inspect" ? "Inspector editing" : "Product overview"}</span>
@@ -482,9 +402,9 @@ export function App() {
               />
 
               <p className="canvas-caption">
-              {mode === "inspect"
+                {mode === "inspect"
                   ? "Select Task Brief or Manager Response, update the form, then press Apply to commit the workflow change."
-                  : "Overview mode keeps the product shell visible while editing remains scoped to inspect mode."}
+                  : "Overview mode keeps the workflow context visible while editing remains scoped to inspect mode."}
               </p>
             </>
           ) : (
@@ -598,7 +518,7 @@ export function App() {
                   </div>
                 </>
               ) : selectedNode?.type === "task-brief" ? (
-                <TaskBriefInspectorForm node={selectedNode} onApply={applyTaskBriefDraft} />
+                <CustomerTicketInspectorForm node={selectedNode} onApply={applyTicketDraft} />
               ) : selectedNode?.type === "manager-response" ? (
                 <DraftResponseInspectorForm node={selectedNode} onApply={applyDraftResponse} />
               ) : (
@@ -632,15 +552,6 @@ export function App() {
             </section>
           )}
         </aside>
-      </section>
-
-      <section className="starter-proof-strip" aria-label="Foundation proof strip">
-        {proofStrip.map((item) => (
-          <div key={item.label}>
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-          </div>
-        ))}
       </section>
     </main>
   );

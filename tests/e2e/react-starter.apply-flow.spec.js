@@ -4,17 +4,13 @@ import { expect, test } from "@playwright/test";
 test("react starter loads core UI shell", async ({ page })=>{
     await page.goto("/");
     await expect(page.getByRole("heading", {
-        name: "Design agent workflows with connected agents, tools, and review steps"
+        name: "Agent builder workflow starter"
     })).toBeVisible();
     await expect(page.getByRole("heading", {
         name: "Agent builder workflow",
         exact: true
     })).toBeVisible();
-    await expect(page.getByRole("heading", {
-        name: "Agents, tools, and templates"
-    })).toBeVisible();
     await expect(page.getByText("Workflow inspector")).toBeVisible();
-    await expect(page.getByLabel("Foundation proof strip").getByText("Starter surface · bounded proof")).toBeVisible();
     await expect(page.getByRole("button", {
         name: /Inspect mode/i
     })).toBeVisible();
