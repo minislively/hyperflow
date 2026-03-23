@@ -1,76 +1,99 @@
 # example-react-starter
 
-`examples/react-starter` is now a **frontend-oriented Learn surface** for HyperFlow.
+`examples/react-starter`는 지금 **완성형 editor 데모**가 아니라,  
+HyperFlow를 처음 보는 프론트엔드 팀을 위한 **beginner-first Learn surface**다.
 
-It no longer pretends to be a finished editor demo. Instead, it gives frontend teams a React Flow-like documentation structure with separate Learn, Reference, Examples, and Roadmap sections.
+핵심 목적은 이 네 가지를 먼저 이해하게 만드는 것이다.
 
-## Current structure
+1. HyperFlow가 지금 **무엇인지**
+2. React Flow 옆에서 **왜 따로 존재하는지**
+3. 지금 **어떻게 로컬에서 실행하고 읽는지**
+4. 지금 **무엇이 되고, 무엇이 아직 아닌지**
 
-- locale-aware top-level paths such as `/ko/learn`, `/ko/reference`, `/ko/examples`, and `/ko/roadmap`
-- browser-language-based default locale detection
-- bilingual Korean / English toggle
-- markdown-driven page content
-- docs categories aligned to the current product maturity
+## 현재 경로 구조
 
-## Current sections
+- locale-aware top-level paths
+  - `/ko/learn`
+  - `/ko/reference`
+  - `/ko/examples`
+  - `/ko/roadmap`
+- 영어도 동일하게 `/en/...`
+- locale 없는 경로는 브라우저 언어를 보고 `/ko/...` 또는 `/en/...`로 보정
 
-### Learn
+## Learn 순서
+
+### Beginner-first pages
 - `/ko/learn`
 - `/ko/learn/installation`
-- `/ko/learn/core-concepts`
-- `/ko/learn/react-integration`
-- `/ko/learn/customization`
+- `/ko/learn/when-to-use`
+- `/ko/learn/nodes-and-edges`
+- `/ko/learn/selection-and-editing`
+- `/ko/learn/basic-interactions`
+- `/ko/learn/viewport`
+- `/ko/learn/save-and-restore`
+- `/ko/learn/add-to-react-app`
+
+### Later pages
 - `/ko/learn/layouting`
 - `/ko/learn/performance`
 - `/ko/learn/troubleshooting`
 
-### Reference
-- `/ko/reference`
-- `/ko/reference/runtime-model`
-- `/ko/reference/viewport-selection`
+## 이 Learn surface가 먼저 답하려는 질문
 
-### Examples
-- `/ko/examples`
-- `/ko/examples/minimal-embed`
-- `/ko/examples/host-controlled-state`
+- HyperFlow는 지금 뭔가?
+- React Flow와 무엇이 다른가?
+- 지금은 패키지를 설치하는 단계인가, repo를 실행하는 단계인가?
+- node editor처럼 무엇을 직접 만져볼 수 있나?
+- 지금 되는 것과 아직 안 되는 것은 무엇인가?
 
-### Roadmap
-- `/ko/roadmap`
+## live demo에 대한 현재 원칙
 
-English routes mirror the same shape under `/en/...`.
+`basic-interactions`와 `save-and-restore`는 유지한다.  
+하지만 이 둘은 **주 설명**이 아니라 **supporting proof**다.
 
-## What it does not claim yet
+즉 문서는 먼저:
+- what you see
+- what you can try now
+- what works now
+- what is later
 
-This example does **not** mean HyperFlow already ships:
+를 설명하고, live demo는 그 뒤에서 손으로 확인하게 한다.
 
-- palette / add-node workflow
-- edge authoring
-- workflow-builder templates
-- full product shells
-- broad React wrapper maturity
+## 아직 주장하지 않는 것
 
-## Why Learn comes first
+이 starter는 아직 아래를 주장하지 않는다.
 
-This surface is intentionally written for frontend teams who need to answer:
+- broad React Flow parity
+- 완성형 authoring shell
+- workflow-builder template
+- built-in auto-layout engine
+- published package install flow
 
-- what do I install?
-- what does HyperFlow actually own?
-- how does it fit into my existing React app?
-- what can I customize today?
-- does it include layouting or not?
+## run
 
-The Learn section now front-loads those answers before pushing people into examples.
-
-## Run
-
-From the repo root:
+repo root에서:
 
 ```bash
+pnpm install
 pnpm run dev:react-starter
 ```
 
-Expected local URL:
+기본 확인 경로:
 
 ```text
 http://localhost:5173/ko/learn
 ```
+
+## 읽는 법
+
+처음 보는 사람이라면 이 순서를 추천한다.
+
+1. `/ko/learn`
+2. `/ko/learn/installation`
+3. `/ko/learn/when-to-use`
+4. `/ko/learn/nodes-and-edges`
+5. `/ko/learn/selection-and-editing`
+6. `/ko/learn/basic-interactions`
+7. `/ko/learn/viewport`
+8. `/ko/learn/save-and-restore`
+9. `/ko/learn/add-to-react-app`

@@ -9,15 +9,21 @@ test("react starter loads the learn quick start surface", async ({ page }) => {
   await expect(page.getByRole("button", { name: "레퍼런스" })).toBeVisible();
   await expect(page.getByRole("button", { name: "예제" })).toBeVisible();
   await expect(page.getByRole("button", { name: "로드맵" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "왜 HyperFlow가 있나" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "설치하기" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "노드와 엣지" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "선택과 수정" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "뷰포트" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "기본 상호작용" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "저장과 복원" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "React 앱에 붙이기" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "자주 헷갈리는 점" })).toBeVisible();
+  const learnNavButtons = await page.locator('nav[aria-label="Learn navigation"] button').allTextContents();
+  expect(learnNavButtons).toEqual([
+    "01처음 시작하기",
+    "02설치하기",
+    "03왜 HyperFlow가 있나",
+    "04노드와 엣지",
+    "05선택과 수정",
+    "06기본 상호작용",
+    "07뷰포트",
+    "08저장과 복원",
+    "09React 앱에 붙이기",
+    "10위치와 레이아웃",
+    "11성능 이해하기",
+    "12자주 헷갈리는 점",
+  ]);
   await expect(page.locator(".markdown-page")).toBeVisible();
   await expect(page).toHaveURL(/\/ko\/learn$/);
 });
@@ -62,15 +68,15 @@ test("learn nodes and editing pages show visual result previews", async ({ page 
 test("learn interaction and restore pages show visual result previews", async ({ page }) => {
   await page.goto("/ko/learn/basic-interactions");
 
-  await expect(page.locator('[aria-label="기본 상호작용 live demo"]')).toBeVisible();
+  await expect(page.locator('[aria-label="기본 상호작용 보조 demo"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "맞춤 보기" })).toBeVisible();
-  await expect(page.getByText("노드를 직접 끌어서 옮기고")).toBeVisible();
+  await expect(page.getByText("주 설명은 위 문단이 담당한다. 아래 demo에서는")).toBeVisible();
   await page.getByRole("button", { name: "Connect from node 2" }).click();
   await expect(page.locator(".learn-live-inspector h3")).toContainText("Node B");
 
   await page.goto("/ko/learn/save-and-restore");
 
-  await expect(page.locator('[aria-label="저장과 복원 live demo"]')).toBeVisible();
+  await expect(page.locator('[aria-label="저장과 복원 보조 demo"]')).toBeVisible();
   await expect(page.getByRole("button", { name: "저장", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "노드 추가" })).toBeVisible();
   await expect(page.getByRole("button", { name: "선택 삭제" })).toBeVisible();
