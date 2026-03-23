@@ -254,8 +254,11 @@ button {
 }
 
 .editor-minimap-edge {
+  fill: none;
   stroke: #94a3b8;
   stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .editor-minimap-node {
@@ -897,21 +900,13 @@ button {
   stroke-width: 3;
 }
 
-.hf-edge-overlay-marker {
+.hf-edge-overlay-bend-indicator {
   fill: #2563eb;
-}
-
-.hf-edge-overlay-control {
-  fill: rgba(37, 99, 235, 0.14);
-  stroke: #2563eb;
+  stroke: #ffffff;
   stroke-width: 2;
-  cursor: grab;
-  pointer-events: all;
+  pointer-events: none;
 }
 
-.hf-edge-overlay-control:active {
-  cursor: grabbing;
-}
 
 .hf-handle-overlay {
   pointer-events: none;

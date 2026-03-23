@@ -604,6 +604,7 @@ export function HyperFlowPocCanvas({
                   event.stopPropagation();
                   selectNode(null);
                   selectEdge(edge.id);
+                  if (edge.hasBend) onEdgeBendChange?.(edge.id, null);
                 }}
               />
               <path
@@ -615,47 +616,14 @@ export function HyperFlowPocCanvas({
                 }
                 aria-hidden="true"
               />
-              {selectedEdgeId === edge.id ? (
-                <>
-                  <circle
-                    className="hf-edge-overlay-marker"
-                    cx={edge.midX}
-                    cy={edge.midY}
-                    r="6"
-                    aria-hidden="true"
-                  />
-                  <circle
-                    className="hf-edge-overlay-control"
-                    data-edge-control-id={edge.id}
-                    cx={edge.midX}
-                    cy={edge.midY}
-                    r="10"
-                    role="button"
-                    aria-label={`Move edge ${edge.id}`}
-                    tabIndex={0}
-                    onPointerDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      selectNode(null);
-                      selectEdge(edge.id);
-                      if (!isInteractive || !onEdgeBendChange) return;
-                      startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendWorldX, y: edge.bendWorldY }, event.pointerId);
-                    }}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      selectNode(null);
-                      selectEdge(edge.id);
-                      if (!isInteractive || !onEdgeBendChange || event.button !== 0) return;
-                      startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendWorldX, y: edge.bendWorldY });
-                    }}
-                    onDoubleClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onEdgeBendChange?.(edge.id, null);
-                    }}
-                  />
-                </>
+              {selectedEdgeId === edge.id && edge.hasBend ? (
+                <circle
+                  className="hf-edge-overlay-bend-indicator"
+                  cx={edge.midX}
+                  cy={edge.midY}
+                  r="5"
+                  aria-hidden="true"
+                />
               ) : null}
             </Fragment>
           ))}

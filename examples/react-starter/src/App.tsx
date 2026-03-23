@@ -2417,7 +2417,7 @@ function MainEditorSurface({
             deleteNode: "노드 삭제",
             deleteEdge: "엣지 삭제",
             edgeLabel: "선택된 엣지",
-            edgeHint: "핸들을 눌러 새 연결을 만들고, 선이나 파란 점을 끌어 경로를 움직인 뒤 삭제할 수 있다.",
+            edgeHint: "핸들을 눌러 새 연결을 만들고, 선 자체를 끌어 경로를 움직이거나 더블클릭으로 굴곡을 초기화한 뒤 삭제할 수 있다.",
             saved: "저장된 스냅샷",
             notSaved: "아직 저장된 스냅샷이 없다.",
           },
@@ -2453,7 +2453,7 @@ function MainEditorSurface({
             deleteNode: "Delete node",
             deleteEdge: "Delete edge",
             edgeLabel: "Selected edge",
-            edgeHint: "Use handles to create connections, drag the blue edge point to reroute the line, then remove it if needed.",
+            edgeHint: "Use handles to create connections, drag the line itself to reroute it, or double-click the line to reset the bend before deleting it.",
             saved: "Saved snapshot",
             notSaved: "No saved snapshot yet.",
           },
@@ -2888,7 +2888,7 @@ function LearnInteractiveDemo({
             notSaved: "아직 저장된 스냅샷이 없다.",
             connectHint: "오른쪽 점을 눌러 시작하고 다른 노드의 왼쪽 점을 눌러 연결한다.",
             edgeLabel: "선택된 엣지",
-            edgeEmpty: "엣지를 클릭하거나 파란 점을 끌어서 연결을 지우거나 경로를 바꿀 수 있다.",
+            edgeEmpty: "엣지를 클릭해 선택하고, 선 자체를 끌어 경로를 바꾸거나 더블클릭으로 굴곡을 초기화할 수 있다.",
           },
         }
       : {
@@ -2947,7 +2947,7 @@ function LearnInteractiveDemo({
             notSaved: "No saved snapshot yet.",
             connectHint: "Click a right handle to start, then a left handle on another node to connect them.",
             edgeLabel: "Selected edge",
-            edgeEmpty: "Click an edge or drag the blue point to remove or reroute that connection.",
+            edgeEmpty: "Click an edge to select it, drag the line itself to reroute it, or double-click to reset the bend.",
           },
         };
 
