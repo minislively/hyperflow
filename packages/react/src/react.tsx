@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   createPocEngine,
   projectPocNodesToRuntimeNodes,
   type PocEngine,
+  type PocEdge,
   type PocMetrics,
   type PocNode,
   type PocViewport,
@@ -27,6 +28,7 @@ export type HyperFlowPocNodeRenderers = Record<string, React.ComponentType<Hyper
 
 export type HyperFlowPocCanvasProps = {
   nodes: PocNode[];
+  edges?: PocEdge[];
   viewport: PocViewport;
   selectedNodeId?: number | null;
   width?: number;
@@ -38,12 +40,16 @@ export type HyperFlowPocCanvasProps = {
   getNodeRendererKey?: (node: PocNode) => string | null;
   getNodeRendererData?: (node: PocNode) => unknown;
   onNodeSelect?: (nodeId: number | null) => void;
+  onNodePositionChange?: (nodeId: number, nextPosition: PocNode["position"]) => void;
+  onViewportChange?: (viewport: PocViewport) => void;
+  onEdgeConnect?: (sourceNodeId: number, targetNodeId: number) => void;
   onMetricsChange?: (metrics: PocMetrics) => void;
   onReadyChange?: (ready: boolean) => void;
 };
 
 export function HyperFlowPocCanvas({
   nodes,
+  edges = [],
   viewport,
   selectedNodeId = null,
   width = 960,
@@ -55,6 +61,9 @@ export function HyperFlowPocCanvas({
   getNodeRendererKey,
   getNodeRendererData,
   onNodeSelect,
+  onNodePositionChange,
+  onViewportChange,
+  onEdgeConnect,
   onMetricsChange,
   onReadyChange,
 }: HyperFlowPocCanvasProps) {
@@ -62,7 +71,36 @@ export function HyperFlowPocCanvas({
   const [engine, setEngine] = useState<PocEngine | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [visibleBoxes, setVisibleBoxes] = useState<VisibleBox[]>([]);
+  const [pendingConnectionSourceId, setPendingConnectionSourceId] = useState<number | null>(null);
   const isInteractive = interactive ?? isInteractiveCanvasMode(mode);
+  const dragStateRef = useRef<
+    | null
+    | {
+        kind: "node";
+        pointerId: number;
+        nodeId: number;
+        startClientX: number;
+        startClientY: number;
+        startPosition: PocNode["position"];
+      }
+    | {
+        kind: "pan";
+        pointerId: number;
+        startClientX: number;
+        startClientY: number;
+        startViewport: PocViewport;
+      }
+  >(null);
+
+  function getCanvasPoint(event: Pick<React.PointerEvent<HTMLCanvasElement>, "clientX" | "clientY">) {
+    if (!canvasRef.current) return null;
+    const rect = canvasRef.current.getBoundingClientRect();
+    return {
+      rect,
+      screenX: (event.clientX - rect.left) * (canvasRef.current.width / rect.width),
+      screenY: (event.clientY - rect.top) * (canvasRef.current.height / rect.height),
+    };
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -129,15 +167,90 @@ export function HyperFlowPocCanvas({
   function handleClick(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!isInteractive || !engine || !canvasRef.current) return;
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const screenX = (event.clientX - rect.left) * (canvasRef.current.width / rect.width);
-    const screenY = (event.clientY - rect.top) * (canvasRef.current.height / rect.height);
+    const canvasPoint = getCanvasPoint(event);
+    if (!canvasPoint) return;
     const worldPoint = {
-      x: viewport.x + screenX / viewport.zoom,
-      y: viewport.y + screenY / viewport.zoom,
+      x: viewport.x + canvasPoint.screenX / viewport.zoom,
+      y: viewport.y + canvasPoint.screenY / viewport.zoom,
     };
 
     selectNode(engine.hitTest(worldPoint));
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (!isInteractive || !engine || !canvasRef.current) return;
+
+    const canvasPoint = getCanvasPoint(event);
+    if (!canvasPoint) return;
+    const worldPoint = {
+      x: viewport.x + canvasPoint.screenX / viewport.zoom,
+      y: viewport.y + canvasPoint.screenY / viewport.zoom,
+    };
+    const hitNodeId = engine.hitTest(worldPoint);
+    const node = hitNodeId === null ? null : nodes.find((candidate) => Number(candidate.id) === Number(hitNodeId)) ?? null;
+
+    if (node && onNodePositionChange) {
+      selectNode(node.id);
+      dragStateRef.current = {
+        kind: "node",
+        pointerId: event.pointerId,
+        nodeId: node.id,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startPosition: { ...node.position },
+      };
+      canvasRef.current.setPointerCapture(event.pointerId);
+      return;
+    }
+
+    if (onViewportChange) {
+      dragStateRef.current = {
+        kind: "pan",
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startViewport: { ...viewport },
+      };
+      canvasRef.current.setPointerCapture(event.pointerId);
+    }
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (!canvasRef.current || !dragStateRef.current) return;
+
+    const dragState = dragStateRef.current;
+    if (dragState.pointerId !== event.pointerId) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const xScale = canvasRef.current.width / rect.width;
+    const yScale = canvasRef.current.height / rect.height;
+    const deltaWorldX = ((event.clientX - dragState.startClientX) * xScale) / viewport.zoom;
+    const deltaWorldY = ((event.clientY - dragState.startClientY) * yScale) / viewport.zoom;
+
+    if (dragState.kind === "node" && onNodePositionChange) {
+      onNodePositionChange(dragState.nodeId, {
+        x: Math.max(0, dragState.startPosition.x + deltaWorldX),
+        y: Math.max(0, dragState.startPosition.y + deltaWorldY),
+      });
+      return;
+    }
+
+    if (dragState.kind === "pan" && onViewportChange) {
+      onViewportChange({
+        ...dragState.startViewport,
+        x: Math.max(0, dragState.startViewport.x - deltaWorldX),
+        y: Math.max(0, dragState.startViewport.y - deltaWorldY),
+      });
+    }
+  }
+
+  function handlePointerEnd(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (!canvasRef.current || !dragStateRef.current) return;
+    if (dragStateRef.current.pointerId !== event.pointerId) return;
+    if (canvasRef.current.hasPointerCapture(event.pointerId)) {
+      canvasRef.current.releasePointerCapture(event.pointerId);
+    }
+    dragStateRef.current = null;
   }
 
   const renderedCustomNodes = useMemo(() => {
@@ -175,6 +288,63 @@ export function HyperFlowPocCanvas({
     }>;
   }, [getNodeRendererData, getNodeRendererKey, nodeRenderers, nodes, viewport.x, viewport.y, viewport.zoom, visibleBoxes]);
 
+  const renderedEdges = useMemo(() => {
+    return edges
+      .map((edge) => {
+        const sourceNode = nodes.find((node) => Number(node.id) === Number(edge.source));
+        const targetNode = nodes.find((node) => Number(node.id) === Number(edge.target));
+        if (!sourceNode || !targetNode) return null;
+
+        const sourceX = (sourceNode.position.x + sourceNode.size.width - viewport.x) * viewport.zoom;
+        const sourceY = (sourceNode.position.y + sourceNode.size.height / 2 - viewport.y) * viewport.zoom;
+        const targetX = (targetNode.position.x - viewport.x) * viewport.zoom;
+        const targetY = (targetNode.position.y + targetNode.size.height / 2 - viewport.y) * viewport.zoom;
+        const controlOffset = Math.max(48, Math.abs(targetX - sourceX) * 0.35);
+        const path = `M ${sourceX} ${sourceY} C ${sourceX + controlOffset} ${sourceY}, ${targetX - controlOffset} ${targetY}, ${targetX} ${targetY}`;
+
+        return {
+          id: edge.id,
+          path,
+        };
+      })
+      .filter(Boolean) as Array<{ id: string; path: string }>;
+  }, [edges, nodes, viewport.x, viewport.y, viewport.zoom]);
+
+  const renderedHandles = useMemo(() => {
+    if (!onEdgeConnect) return [];
+
+    return nodes.map((node) => {
+      const screenLeft = (node.position.x - viewport.x) * viewport.zoom;
+      const screenTop = (node.position.y - viewport.y) * viewport.zoom;
+      const screenWidth = node.size.width * viewport.zoom;
+      const screenHeight = node.size.height * viewport.zoom;
+      return {
+        id: node.id,
+        inputX: screenLeft - 7,
+        outputX: screenLeft + screenWidth - 7,
+        y: screenTop + screenHeight / 2 - 7,
+      };
+    });
+  }, [nodes, onEdgeConnect, viewport.x, viewport.y, viewport.zoom]);
+
+  function handleHandleClick(role: "source" | "target", nodeId: number) {
+    if (!onEdgeConnect) return;
+
+    if (role === "source") {
+      setPendingConnectionSourceId((current) => (Number(current) === Number(nodeId) ? null : nodeId));
+      return;
+    }
+
+    if (pendingConnectionSourceId === null) return;
+    if (Number(pendingConnectionSourceId) === Number(nodeId)) {
+      setPendingConnectionSourceId(null);
+      return;
+    }
+
+    onEdgeConnect(pendingConnectionSourceId, nodeId);
+    setPendingConnectionSourceId(null);
+  }
+
   return (
     <div className={className} data-interactive={isInteractive ? "true" : "false"}>
       <canvas
@@ -182,13 +352,59 @@ export function HyperFlowPocCanvas({
         width={width}
         height={height}
         onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
         style={{
           width: "100%",
           height: "100%",
           display: "block",
-          cursor: isInteractive ? "crosshair" : "default",
+          cursor: isInteractive ? "grab" : "default",
+          touchAction: "none",
         }}
       />
+
+      {renderedEdges.length > 0 ? (
+        <svg className="hf-edge-overlay" width={width} height={height} aria-hidden="true">
+          {renderedEdges.map((edge) => (
+            <path key={edge.id} d={edge.path} className="hf-edge-overlay-path" />
+          ))}
+        </svg>
+      ) : null}
+
+      {renderedHandles.length > 0 ? (
+        <div className="hf-handle-overlay">
+          {renderedHandles.map((handle) => (
+            <Fragment key={handle.id}>
+              <button
+                type="button"
+                className="hf-node-handle hf-node-handle-input"
+                style={{ left: `${handle.inputX}px`, top: `${handle.y}px` }}
+                aria-label={`Connect into node ${handle.id}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleHandleClick("target", handle.id);
+                }}
+              />
+              <button
+                type="button"
+                className={
+                  Number(pendingConnectionSourceId) === Number(handle.id)
+                    ? "hf-node-handle hf-node-handle-output hf-node-handle-active"
+                    : "hf-node-handle hf-node-handle-output"
+                }
+                style={{ left: `${handle.outputX}px`, top: `${handle.y}px` }}
+                aria-label={`Connect from node ${handle.id}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleHandleClick("source", handle.id);
+                }}
+              />
+            </Fragment>
+          ))}
+        </div>
+      ) : null}
 
       {renderedCustomNodes.length > 0 ? (
         <div className="hf-node-overlay" aria-hidden={isInteractive ? undefined : true}>

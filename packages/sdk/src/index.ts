@@ -26,6 +26,13 @@ export type PocNode<TData extends Record<string, unknown> = Record<string, unkno
   type: TType;
 };
 
+export type PocEdge<TType extends string = string> = {
+  id: string;
+  source: number;
+  target: number;
+  type?: TType;
+};
+
 export type PocRuntimeNode = HyperflowRuntimeNode;
 export type VisibleBox = HyperflowRuntimeNode;
 export type PocViewport = HyperflowViewport;

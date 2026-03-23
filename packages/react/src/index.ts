@@ -10,6 +10,7 @@ export {
   projectPocNodesToRuntimeNodes,
 } from "@hyperflow/sdk";
 export type {
+  PocEdge,
   PocMetrics,
   PocNode,
   PocNodePosition,
@@ -21,8 +22,8 @@ export type {
 export { fitPocViewportToNodes, focusPocViewportOnNode, isInteractiveCanvasMode } from "./starter";
 export type { HyperFlowCanvasMode } from "./starter";
 
-export { useWorkflowNodesState, updateNodeData } from "./state";
-export type { WorkflowNodesUpdater, WorkflowNodeDataPatch } from "./state";
+export { useWorkflowNodesState, useWorkflowEdgesState, updateNodeData } from "./state";
+export type { WorkflowNodesUpdater, WorkflowNodeDataPatch, WorkflowEdgesUpdater } from "./state";
 
 export { useWorkflowSelection, useSelectedNode } from "./selection";
 export type { WorkflowSelection, WorkflowSelectionUpdater } from "./selection";

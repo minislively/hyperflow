@@ -88,20 +88,51 @@ test("learn nodes and editing pages show visual result previews", async ({ page 
 });
 test("learn interaction and restore pages show visual result previews", async ({ page })=>{
     await page.goto("/ko/learn/basic-interactions");
-    await expect(page.getByLabel("기본 상호작용 live demo")).toBeVisible();
+    await expect(page.locator('[aria-label="기본 상호작용 live demo"]')).toBeVisible();
     await expect(page.getByRole("button", {
         name: "맞춤 보기"
     })).toBeVisible();
-    await expect(page.getByRole("button", {
-        name: "노드 →"
-    })).toBeVisible();
+    await expect(page.getByText("노드를 직접 끌어서 옮기고")).toBeVisible();
+    const basicCanvas = page.locator(".learn-live-canvas canvas").first();
+    const basicBox = await basicCanvas.boundingBox();
+    if (!basicBox) throw new Error("basic interactions canvas missing");
+    await page.mouse.click(basicBox.x + basicBox.width * 0.5, basicBox.y + basicBox.height * 0.27);
+    await expect(page.locator(".learn-live-inspector h3")).toContainText("Node B");
     await page.goto("/ko/learn/save-and-restore");
-    await expect(page.getByLabel("저장과 복원 live demo")).toBeVisible();
+    await expect(page.locator('[aria-label="저장과 복원 live demo"]')).toBeVisible();
     await expect(page.getByRole("button", {
         name: "저장",
         exact: true
     })).toBeVisible();
     await expect(page.locator(".learn-live-saved")).toContainText("아직 저장된 스냅샷이 없다.");
+    const restoreCanvas = page.locator(".learn-live-canvas canvas").first();
+    const restoreBox = await restoreCanvas.boundingBox();
+    if (!restoreBox) throw new Error("save-and-restore canvas missing");
+    await page.mouse.move(restoreBox.x + restoreBox.width * 0.5, restoreBox.y + restoreBox.height * 0.27);
+    await page.mouse.down();
+    await page.mouse.move(restoreBox.x + restoreBox.width * 0.63, restoreBox.y + restoreBox.height * 0.27, {
+        steps: 8
+    });
+    await page.mouse.up();
+    await page.getByRole("button", {
+        name: "저장",
+        exact: true
+    }).click();
+    await page.getByRole("button", {
+        name: "Connect from node 1"
+    }).click();
+    await page.getByRole("button", {
+        name: "Connect into node 3"
+    }).click();
+    await page.getByRole("button", {
+        name: "저장",
+        exact: true
+    }).click();
+    const savedSnapshotText = await page.locator(".learn-live-saved pre").textContent();
+    if (!savedSnapshotText) throw new Error("saved snapshot text missing");
+    const savedSnapshot = JSON.parse(savedSnapshotText);
+    expect(savedSnapshot.nodes.find((node)=>node.id === 2)?.x).toBeGreaterThan(320);
+    expect(savedSnapshot.edges.some((edge)=>edge.source === 1 && edge.target === 3)).toBeTruthy();
 });
 test("learn surface switches section and locale with top-level docs routes", async ({ page })=>{
     await page.goto("/ko/learn");

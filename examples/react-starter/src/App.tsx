@@ -4,9 +4,11 @@ import {
   createPocViewport,
   fitPocViewportToNodes,
   updateNodeData,
+  useWorkflowEdgesState,
   useSelectedNode,
   useWorkflowNodesState,
   useWorkflowSelection,
+  type PocEdge,
   type PocNode,
   type PocViewport,
 } from "@hyperflow/react";
@@ -79,6 +81,8 @@ type LearnDemoNode = PocNode<{
   title: string;
   note: string;
 }>;
+
+type LearnDemoEdge = PocEdge<"default">;
 
 
 const locales: Locale[] = ["ko", "en"];
@@ -155,6 +159,11 @@ const initialLearnDemoNodes: LearnDemoNode[] = [
   },
 ];
 
+const initialLearnDemoEdges: LearnDemoEdge[] = [
+  { id: "edge-a-b", source: 1, target: 2, type: "default" },
+  { id: "edge-b-c", source: 2, target: 3, type: "default" },
+];
+
 function cloneLearnDemoNodes() {
   return initialLearnDemoNodes.map((node) => ({
     ...node,
@@ -162,6 +171,10 @@ function cloneLearnDemoNodes() {
     size: { ...node.size },
     data: { ...node.data },
   }));
+}
+
+function cloneLearnDemoEdges() {
+  return initialLearnDemoEdges.map((edge) => ({ ...edge }));
 }
 
 const copyByLocale: Record<Locale, Copy> = {
@@ -2045,6 +2058,7 @@ function LearnInteractiveDemo({
   mode: "basic-interactions" | "save-and-restore";
 }) {
   const [nodes, setNodes] = useWorkflowNodesState<LearnDemoNode>(cloneLearnDemoNodes());
+  const [edges, setEdges] = useWorkflowEdgesState<LearnDemoEdge>(cloneLearnDemoEdges());
   const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: null });
   const selectedNode = useSelectedNode({ nodes, selection });
   const [viewport, setViewport] = useState<PocViewport>(() =>
@@ -2059,6 +2073,7 @@ function LearnInteractiveDemo({
   const [titleDraft, setTitleDraft] = useState("");
   const [savedSnapshot, setSavedSnapshot] = useState<{
     nodes: LearnDemoNode[];
+    edges: LearnDemoEdge[];
     viewport: PocViewport;
   } | null>(null);
 
@@ -2076,21 +2091,13 @@ function LearnInteractiveDemo({
               : "저장했다가 다시 복원하는 흐름을 직접 볼 수 있다",
           body:
             mode === "basic-interactions"
-              ? "노드를 클릭해서 선택하고, 아래 버튼으로 움직이거나 확대/축소를 해봐라. 지금 Learn에서 제일 중요한 건 직접 editor 감각을 느끼는 것이다."
-              : "노드를 고른 뒤 값을 바꾸고 저장해봐라. 그다음 복원을 누르면 저장된 nodes와 viewport가 다시 돌아온다.",
+              ? "노드를 직접 끌어서 옮기고, 빈 공간을 드래그해서 화면을 이동해봐라. 오른쪽 점을 누른 뒤 다른 노드의 왼쪽 점을 누르면 연결도 만들 수 있다."
+              : "노드를 직접 옮기거나 제목을 바꾼 뒤 저장해봐라. 연결을 추가한 뒤 복원을 누르면 저장된 nodes, edges, viewport가 함께 돌아온다.",
           aria: mode === "basic-interactions" ? "기본 상호작용 live demo" : "저장과 복원 live demo",
           toolbar: {
             fit: "맞춤 보기",
             zoomIn: "확대",
             zoomOut: "축소",
-            panLeft: "←",
-            panRight: "→",
-            panUp: "↑",
-            panDown: "↓",
-            moveLeft: "노드 ←",
-            moveRight: "노드 →",
-            moveUp: "노드 ↑",
-            moveDown: "노드 ↓",
             save: "저장",
             restore: "복원",
           },
@@ -2101,6 +2108,7 @@ function LearnInteractiveDemo({
             apply: "적용",
             saved: "저장된 데이터",
             notSaved: "아직 저장된 스냅샷이 없다.",
+            connectHint: "오른쪽 점을 눌러 시작하고 다른 노드의 왼쪽 점을 눌러 연결한다.",
           },
         }
       : {
@@ -2111,21 +2119,13 @@ function LearnInteractiveDemo({
               : "You can save and restore the flow here",
           body:
             mode === "basic-interactions"
-              ? "Click a node, move it with the buttons, and try zooming or fitting the view. The point is to feel the editor, not just read about it."
-              : "Pick a node, rename it, save the state, and then restore it. That shows how nodes and viewport come back together.",
+              ? "Drag a node directly, drag empty canvas space to pan, and use zoom or fit view. Click a right handle, then a left handle, to create a connection."
+              : "Move a node or rename it, add a connection, save the state, and then restore it. That shows how nodes, edges, and viewport come back together.",
           aria: mode === "basic-interactions" ? "Basic interactions live demo" : "Save and restore live demo",
           toolbar: {
             fit: "Fit view",
             zoomIn: "Zoom in",
             zoomOut: "Zoom out",
-            panLeft: "←",
-            panRight: "→",
-            panUp: "↑",
-            panDown: "↓",
-            moveLeft: "Node ←",
-            moveRight: "Node →",
-            moveUp: "Node ↑",
-            moveDown: "Node ↓",
             save: "Save",
             restore: "Restore",
           },
@@ -2136,6 +2136,7 @@ function LearnInteractiveDemo({
             apply: "Apply",
             saved: "Saved snapshot",
             notSaved: "No saved snapshot yet.",
+            connectHint: "Click a right handle to start, then a left handle on another node to connect them.",
           },
         };
 
@@ -2155,16 +2156,6 @@ function LearnInteractiveDemo({
     );
   }
 
-  function pan(dx: number, dy: number) {
-    setViewport((current) =>
-      createPocViewport(current.width, current.height, {
-        x: Math.max(0, current.x + dx / current.zoom),
-        y: Math.max(0, current.y + dy / current.zoom),
-        zoom: current.zoom,
-      }),
-    );
-  }
-
   function zoom(delta: number) {
     setViewport((current) =>
       createPocViewport(current.width, current.height, {
@@ -2173,16 +2164,6 @@ function LearnInteractiveDemo({
         zoom: clampZoom(current.zoom + delta),
       }),
     );
-  }
-
-  function moveSelected(dx: number, dy: number) {
-    if (!selectedNode) return;
-    updateNodeData(setNodes, selectedNode.id, (node) => ({
-      position: {
-        x: Math.max(0, node.position.x + dx),
-        y: Math.max(0, node.position.y + dy),
-      },
-    }));
   }
 
   function applyTitle() {
@@ -2203,6 +2184,7 @@ function LearnInteractiveDemo({
         size: { ...node.size },
         data: { ...node.data },
       })),
+      edges: edges.map((edge) => ({ ...edge })),
       viewport: { ...viewport },
     });
   }
@@ -2217,6 +2199,7 @@ function LearnInteractiveDemo({
         data: { ...node.data },
       })),
     );
+    setEdges(savedSnapshot.edges.map((edge) => ({ ...edge })));
     setViewport({ ...savedSnapshot.viewport });
     onSelectionChange({ nodeId: null });
   }
@@ -2241,34 +2224,6 @@ function LearnInteractiveDemo({
             {copy.toolbar.zoomIn}
           </button>
         </div>
-        <div className="learn-live-toolbar-group">
-          <button type="button" onClick={() => pan(-80, 0)}>
-            {copy.toolbar.panLeft}
-          </button>
-          <button type="button" onClick={() => pan(80, 0)}>
-            {copy.toolbar.panRight}
-          </button>
-          <button type="button" onClick={() => pan(0, -80)}>
-            {copy.toolbar.panUp}
-          </button>
-          <button type="button" onClick={() => pan(0, 80)}>
-            {copy.toolbar.panDown}
-          </button>
-        </div>
-        <div className="learn-live-toolbar-group">
-          <button type="button" onClick={() => moveSelected(-40, 0)} disabled={!selectedNode}>
-            {copy.toolbar.moveLeft}
-          </button>
-          <button type="button" onClick={() => moveSelected(40, 0)} disabled={!selectedNode}>
-            {copy.toolbar.moveRight}
-          </button>
-          <button type="button" onClick={() => moveSelected(0, -40)} disabled={!selectedNode}>
-            {copy.toolbar.moveUp}
-          </button>
-          <button type="button" onClick={() => moveSelected(0, 40)} disabled={!selectedNode}>
-            {copy.toolbar.moveDown}
-          </button>
-        </div>
         {mode === "save-and-restore" ? (
           <div className="learn-live-toolbar-group">
             <button type="button" onClick={saveSnapshot}>
@@ -2285,11 +2240,35 @@ function LearnInteractiveDemo({
         <div className="learn-live-canvas">
           <HyperFlowPocCanvas
             nodes={nodes}
+            edges={edges}
             viewport={viewport}
             width={learnDemoCanvas.width}
             height={learnDemoCanvas.height}
             selectedNodeId={selection.nodeId}
             onNodeSelect={(nodeId) => onSelectionChange({ nodeId })}
+            onNodePositionChange={(nodeId, nextPosition) => {
+              updateNodeData(setNodes, nodeId, () => ({
+                position: nextPosition,
+              }));
+            }}
+            onEdgeConnect={(sourceNodeId, targetNodeId) => {
+              setEdges((current) => {
+                if (current.some((edge) => Number(edge.source) === Number(sourceNodeId) && Number(edge.target) === Number(targetNodeId))) {
+                  return current;
+                }
+
+                return [
+                  ...current,
+                  {
+                    id: `edge-${sourceNodeId}-${targetNodeId}-${current.length + 1}`,
+                    source: sourceNodeId,
+                    target: targetNodeId,
+                    type: "default",
+                  },
+                ];
+              });
+            }}
+            onViewportChange={setViewport}
             interactive
           />
         </div>
@@ -2310,6 +2289,7 @@ function LearnInteractiveDemo({
           ) : (
             <p className="learn-live-empty">{copy.inspector.empty}</p>
           )}
+          <p className="learn-live-connect-hint">{copy.inspector.connectHint}</p>
 
           {mode === "save-and-restore" ? (
             <div className="learn-live-saved">
@@ -2321,6 +2301,12 @@ function LearnInteractiveDemo({
                         nodes: savedSnapshot.nodes.map((node) => ({
                           id: node.id,
                           title: node.data.title,
+                          x: node.position.x,
+                          y: node.position.y,
+                        })),
+                        edges: savedSnapshot.edges.map((edge) => ({
+                          source: edge.source,
+                          target: edge.target,
                         })),
                         viewport: {
                           x: savedSnapshot.viewport.x,
