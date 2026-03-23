@@ -1,36 +1,67 @@
 // Generated from TypeScript source by tooling/sync-ts-artifacts.mjs. Do not edit directly.
 
 import { expect, test } from "@playwright/test";
-test("react starter loads core UI shell", async ({ page })=>{
-    await page.goto("/");
+test("react starter loads a paged learn surface", async ({ page })=>{
+    await page.goto("/ko/learn");
     await expect(page.getByRole("heading", {
-        name: "Agent builder workflow starter"
+        name: "HyperFlow란"
     })).toBeVisible();
-    await expect(page.getByRole("heading", {
-        name: "Agent builder workflow",
-        exact: true
+    await expect(page.getByRole("navigation", {
+        name: "Learn navigation"
     })).toBeVisible();
-    await expect(page.getByText("Workflow inspector")).toBeVisible();
     await expect(page.getByRole("button", {
-        name: /Inspect mode/i
+        name: "한국어"
     })).toBeVisible();
+    await expect(page.getByRole("button", {
+        name: "English"
+    })).toBeVisible();
+    await expect(page.getByRole("button", {
+        name: "HyperFlow란"
+    })).toBeVisible();
+    await expect(page.locator(".markdown-page")).toBeVisible();
+    await expect(page.locator(".starter-canvas")).toHaveCount(0);
+    await expect(page.getByRole("button", {
+        name: "Apply"
+    })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/ko\/learn$/);
 });
-test("inspector Apply updates selected node title", async ({ page })=>{
-    await page.goto("/");
+test("learn page switches sections and locale with localized paths", async ({ page })=>{
+    await page.goto("/ko/learn");
     await page.getByRole("button", {
-        name: /Step 1 Task Brief/i
+        name: "런타임 아키텍처"
     }).click();
     await expect(page.getByRole("heading", {
-        name: "Task Brief form"
+        name: "런타임 아키텍처"
     })).toBeVisible();
-    const form = page.locator('form:has-text("Task Brief form")');
-    const titleInput = form.getByLabel("Title");
-    const updatedTitle = "Task Brief (E2E)";
-    await titleInput.fill(updatedTitle);
-    await form.getByRole("button", {
-        name: "Apply"
+    await expect(page.getByText("Rust + WASM core")).toBeVisible();
+    await expect(page).toHaveURL(/\/ko\/reference\/architecture$/);
+    await page.getByRole("button", {
+        name: "English"
     }).click();
-    await expect(page.locator(".starter-custom-node__title", {
-        hasText: updatedTitle
+    await expect(page.getByRole("heading", {
+        name: "Runtime architecture"
     })).toBeVisible();
+    await expect(page.getByRole("button", {
+        name: "What HyperFlow is"
+    })).toBeVisible();
+    await expect(page).toHaveURL(/\/en\/reference\/architecture$/);
+    await page.getByRole("button", {
+        name: "Next"
+    }).click();
+    await expect(page.getByRole("heading", {
+        name: "Roadmap"
+    })).toBeVisible();
+    await expect(page).toHaveURL(/\/en\/roadmap$/);
+});
+test("missing locale redirects with browser language detection", async ({ browser })=>{
+    const context = await browser.newContext({
+        locale: "en-US"
+    });
+    const page = await context.newPage();
+    await page.goto("/learn");
+    await expect(page).toHaveURL(/\/en\/learn$/);
+    await expect(page.getByRole("heading", {
+        name: "What HyperFlow is"
+    })).toBeVisible();
+    await context.close();
 });
