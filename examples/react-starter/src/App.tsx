@@ -244,10 +244,37 @@ function findNextNodePlacement<TData>(
       return nextLeft < currentRight && nextRight > currentLeft && nextTop < currentBottom && nextBottom > currentTop;
     });
 
-  for (let radius = 0; radius <= 4; radius += 1) {
+  const preferredOffsets = [
+    { x: 0, y: 0 },
+    { x: stepX, y: 0 },
+    { x: -stepX, y: 0 },
+    { x: 0, y: stepY },
+    { x: 0, y: -stepY },
+    { x: stepX, y: stepY },
+    { x: stepX, y: -stepY },
+    { x: -stepX, y: stepY },
+    { x: -stepX, y: -stepY },
+    { x: stepX * 2, y: 0 },
+    { x: -stepX * 2, y: 0 },
+    { x: 0, y: stepY * 2 },
+    { x: 0, y: -stepY * 2 },
+  ];
+
+  for (const offset of preferredOffsets) {
+    const candidate = {
+      x: Math.max(24, baseX + offset.x),
+      y: Math.max(24, baseY + offset.y),
+    };
+
+    if (!overlapsExistingNode(candidate)) {
+      return candidate;
+    }
+  }
+
+  for (let radius = 2; radius <= 5; radius += 1) {
     for (let row = -radius; row <= radius; row += 1) {
       for (let column = -radius; column <= radius; column += 1) {
-        if (radius > 0 && Math.max(Math.abs(column), Math.abs(row)) !== radius) continue;
+        if (Math.max(Math.abs(column), Math.abs(row)) !== radius) continue;
 
         const candidate = {
           x: Math.max(24, baseX + column * stepX),

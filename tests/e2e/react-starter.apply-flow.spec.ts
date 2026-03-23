@@ -35,6 +35,17 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
 
   await page.getByRole("button", { name: "노드 추가" }).click();
   await expect(page.locator("[data-node-card-id='4']")).toBeVisible();
+  await page.getByRole("button", { name: "저장" }).click();
+  const firstSnapshotText = await page.locator(".editor-snapshot").textContent();
+  if (!firstSnapshotText) throw new Error("missing snapshot text after first add");
+  const firstSnapshot = JSON.parse(firstSnapshotText);
+  const nodeFourSnapshot = firstSnapshot.nodes.find((node: { id: number }) => node.id === 4);
+  if (!nodeFourSnapshot) throw new Error("missing node 4 in snapshot");
+  const expectedCenterX = firstSnapshot.viewport.x + 1280 / firstSnapshot.viewport.zoom / 2 - 90;
+  const expectedCenterY = firstSnapshot.viewport.y + 720 / firstSnapshot.viewport.zoom / 2 - 48;
+  expect(Math.abs(nodeFourSnapshot.x - expectedCenterX)).toBeLessThan(2);
+  expect(Math.abs(nodeFourSnapshot.y - expectedCenterY)).toBeLessThan(2);
+
   await page.getByRole("button", { name: "노드 추가" }).click();
   await expect(page.locator("[data-node-card-id='5']")).toBeVisible();
   const nodeFourBox = await page.locator("[data-node-card-id='4']").boundingBox();
