@@ -1823,7 +1823,9 @@ function CommandGuide({ copy, guide }: { copy: Copy["code"]; guide: Copy["instal
 
       <section className="command-card">
         <div className="command-card-header">
-          <h3>{guide.workspaceTitle}</h3>
+          <h3>
+            <InlineMarkdown text={guide.workspaceTitle} />
+          </h3>
           <button
             type="button"
             className="markdown-copy-button"
@@ -1839,7 +1841,9 @@ function CommandGuide({ copy, guide }: { copy: Copy["code"]; guide: Copy["instal
 
       <section className="command-card">
         <div className="command-card-header">
-          <h3>{guide.packageStatusTitle}</h3>
+          <h3>
+            <InlineMarkdown text={guide.packageStatusTitle} />
+          </h3>
         </div>
         <div className="install-guide-status">
           <ul className="markdown-list">
