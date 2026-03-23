@@ -1,4 +1,15 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import {
+  HyperFlowPocCanvas,
+  createPocViewport,
+  fitPocViewportToNodes,
+  updateNodeData,
+  useSelectedNode,
+  useWorkflowNodesState,
+  useWorkflowSelection,
+  type PocNode,
+  type PocViewport,
+} from "@hyperflow/react";
 
 type Locale = "ko" | "en";
 type SectionId = "learn" | "reference" | "examples" | "roadmap";
@@ -64,6 +75,11 @@ type InlineSegment =
   | { type: "bold"; text: string }
   | { type: "code"; text: string };
 
+type LearnDemoNode = PocNode<{
+  title: string;
+  note: string;
+}>;
+
 
 const locales: Locale[] = ["ko", "en"];
 const sectionOrder: SectionId[] = ["learn", "reference", "examples", "roadmap"];
@@ -113,6 +129,40 @@ const topLevelDefaultPage: Record<SectionId, PageId> = {
   examples: "examples-intro",
   roadmap: "roadmap",
 };
+
+const learnDemoCanvas = { width: 720, height: 360 } as const;
+const initialLearnDemoNodes: LearnDemoNode[] = [
+  {
+    id: 1,
+    type: "input",
+    position: { x: 80, y: 80 },
+    size: { width: 180, height: 96 },
+    data: { title: "Node A", note: "Start here" },
+  },
+  {
+    id: 2,
+    type: "transform",
+    position: { x: 320, y: 80 },
+    size: { width: 180, height: 96 },
+    data: { title: "Node B", note: "Update this node" },
+  },
+  {
+    id: 3,
+    type: "output",
+    position: { x: 560, y: 80 },
+    size: { width: 180, height: 96 },
+    data: { title: "Node C", note: "Final output" },
+  },
+];
+
+function cloneLearnDemoNodes() {
+  return initialLearnDemoNodes.map((node) => ({
+    ...node,
+    position: { ...node.position },
+    size: { ...node.size },
+    data: { ...node.data },
+  }));
+}
 
 const copyByLocale: Record<Locale, Copy> = {
   ko: {
@@ -1987,6 +2037,472 @@ function MarkdownPage({ markdown, copy }: { markdown: string; copy: Copy["code"]
   );
 }
 
+function LearnInteractiveDemo({
+  locale,
+  mode,
+}: {
+  locale: Locale;
+  mode: "basic-interactions" | "save-and-restore";
+}) {
+  const [nodes, setNodes] = useWorkflowNodesState<LearnDemoNode>(cloneLearnDemoNodes());
+  const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: null });
+  const selectedNode = useSelectedNode({ nodes, selection });
+  const [viewport, setViewport] = useState<PocViewport>(() =>
+    fitPocViewportToNodes(cloneLearnDemoNodes(), {
+      width: learnDemoCanvas.width,
+      height: learnDemoCanvas.height,
+      padding: 48,
+      minZoom: 0.6,
+      maxZoom: 1.2,
+    }),
+  );
+  const [titleDraft, setTitleDraft] = useState("");
+  const [savedSnapshot, setSavedSnapshot] = useState<{
+    nodes: LearnDemoNode[];
+    viewport: PocViewport;
+  } | null>(null);
+
+  useEffect(() => {
+    setTitleDraft(selectedNode?.data.title ?? "");
+  }, [selectedNode?.data.title, selectedNode?.id]);
+
+  const copy =
+    locale === "ko"
+      ? {
+          eyebrow: mode === "basic-interactions" ? "직접 해보기" : "저장과 복원 체험",
+          title:
+            mode === "basic-interactions"
+              ? "여기서는 직접 선택하고 움직여볼 수 있다"
+              : "저장했다가 다시 복원하는 흐름을 직접 볼 수 있다",
+          body:
+            mode === "basic-interactions"
+              ? "노드를 클릭해서 선택하고, 아래 버튼으로 움직이거나 확대/축소를 해봐라. 지금 Learn에서 제일 중요한 건 직접 editor 감각을 느끼는 것이다."
+              : "노드를 고른 뒤 값을 바꾸고 저장해봐라. 그다음 복원을 누르면 저장된 nodes와 viewport가 다시 돌아온다.",
+          aria: mode === "basic-interactions" ? "기본 상호작용 live demo" : "저장과 복원 live demo",
+          toolbar: {
+            fit: "맞춤 보기",
+            zoomIn: "확대",
+            zoomOut: "축소",
+            panLeft: "←",
+            panRight: "→",
+            panUp: "↑",
+            panDown: "↓",
+            moveLeft: "노드 ←",
+            moveRight: "노드 →",
+            moveUp: "노드 ↑",
+            moveDown: "노드 ↓",
+            save: "저장",
+            restore: "복원",
+          },
+          inspector: {
+            title: "선택된 노드",
+            empty: "캔버스에서 노드를 클릭하면 여기서 제목을 바꾸고 다시 반영할 수 있다.",
+            field: "제목",
+            apply: "적용",
+            saved: "저장된 데이터",
+            notSaved: "아직 저장된 스냅샷이 없다.",
+          },
+        }
+      : {
+          eyebrow: mode === "basic-interactions" ? "Try it live" : "Save and restore",
+          title:
+            mode === "basic-interactions"
+              ? "You can select and move things here"
+              : "You can save and restore the flow here",
+          body:
+            mode === "basic-interactions"
+              ? "Click a node, move it with the buttons, and try zooming or fitting the view. The point is to feel the editor, not just read about it."
+              : "Pick a node, rename it, save the state, and then restore it. That shows how nodes and viewport come back together.",
+          aria: mode === "basic-interactions" ? "Basic interactions live demo" : "Save and restore live demo",
+          toolbar: {
+            fit: "Fit view",
+            zoomIn: "Zoom in",
+            zoomOut: "Zoom out",
+            panLeft: "←",
+            panRight: "→",
+            panUp: "↑",
+            panDown: "↓",
+            moveLeft: "Node ←",
+            moveRight: "Node →",
+            moveUp: "Node ↑",
+            moveDown: "Node ↓",
+            save: "Save",
+            restore: "Restore",
+          },
+          inspector: {
+            title: "Selected node",
+            empty: "Click a node on the canvas to rename it and push the change back.",
+            field: "Title",
+            apply: "Apply",
+            saved: "Saved snapshot",
+            notSaved: "No saved snapshot yet.",
+          },
+        };
+
+  function clampZoom(nextZoom: number) {
+    return Math.max(0.45, Math.min(nextZoom, 1.75));
+  }
+
+  function fitView() {
+    setViewport(
+      fitPocViewportToNodes(nodes, {
+        width: learnDemoCanvas.width,
+        height: learnDemoCanvas.height,
+        padding: 48,
+        minZoom: 0.6,
+        maxZoom: 1.2,
+      }),
+    );
+  }
+
+  function pan(dx: number, dy: number) {
+    setViewport((current) =>
+      createPocViewport(current.width, current.height, {
+        x: Math.max(0, current.x + dx / current.zoom),
+        y: Math.max(0, current.y + dy / current.zoom),
+        zoom: current.zoom,
+      }),
+    );
+  }
+
+  function zoom(delta: number) {
+    setViewport((current) =>
+      createPocViewport(current.width, current.height, {
+        x: current.x,
+        y: current.y,
+        zoom: clampZoom(current.zoom + delta),
+      }),
+    );
+  }
+
+  function moveSelected(dx: number, dy: number) {
+    if (!selectedNode) return;
+    updateNodeData(setNodes, selectedNode.id, (node) => ({
+      position: {
+        x: Math.max(0, node.position.x + dx),
+        y: Math.max(0, node.position.y + dy),
+      },
+    }));
+  }
+
+  function applyTitle() {
+    if (!selectedNode) return;
+    updateNodeData(setNodes, selectedNode.id, (node) => ({
+      data: {
+        ...node.data,
+        title: titleDraft.trim() || node.data.title,
+      },
+    }));
+  }
+
+  function saveSnapshot() {
+    setSavedSnapshot({
+      nodes: nodes.map((node) => ({
+        ...node,
+        position: { ...node.position },
+        size: { ...node.size },
+        data: { ...node.data },
+      })),
+      viewport: { ...viewport },
+    });
+  }
+
+  function restoreSnapshot() {
+    if (!savedSnapshot) return;
+    setNodes(
+      savedSnapshot.nodes.map((node) => ({
+        ...node,
+        position: { ...node.position },
+        size: { ...node.size },
+        data: { ...node.data },
+      })),
+    );
+    setViewport({ ...savedSnapshot.viewport });
+    onSelectionChange({ nodeId: null });
+  }
+
+  return (
+    <section className="learn-live-card" aria-label={copy.aria}>
+      <div className="learn-visual-copy">
+        <p className="learn-visual-eyebrow">{copy.eyebrow}</p>
+        <h2>{copy.title}</h2>
+        <p>{copy.body}</p>
+      </div>
+
+      <div className="learn-live-toolbar">
+        <div className="learn-live-toolbar-group">
+          <button type="button" onClick={fitView}>
+            {copy.toolbar.fit}
+          </button>
+          <button type="button" onClick={() => zoom(-0.15)}>
+            {copy.toolbar.zoomOut}
+          </button>
+          <button type="button" onClick={() => zoom(0.15)}>
+            {copy.toolbar.zoomIn}
+          </button>
+        </div>
+        <div className="learn-live-toolbar-group">
+          <button type="button" onClick={() => pan(-80, 0)}>
+            {copy.toolbar.panLeft}
+          </button>
+          <button type="button" onClick={() => pan(80, 0)}>
+            {copy.toolbar.panRight}
+          </button>
+          <button type="button" onClick={() => pan(0, -80)}>
+            {copy.toolbar.panUp}
+          </button>
+          <button type="button" onClick={() => pan(0, 80)}>
+            {copy.toolbar.panDown}
+          </button>
+        </div>
+        <div className="learn-live-toolbar-group">
+          <button type="button" onClick={() => moveSelected(-40, 0)} disabled={!selectedNode}>
+            {copy.toolbar.moveLeft}
+          </button>
+          <button type="button" onClick={() => moveSelected(40, 0)} disabled={!selectedNode}>
+            {copy.toolbar.moveRight}
+          </button>
+          <button type="button" onClick={() => moveSelected(0, -40)} disabled={!selectedNode}>
+            {copy.toolbar.moveUp}
+          </button>
+          <button type="button" onClick={() => moveSelected(0, 40)} disabled={!selectedNode}>
+            {copy.toolbar.moveDown}
+          </button>
+        </div>
+        {mode === "save-and-restore" ? (
+          <div className="learn-live-toolbar-group">
+            <button type="button" onClick={saveSnapshot}>
+              {copy.toolbar.save}
+            </button>
+            <button type="button" onClick={restoreSnapshot} disabled={!savedSnapshot}>
+              {copy.toolbar.restore}
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="learn-live-shell">
+        <div className="learn-live-canvas">
+          <HyperFlowPocCanvas
+            nodes={nodes}
+            viewport={viewport}
+            width={learnDemoCanvas.width}
+            height={learnDemoCanvas.height}
+            selectedNodeId={selection.nodeId}
+            onNodeSelect={(nodeId) => onSelectionChange({ nodeId })}
+            interactive
+          />
+        </div>
+
+        <aside className="learn-live-inspector">
+          <p className="learn-live-inspector-label">{copy.inspector.title}</p>
+          {selectedNode ? (
+            <>
+              <h3>{selectedNode.data.title}</h3>
+              <label className="learn-live-field">
+                <span>{copy.inspector.field}</span>
+                <input value={titleDraft} onChange={(event) => setTitleDraft(event.target.value)} />
+              </label>
+              <button type="button" onClick={applyTitle}>
+                {copy.inspector.apply}
+              </button>
+            </>
+          ) : (
+            <p className="learn-live-empty">{copy.inspector.empty}</p>
+          )}
+
+          {mode === "save-and-restore" ? (
+            <div className="learn-live-saved">
+              <p className="learn-live-inspector-label">{copy.inspector.saved}</p>
+              <pre>
+                {savedSnapshot
+                  ? JSON.stringify(
+                      {
+                        nodes: savedSnapshot.nodes.map((node) => ({
+                          id: node.id,
+                          title: node.data.title,
+                        })),
+                        viewport: {
+                          x: savedSnapshot.viewport.x,
+                          y: savedSnapshot.viewport.y,
+                          zoom: Number(savedSnapshot.viewport.zoom.toFixed(2)),
+                        },
+                      },
+                      null,
+                      2,
+                    )
+                  : copy.inspector.notSaved}
+              </pre>
+            </div>
+          ) : null}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function LearnVisualPreview({ locale, pageId }: { locale: Locale; pageId: PageId }) {
+  if (pageId === "nodes-and-edges") {
+    const copy =
+      locale === "ko"
+        ? {
+            eyebrow: "결과 미리보기",
+            title: "화면에서는 이렇게 보인다",
+            body: "노드는 박스로, 엣지는 선으로 보인다. 먼저 화면에서 관계를 읽고, 그 다음에 데이터 shape를 이해하면 된다.",
+            aria: "노드와 엣지 미리보기",
+            footer: "Node A → Node B → Node C",
+          }
+        : {
+            eyebrow: "Result preview",
+            title: "This is what the screen looks like",
+            body: "Nodes show up as boxes and edges show up as lines. Read the relationships on screen first, then learn the data shape behind them.",
+            aria: "Nodes and edges preview",
+            footer: "Node A → Node B → Node C",
+          };
+
+    return (
+      <section className="learn-visual-card" aria-label={copy.aria}>
+        <div className="learn-visual-copy">
+          <p className="learn-visual-eyebrow">{copy.eyebrow}</p>
+          <h2>{copy.title}</h2>
+          <p>{copy.body}</p>
+        </div>
+        <div className="flow-preview flow-preview--canvas" aria-hidden="true">
+          <div className="flow-preview-grid" />
+          <svg className="flow-preview-edges" viewBox="0 0 760 340" preserveAspectRatio="none">
+            <path d="M 206 118 C 270 118, 278 118, 342 118" />
+            <path d="M 478 118 C 542 118, 550 118, 614 118" />
+          </svg>
+          <div className="flow-preview-node flow-preview-node--a">
+            <span className="flow-preview-node-kind">default</span>
+            <strong>Node A</strong>
+          </div>
+          <div className="flow-preview-node flow-preview-node--b">
+            <span className="flow-preview-node-kind">transform</span>
+            <strong>Node B</strong>
+          </div>
+          <div className="flow-preview-node flow-preview-node--c">
+            <span className="flow-preview-node-kind">output</span>
+            <strong>Node C</strong>
+          </div>
+          <div className="flow-preview-caption">{copy.footer}</div>
+        </div>
+      </section>
+    );
+  }
+
+  if (pageId === "selection-and-editing") {
+    const copy =
+      locale === "ko"
+        ? {
+            eyebrow: "결과 미리보기",
+            title: "선택 후에는 이런 흐름이 보인다",
+            body: "캔버스에서 하나를 고르면 오른쪽 inspector에서 값을 바꾸고 다시 반영하는 식으로 읽으면 된다.",
+            aria: "선택과 수정 미리보기",
+            footer: "클릭 → 선택 표시 → inspector 수정 → 반영",
+          }
+        : {
+            eyebrow: "Result preview",
+            title: "This is the flow after selection",
+            body: "Pick a node on the canvas, edit it in the inspector, and read the update back on the node.",
+            aria: "Selection and editing preview",
+            footer: "Click → selected state → inspector edit → apply",
+          };
+
+    return (
+      <section className="learn-visual-card" aria-label={copy.aria}>
+        <div className="learn-visual-copy">
+          <p className="learn-visual-eyebrow">{copy.eyebrow}</p>
+          <h2>{copy.title}</h2>
+          <p>{copy.body}</p>
+        </div>
+        <div className="flow-preview flow-preview--editor" aria-hidden="true">
+          <div className="flow-preview-shell">
+            <div className="flow-preview-shell-grid" />
+            <div className="flow-preview-node flow-preview-node--selected">
+              <span className="flow-preview-node-kind">selected</span>
+              <strong>Node B</strong>
+              <span className="flow-preview-node-note">
+                {locale === "ko" ? "클릭 후 오른쪽에서 수정" : "Edit on the right after clicking"}
+              </span>
+            </div>
+          </div>
+          <aside className="flow-preview-inspector">
+            <p className="flow-preview-inspector-label">{locale === "ko" ? "선택된 노드" : "Selected node"}</p>
+            <h3>Node B</h3>
+            <div className="flow-preview-field">
+              <span>{locale === "ko" ? "제목" : "Title"}</span>
+              <div>Node B</div>
+            </div>
+            <div className="flow-preview-field">
+              <span>{locale === "ko" ? "종류" : "Kind"}</span>
+              <div>transform</div>
+            </div>
+            <div className="flow-preview-field">
+              <span>{locale === "ko" ? "메모" : "Notes"}</span>
+              <div>{locale === "ko" ? "값을 바꾸고 다시 반영" : "Change values and sync back"}</div>
+            </div>
+            <div className="flow-preview-actions">
+              <button type="button">{locale === "ko" ? "적용" : "Apply"}</button>
+              <button type="button">{locale === "ko" ? "되돌리기" : "Reset"}</button>
+            </div>
+          </aside>
+          <div className="flow-preview-caption">{copy.footer}</div>
+        </div>
+      </section>
+    );
+  }
+
+  if (pageId === "viewport") {
+    const copy =
+      locale === "ko"
+        ? {
+            eyebrow: "결과 미리보기",
+            title: "뷰포트는 화면의 카메라처럼 읽으면 된다",
+            body: "큰 캔버스에서도 지금 어디를 보고 있는지, 이동과 확대축소가 부드러운지가 중요하다.",
+            aria: "뷰포트 미리보기",
+          }
+        : {
+            eyebrow: "Result preview",
+            title: "Treat the viewport like the camera for the canvas",
+            body: "On a larger canvas, what matters is where the camera is and whether pan and zoom stay smooth.",
+            aria: "Viewport preview",
+          };
+
+    return (
+      <section className="learn-visual-card" aria-label={copy.aria}>
+        <div className="learn-visual-copy">
+          <p className="learn-visual-eyebrow">{copy.eyebrow}</p>
+          <h2>{copy.title}</h2>
+          <p>{copy.body}</p>
+        </div>
+        <div className="flow-preview flow-preview--viewport" aria-hidden="true">
+          <div className="flow-preview-grid" />
+          <div className="flow-preview-viewport-window">
+            <div className="flow-preview-node flow-preview-node--mini flow-preview-node--v1">
+              <strong>Node A</strong>
+            </div>
+            <div className="flow-preview-node flow-preview-node--mini flow-preview-node--v2">
+              <strong>Node B</strong>
+            </div>
+          </div>
+          <div className="flow-preview-viewport-pill">{locale === "ko" ? "현재 보고 있는 영역" : "Current view"}</div>
+        </div>
+      </section>
+    );
+  }
+
+  if (pageId === "basic-interactions") {
+    return <LearnInteractiveDemo locale={locale} mode="basic-interactions" />;
+  }
+
+  if (pageId === "save-and-restore") {
+    return <LearnInteractiveDemo locale={locale} mode="save-and-restore" />;
+  }
+
+  return null;
+}
+
 export function App() {
   const [route, setRoute] = useState<{ locale: Locale; pageId: PageId }>(() =>
     typeof window === "undefined" ? { locale: "ko", pageId: "what-is-hyperflow" } : getRouteFromPath(window.location.pathname),
@@ -2074,6 +2590,7 @@ export function App() {
           </section>
 
           {currentPage === "installation" ? <CommandGuide copy={copy.code} guide={copy.installationGuide} /> : null}
+          <LearnVisualPreview locale={locale} pageId={currentPage} />
 
           <MarkdownPage markdown={current.markdown} copy={copy.code} />
 

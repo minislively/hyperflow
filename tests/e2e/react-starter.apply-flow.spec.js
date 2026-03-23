@@ -75,6 +75,34 @@ test("learn comparison page renders markdown emphasis and comparison table", asy
     await expect(page.locator(".markdown-table")).toContainText("React Flow");
     await expect(page.locator(".markdown-table")).toContainText("HyperFlow");
 });
+test("learn nodes and editing pages show visual result previews", async ({ page })=>{
+    await page.goto("/ko/learn/nodes-and-edges");
+    await expect(page.getByLabel("노드와 엣지 미리보기")).toBeVisible();
+    await expect(page.locator(".flow-preview-node--a")).toContainText("Node A");
+    await expect(page.locator(".flow-preview-node--b")).toContainText("Node B");
+    await expect(page.locator(".flow-preview-node--c")).toContainText("Node C");
+    await page.goto("/ko/learn/selection-and-editing");
+    await expect(page.getByLabel("선택과 수정 미리보기")).toBeVisible();
+    await expect(page.locator(".flow-preview-inspector")).toContainText("Node B");
+    await expect(page.locator(".flow-preview-actions")).toContainText("적용");
+});
+test("learn interaction and restore pages show visual result previews", async ({ page })=>{
+    await page.goto("/ko/learn/basic-interactions");
+    await expect(page.getByLabel("기본 상호작용 live demo")).toBeVisible();
+    await expect(page.getByRole("button", {
+        name: "맞춤 보기"
+    })).toBeVisible();
+    await expect(page.getByRole("button", {
+        name: "노드 →"
+    })).toBeVisible();
+    await page.goto("/ko/learn/save-and-restore");
+    await expect(page.getByLabel("저장과 복원 live demo")).toBeVisible();
+    await expect(page.getByRole("button", {
+        name: "저장",
+        exact: true
+    })).toBeVisible();
+    await expect(page.locator(".learn-live-saved")).toContainText("아직 저장된 스냅샷이 없다.");
+});
 test("learn surface switches section and locale with top-level docs routes", async ({ page })=>{
     await page.goto("/ko/learn");
     await page.getByRole("button", {
