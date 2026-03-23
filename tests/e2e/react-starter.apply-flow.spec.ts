@@ -29,7 +29,8 @@ test("installation page exposes copy action for verified setup snippets", async 
   await expect(page.getByRole("button", { name: "복사" }).first()).toBeVisible();
   await expect(page.locator(".install-guide .markdown-code-block").first()).toContainText("pnpm install");
   await expect(page.locator(".install-guide .markdown-code-block").first()).toContainText("pnpm run dev:react-starter");
-  await expect(page.locator(".install-guide .markdown-code-block").nth(1)).toContainText("@hyperflow/react 는 아직 private workspace package 입니다.");
+  await expect(page.locator(".install-guide-status")).toContainText("@hyperflow/react");
+  await expect(page.locator(".install-guide-status")).toContainText("외부 앱에서 pnpm add @hyperflow/react를 실행하는 단계가 아닙니다.");
   await expect(page.getByText("Docker는 나중에 toolchain 고정용으로 도입할 수 있지만")).toBeVisible();
 });
 

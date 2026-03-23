@@ -40,8 +40,8 @@ type Copy = {
     intro: string;
     workspaceTitle: string;
     workspaceCommands: string[];
-    installTitle: string;
-    installCommand: string;
+    packageStatusTitle: string;
+    packageStatusLines: string[];
     installNote: string;
     packageManagerNote: string;
     dockerNote: string;
@@ -123,12 +123,16 @@ const copyByLocale: Record<Locale, Copy> = {
     pager: { previous: "이전", next: "다음" },
     code: { copy: "복사", copied: "복사됨" },
     installationGuide: {
-      intro: "지금 기준으로는 pnpm workspace 개발 흐름만 검증되어 있다. 먼저 repo를 pnpm으로 설치하고 starter를 띄우는 경로를 기준으로 이해하는 것이 가장 정확하다.",
+      intro: "지금 이 페이지에서 해야 할 일은 단순하다. **repo root에서 `pnpm install`을 실행하고, 바로 `pnpm run dev:react-starter`로 Learn을 여는 것**이 현재 검증된 시작점이다.",
       workspaceTitle: "검증된 workspace 설치 경로",
       workspaceCommands: ["pnpm install", "pnpm run dev:react-starter"],
-      installTitle: "현재 package 상태",
-      installCommand: "@hyperflow/react 는 아직 private workspace package 입니다.",
-      installNote: "설치 직후에는 Learn surface가 먼저 열린다. 여기서 화면, 상호작용, 현재 범위를 먼저 이해하는 것이 맞다.",
+      packageStatusTitle: "`@hyperflow/react`는 지금 어떤 상태인가",
+      packageStatusLines: [
+        "`@hyperflow/react`는 아직 private workspace package 입니다.",
+        "즉 지금은 외부 앱에서 `pnpm add @hyperflow/react`를 실행하는 단계가 아닙니다.",
+        "먼저 이 repo를 로컬에서 실행하고 Learn과 Examples로 현재 제공 범위를 이해하는 단계입니다.",
+      ],
+      installNote: "설치 직후에는 Learn surface가 먼저 열린다. 지금은 **패키지 배포 설치**보다 **repo 실행과 개념 이해**가 먼저다.",
       packageManagerNote: "npm / yarn / bun 설치 탭은 React Flow 스타일 참고용이었지만, 현재 repo 기준으로는 실제 지원 상태를 과장하므로 제거했다.",
       dockerNote: "Docker는 나중에 toolchain 고정용으로 도입할 수 있지만, 지금 repo에는 Dockerfile이나 공식 컨테이너 워크플로우가 없다.",
     },
@@ -237,7 +241,7 @@ HyperFlow는 "예제 많은 완성형 에디터"부터 만든 게 아니다.
       installation: {
         navLabel: "설치하기",
         title: "설치하기",
-        markdown: `설치는 복잡하게 생각할 필요 없다. 지금은 **검증된 pnpm 경로로 repo를 띄우고 Learn을 따라가는 것**이 첫 단계다.
+        markdown: `설치는 복잡하게 생각할 필요 없다. 지금은 **외부 앱에 패키지를 붙이는 단계가 아니라, 이 repo를 로컬에서 실행하는 단계**다.
 
 ## 필요한 환경
 - Node.js 24 계열
@@ -254,6 +258,11 @@ HyperFlow는 "예제 많은 완성형 에디터"부터 만든 게 아니다.
 - Learn 페이지가 뜨는가
 - 설치 명령이 정상 동작하는가
 - 이후 문서에서 node / edge / interaction 개념을 따라갈 수 있는가
+
+## 여기서 헷갈리면 안 되는 것
+- 지금은 외부 앱에서 \`pnpm add @hyperflow/react\`를 하는 단계가 아니다.
+- 지금은 repo를 로컬에서 실행해서 Learn과 Examples를 보는 단계다.
+- \`@hyperflow/react\`는 아직 private workspace package다.
 
 ## 설치가 바로 해주지 않는 것
 - 완성형 editor shell을 자동으로 만들어주지는 않는다.
@@ -818,12 +827,16 @@ function renameSelectedNode(nextTitle: string) {
     pager: { previous: "Previous", next: "Next" },
     code: { copy: "Copy", copied: "Copied" },
     installationGuide: {
-      intro: "Today the only verified development flow is the pnpm workspace path. The most accurate way to learn HyperFlow is to install the repo with pnpm and run the starter from there.",
+      intro: "Do not overthink installation yet. **The verified starting point today is to run `pnpm install` at the repo root and then `pnpm run dev:react-starter`**.",
       workspaceTitle: "Verified workspace setup",
       workspaceCommands: ["pnpm install", "pnpm run dev:react-starter"],
-      installTitle: "Current package status",
-      installCommand: "@hyperflow/react is still a private workspace package.",
-      installNote: "Right after setup, the Learn surface is what appears first. Use it to understand the screen, the interactions, and the current scope before expecting a full editor.",
+      packageStatusTitle: "What is the current state of `@hyperflow/react`?",
+      packageStatusLines: [
+        "`@hyperflow/react` is still a private workspace package.",
+        "That means this is not yet the stage where you run `pnpm add @hyperflow/react` in an external app.",
+        "First you run this repo locally and use Learn plus Examples to understand the current surface.",
+      ],
+      installNote: "Right after setup, the Learn surface is what appears first. At this stage, **running the repo locally matters more than package-installing it elsewhere**.",
       packageManagerNote: "The npm / yarn / bun tabs matched the React Flow docs pattern, but they overstated actual support for this repo, so they were removed.",
       dockerNote: "Docker could be added later for toolchain pinning, but there is no Dockerfile or official container workflow in this repo today.",
     },
@@ -932,7 +945,7 @@ Not as a default assumption. It is more accurate to read them as **alternative c
       installation: {
         navLabel: "Installation",
         title: "Installation",
-        markdown: `Do not overthink installation yet. The first step is simply to **run the verified pnpm path and open Learn locally**.
+        markdown: `Do not overthink installation yet. The first step is simply to **run this repo locally and open Learn**.
 
 ## Required environment
 - Node.js 24 line
@@ -940,7 +953,7 @@ Not as a default assumption. It is more accurate to read them as **alternative c
 - React 19
 - React DOM 19
 
-## The path to run today
+## What you actually do today
 1. run \`pnpm install\` from the workspace root
 2. run \`pnpm run dev:react-starter\`
 3. open \`http://localhost:5173/en/learn\`
@@ -949,6 +962,11 @@ Not as a default assumption. It is more accurate to read them as **alternative c
 - the Learn surface loads
 - the setup commands succeed
 - you can continue into nodes / edges / interaction concepts
+
+## What you should not confuse here
+- this is not yet a package-install guide for an external app
+- this is a local repo setup guide
+- \`@hyperflow/react\` is still a private workspace package
 
 ## What installation does not give you yet
 - a finished editor shell
@@ -1772,7 +1790,9 @@ function InlineMarkdown({ text }: { text: string }) {
             {segment.text}
           </code>
         ) : segment.type === "bold" ? (
-          <strong key={`${segment.type}-${index}`}>{segment.text}</strong>
+          <strong key={`${segment.type}-${index}`}>
+            <InlineMarkdown text={segment.text} />
+          </strong>
         ) : (
           <Fragment key={`${segment.type}-${index}`}>{segment.text}</Fragment>
         ),
@@ -1819,18 +1839,17 @@ function CommandGuide({ copy, guide }: { copy: Copy["code"]; guide: Copy["instal
 
       <section className="command-card">
         <div className="command-card-header">
-          <h3>{guide.installTitle}</h3>
-          <button
-            type="button"
-            className="markdown-copy-button"
-            onClick={() => handleCopy(guide.installCommand, "package")}
-          >
-            {copiedKey === "package" ? copy.copied : copy.copy}
-          </button>
+          <h3>{guide.packageStatusTitle}</h3>
         </div>
-        <pre className="markdown-code-block">
-          <code>{guide.installCommand}</code>
-        </pre>
+        <div className="install-guide-status">
+          <ul className="markdown-list">
+            {guide.packageStatusLines.map((line) => (
+              <li key={line}>
+                <InlineMarkdown text={line} />
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
 
       <blockquote className="install-guide-note">
