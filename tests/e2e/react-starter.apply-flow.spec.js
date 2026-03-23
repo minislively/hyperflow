@@ -110,6 +110,27 @@ test("editor save and restore keeps authoring state together", async ({ page })=
     }).click();
     await expect(page.locator("[data-node-card-id='4']")).toBeVisible();
 });
+test("main editor supports box selection and keyboard delete", async ({ page })=>{
+    await page.goto("/ko");
+    const nodeOne = page.locator("[data-node-card-id='1']");
+    const nodeTwo = page.locator("[data-node-card-id='2']");
+    const nodeOneBox = await nodeOne.boundingBox();
+    const nodeTwoBox = await nodeTwo.boundingBox();
+    if (!nodeOneBox || !nodeTwoBox) throw new Error("node boxes missing for selection test");
+    const startX = Math.min(nodeOneBox.x, nodeTwoBox.x) - 24;
+    const startY = Math.max(nodeOneBox.y + nodeOneBox.height, nodeTwoBox.y + nodeTwoBox.height) + 28;
+    const endX = Math.max(nodeOneBox.x + nodeOneBox.width, nodeTwoBox.x + nodeTwoBox.width) + 24;
+    const endY = Math.min(nodeOneBox.y, nodeTwoBox.y) - 18;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(endX, endY, {
+        steps: 12
+    });
+    await page.mouse.up();
+    await page.keyboard.press("Delete");
+    await expect(nodeOne).toHaveCount(0);
+    await expect(nodeTwo).toHaveCount(0);
+});
 test("learn stays available as supporting docs and links back to the editor", async ({ page })=>{
     await page.goto("/ko/learn");
     await expect(page).toHaveURL(/\/ko\/learn$/);

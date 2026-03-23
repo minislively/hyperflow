@@ -2408,6 +2408,7 @@ function MainEditorSurface({
   const [edges, setEdges] = useWorkflowEdgesState<LearnDemoEdge>(cloneLearnDemoEdges());
   const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: null });
   const selectedNode = useSelectedNode({ nodes, selection });
+  const [selectedNodeIds, setSelectedNodeIds] = useState<number[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<PocViewport>(() =>
     fitPocViewportToNodes(cloneLearnDemoNodes(), {
@@ -2428,6 +2429,26 @@ function MainEditorSurface({
   useEffect(() => {
     setTitleDraft(selectedNode?.data.title ?? "");
   }, [selectedNode?.data.title, selectedNode?.id]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+      if (!selectedEdgeId && selectedNodeIds.length === 0 && !selectedNode) return;
+      event.preventDefault();
+      deleteSelected();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedEdgeId, selectedNode, selectedNodeIds]);
 
   const ui =
     locale === "ko"
@@ -2462,6 +2483,8 @@ function MainEditorSurface({
             edgeHint: "핸들을 눌러 새 연결을 만들고, 선 자체를 끌어 경로를 움직이거나 더블클릭으로 굴곡을 초기화한 뒤 삭제할 수 있다.",
             saved: "저장된 스냅샷",
             notSaved: "아직 저장된 스냅샷이 없다.",
+            multiSelectedSuffix: "개 노드 선택됨",
+            multiHint: "빈 캔버스를 드래그하면 여러 노드를 한 번에 선택할 수 있다. Alt를 누른 채 드래그하면 화면을 이동한다.",
           },
           topNav: {
             editor: "에디터",
@@ -2498,6 +2521,8 @@ function MainEditorSurface({
             edgeHint: "Use handles to create connections, drag the line itself to reroute it, or double-click the line to reset the bend before deleting it.",
             saved: "Saved snapshot",
             notSaved: "No saved snapshot yet.",
+            multiSelectedSuffix: "nodes selected",
+            multiHint: "Drag across empty canvas to select multiple nodes at once. Hold Alt while dragging to pan the viewport.",
           },
           topNav: {
             editor: "Editor",
@@ -2533,6 +2558,7 @@ function MainEditorSurface({
       y: Math.max(24, viewport.y + viewport.height / viewport.zoom / 2 - 54),
     };
     setNodes((current) => [...current, createLearnDemoNode(nextId, { position: nextPosition, index: current.length })]);
+    setSelectedNodeIds([nextId]);
     onSelectionChange({ nodeId: nextId });
     setSelectedEdgeId(null);
   }
@@ -2544,19 +2570,28 @@ function MainEditorSurface({
       return;
     }
 
-    if (!selectedNode) return;
+    const nodeIdsToDelete =
+      selectedNodeIds.length > 0
+        ? selectedNodeIds.map((id) => Number(id))
+        : selectedNode
+          ? [Number(selectedNode.id)]
+          : [];
+    if (nodeIdsToDelete.length === 0) return;
 
-    setNodes((current) => current.filter((node) => Number(node.id) !== Number(selectedNode.id)));
+    setNodes((current) => current.filter((node) => !nodeIdsToDelete.includes(Number(node.id))));
     setEdges((current) =>
       current.filter(
-        (edge) => Number(edge.source) !== Number(selectedNode.id) && Number(edge.target) !== Number(selectedNode.id),
+        (edge) =>
+          !nodeIdsToDelete.includes(Number(edge.source)) &&
+          !nodeIdsToDelete.includes(Number(edge.target)),
       ),
     );
+    setSelectedNodeIds([]);
     onSelectionChange({ nodeId: null });
   }
 
   function applyTitle() {
-    if (!selectedNode) return;
+    if (!selectedNode || selectedNodeIds.length > 1) return;
     updateNodeData(setNodes, selectedNode.id, (node) => ({
       data: {
         ...node.data,
@@ -2598,6 +2633,7 @@ function MainEditorSurface({
       })),
     );
     setViewport({ ...savedSnapshot.viewport });
+    setSelectedNodeIds([]);
     onSelectionChange({ nodeId: null });
     setSelectedEdgeId(null);
   }
@@ -2710,17 +2746,27 @@ function MainEditorSurface({
                 width={mainEditorCanvas.width}
                 height={mainEditorCanvas.height}
                 selectedNodeId={selection.nodeId}
+                selectedNodeIds={selectedNodeIds}
                 selectedEdgeId={selectedEdgeId}
                 nodeRenderers={{ card: EditorNodeCard }}
                 getNodeRendererKey={() => "card"}
                 getNodeRendererData={(node) => node.data}
                 onNodeSelect={(nodeId) => {
+                  setSelectedNodeIds(nodeId !== null ? [nodeId] : []);
                   onSelectionChange({ nodeId });
                   if (nodeId !== null) setSelectedEdgeId(null);
                 }}
+                onNodeSelectionBoxChange={(nodeIds) => {
+                  setSelectedNodeIds(nodeIds);
+                  onSelectionChange({ nodeId: nodeIds[0] ?? null });
+                  setSelectedEdgeId(null);
+                }}
                 onEdgeSelect={(edgeId) => {
                   setSelectedEdgeId(edgeId);
-                  if (edgeId !== null) onSelectionChange({ nodeId: null });
+                  if (edgeId !== null) {
+                    setSelectedNodeIds([]);
+                    onSelectionChange({ nodeId: null });
+                  }
                 }}
                 onNodePositionChange={(nodeId, nextPosition) => {
                   updateNodeData(setNodes, nodeId, () => ({
@@ -2770,7 +2816,17 @@ function MainEditorSurface({
         <aside className="editor-sidebar">
           <div className="editor-inspector-card">
             <p className="editor-inspector-label">{ui.inspector.eyebrow}</p>
-            {selectedNode ? (
+            {selectedNodeIds.length > 1 ? (
+              <div className="editor-edge-card">
+                <h2>
+                  {selectedNodeIds.length} {ui.inspector.multiSelectedSuffix}
+                </h2>
+                <p>{ui.inspector.multiHint}</p>
+                <button type="button" onClick={deleteSelected}>
+                  {ui.inspector.deleteNode}
+                </button>
+              </div>
+            ) : selectedNode ? (
               <>
                 <h2>{selectedNode.data.title}</h2>
                 <label className="editor-field">

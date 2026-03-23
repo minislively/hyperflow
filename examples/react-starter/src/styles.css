@@ -920,6 +920,15 @@ button {
   pointer-events: auto;
 }
 
+.hf-selection-box {
+  position: absolute;
+  z-index: 4;
+  border: 1.5px solid rgba(37, 99, 235, 0.9);
+  background: rgba(37, 99, 235, 0.1);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
 .hf-node-handle {
   position: absolute;
   width: 14px;

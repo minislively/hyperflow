@@ -31,6 +31,7 @@ export type HyperFlowPocCanvasProps = {
   edges?: PocEdge[];
   viewport: PocViewport;
   selectedNodeId?: number | null;
+  selectedNodeIds?: number[] | null;
   selectedEdgeId?: string | null;
   width?: number;
   height?: number;
@@ -41,6 +42,7 @@ export type HyperFlowPocCanvasProps = {
   getNodeRendererKey?: (node: PocNode) => string | null;
   getNodeRendererData?: (node: PocNode) => unknown;
   onNodeSelect?: (nodeId: number | null) => void;
+  onNodeSelectionBoxChange?: (nodeIds: number[]) => void;
   onEdgeSelect?: (edgeId: string | null) => void;
   onNodePositionChange?: (nodeId: number, nextPosition: PocNode["position"]) => void;
   onViewportChange?: (viewport: PocViewport) => void;
@@ -93,6 +95,7 @@ export function HyperFlowPocCanvas({
   edges = [],
   viewport,
   selectedNodeId = null,
+  selectedNodeIds = null,
   selectedEdgeId = null,
   width = 960,
   height = 540,
@@ -103,6 +106,7 @@ export function HyperFlowPocCanvas({
   getNodeRendererKey,
   getNodeRendererData,
   onNodeSelect,
+  onNodeSelectionBoxChange,
   onEdgeSelect,
   onNodePositionChange,
   onViewportChange,
@@ -116,6 +120,12 @@ export function HyperFlowPocCanvas({
   const [error, setError] = useState<string | null>(null);
   const [visibleBoxes, setVisibleBoxes] = useState<VisibleBox[]>([]);
   const [pendingConnectionSourceId, setPendingConnectionSourceId] = useState<number | null>(null);
+  const [selectionBox, setSelectionBox] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const isInteractive = interactive ?? isInteractiveCanvasMode(mode);
   const viewportRef = useRef(viewport);
   const onNodePositionChangeRef = useRef(onNodePositionChange);
@@ -142,6 +152,15 @@ export function HyperFlowPocCanvas({
         startViewport: PocViewport;
       }
     | {
+        kind: "selection";
+        pointerId: number | null;
+        moved: boolean;
+        startClientX: number;
+        startClientY: number;
+        currentClientX: number;
+        currentClientY: number;
+      }
+    | {
         kind: "edge";
         pointerId: number | null;
         moved: boolean;
@@ -158,6 +177,10 @@ export function HyperFlowPocCanvas({
       return rendererKey ? Boolean(nodeRenderers[rendererKey]) : false;
     });
   }, [getNodeRendererKey, nodeRenderers, nodes]);
+  const selectedNodeIdsSet = useMemo(() => {
+    const resolvedIds = selectedNodeIds?.length ? selectedNodeIds : selectedNodeId !== null ? [selectedNodeId] : [];
+    return new Set(resolvedIds.map((id) => Number(id)));
+  }, [selectedNodeId, selectedNodeIds]);
 
   useEffect(() => {
     viewportRef.current = viewport;
@@ -297,6 +320,31 @@ export function HyperFlowPocCanvas({
     };
   }
 
+  function startSelectionDrag(clientX: number, clientY: number, pointerId: number | null = null) {
+    selectNode(null);
+    selectEdge(null);
+    const rect = canvasRef.current?.getBoundingClientRect();
+    setSelectionBox(
+      rect
+        ? {
+            left: clientX - rect.left,
+            top: clientY - rect.top,
+            width: 0,
+            height: 0,
+          }
+        : null,
+    );
+    dragStateRef.current = {
+      kind: "selection",
+      pointerId,
+      moved: false,
+      startClientX: clientX,
+      startClientY: clientY,
+      currentClientX: clientX,
+      currentClientY: clientY,
+    };
+  }
+
   function startEdgeDrag(
     edgeId: string,
     clientX: number,
@@ -341,6 +389,11 @@ export function HyperFlowPocCanvas({
       return;
     }
 
+    if (event.shiftKey && onNodeSelectionBoxChange) {
+      startSelectionDrag(event.clientX, event.clientY, event.pointerId);
+      return;
+    }
+
     if (onViewportChange) {
       startPanDrag(event.clientX, event.clientY, event.pointerId);
     }
@@ -360,6 +413,11 @@ export function HyperFlowPocCanvas({
 
     if (node && onNodePositionChange) {
       startNodeDrag(node, event.clientX, event.clientY);
+      return;
+    }
+
+    if (onNodeSelectionBoxChange && !event.altKey) {
+      startSelectionDrag(event.clientX, event.clientY);
       return;
     }
 
@@ -386,6 +444,21 @@ export function HyperFlowPocCanvas({
     const deltaWorldY = ((event.clientY - dragState.startClientY) * yScale) / currentViewport.zoom;
     if (Math.abs(deltaWorldX) > 0.5 || Math.abs(deltaWorldY) > 0.5) {
       dragState.moved = true;
+    }
+
+    if (dragState.kind === "selection") {
+      dragState.currentClientX = event.clientX;
+      dragState.currentClientY = event.clientY;
+      if (canvasRef.current) {
+        const dragRect = canvasRef.current.getBoundingClientRect();
+        setSelectionBox({
+          left: Math.min(dragState.startClientX, dragState.currentClientX) - dragRect.left,
+          top: Math.min(dragState.startClientY, dragState.currentClientY) - dragRect.top,
+          width: Math.abs(dragState.currentClientX - dragState.startClientX),
+          height: Math.abs(dragState.currentClientY - dragState.startClientY),
+        });
+      }
+      return;
     }
 
     if (dragState.kind === "node" && onNodePositionChangeRef.current) {
@@ -416,9 +489,29 @@ export function HyperFlowPocCanvas({
   function handlePointerEnd(event: { pointerId: number | null } | React.PointerEvent<HTMLCanvasElement>) {
     if (!dragStateRef.current) return;
     if (!matchesDragPointer(event.pointerId)) return;
+    if (dragStateRef.current.kind === "selection" && dragStateRef.current.moved && canvasRef.current && onNodeSelectionBoxChange) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const selectionLeft = Math.min(dragStateRef.current.startClientX, dragStateRef.current.currentClientX) - rect.left;
+      const selectionTop = Math.min(dragStateRef.current.startClientY, dragStateRef.current.currentClientY) - rect.top;
+      const selectionRight = Math.max(dragStateRef.current.startClientX, dragStateRef.current.currentClientX) - rect.left;
+      const selectionBottom = Math.max(dragStateRef.current.startClientY, dragStateRef.current.currentClientY) - rect.top;
+
+      const selectedIds = nodes
+        .filter((node) => {
+          const nodeLeft = (node.position.x - viewportRef.current.x) * viewportRef.current.zoom;
+          const nodeTop = (node.position.y - viewportRef.current.y) * viewportRef.current.zoom;
+          const nodeRight = nodeLeft + node.size.width * viewportRef.current.zoom;
+          const nodeBottom = nodeTop + node.size.height * viewportRef.current.zoom;
+          return nodeLeft < selectionRight && nodeRight > selectionLeft && nodeTop < selectionBottom && nodeBottom > selectionTop;
+        })
+        .map((node) => Number(node.id));
+
+      onNodeSelectionBoxChange(selectedIds);
+    }
     if (dragStateRef.current.moved) {
       ignoreCanvasClickUntilRef.current = Date.now() + 180;
     }
+    setSelectionBox(null);
     dragStateRef.current = null;
   }
 
@@ -433,10 +526,7 @@ export function HyperFlowPocCanvas({
 
   function handleMouseEnd() {
     if (!dragStateRef.current || dragStateRef.current.pointerId !== null) return;
-    if (dragStateRef.current.moved) {
-      ignoreCanvasClickUntilRef.current = Date.now() + 180;
-    }
-    dragStateRef.current = null;
+    handlePointerEnd({ pointerId: null });
   }
 
   useEffect(() => {
@@ -720,7 +810,7 @@ export function HyperFlowPocCanvas({
                 node={node}
                 box={box}
                 data={data}
-                selected={Number(selectedNodeId) === Number(node.id)}
+                selected={selectedNodeIdsSet.has(Number(node.id))}
                 viewport={viewport}
                 screenX={screenX}
                 screenY={screenY}
@@ -731,6 +821,18 @@ export function HyperFlowPocCanvas({
             </div>
           ))}
         </div>
+      ) : null}
+
+      {selectionBox ? (
+        <div
+          className="hf-selection-box"
+          style={{
+            left: `${selectionBox.left}px`,
+            top: `${selectionBox.top}px`,
+            width: `${selectionBox.width}px`,
+            height: `${selectionBox.height}px`,
+          }}
+        />
       ) : null}
 
       {error ? <div className="hf-canvas-error">{error}</div> : null}
