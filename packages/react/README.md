@@ -53,13 +53,19 @@ pnpm install
 pnpm run dev:react-starter
 ```
 
-Expected Learn URL:
+Expected main editor URL:
+
+```text
+http://localhost:5173/ko
+```
+
+Supporting docs remain available at:
 
 ```text
 http://localhost:5173/ko/learn
 ```
 
-That starter explains how frontend teams should think about installation, core concepts, React integration, customization, layouting, and performance.
+That starter now opens an editor-first surface first, then explains installation, core concepts, React integration, customization, layouting, and performance through Learn.
 
 ## Minimal usage shape
 

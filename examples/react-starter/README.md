@@ -1,7 +1,7 @@
 # example-react-starter
 
-`examples/react-starter`는 지금 **완성형 editor 데모**가 아니라,  
-HyperFlow를 처음 보는 프론트엔드 팀을 위한 **beginner-first Learn surface**다.
+`examples/react-starter`는 지금 **메인 interactive editor surface가 먼저 보이고**,  
+그 뒤에 Learn 문서가 supporting docs로 따라오는 구조다.
 
 핵심 목적은 이 네 가지를 먼저 이해하게 만드는 것이다.
 
@@ -13,6 +13,8 @@ HyperFlow를 처음 보는 프론트엔드 팀을 위한 **beginner-first Learn 
 ## 현재 경로 구조
 
 - locale-aware top-level paths
+  - `/ko`
+  - `/en`
   - `/ko/learn`
   - `/ko/reference`
   - `/ko/examples`
@@ -38,7 +40,15 @@ HyperFlow를 처음 보는 프론트엔드 팀을 위한 **beginner-first Learn 
 - `/ko/learn/performance`
 - `/ko/learn/troubleshooting`
 
-## 이 Learn surface가 먼저 답하려는 질문
+## 메인 editor가 먼저 보여주는 것
+
+- 노드 추가
+- 노드 드래그
+- 핸들 연결
+- 노드/엣지 선택 삭제
+- 저장/복원
+
+## Learn이 그다음 답하려는 질문
 
 - HyperFlow는 지금 뭔가?
 - React Flow와 무엇이 다른가?
@@ -88,19 +98,20 @@ pnpm run dev:react-starter
 기본 확인 경로:
 
 ```text
-http://localhost:5173/ko/learn
+http://localhost:5173/ko
 ```
 
 ## 읽는 법
 
 처음 보는 사람이라면 이 순서를 추천한다.
 
-1. `/ko/learn`
-2. `/ko/learn/installation`
-3. `/ko/learn/when-to-use`
-4. `/ko/learn/nodes-and-edges`
-5. `/ko/learn/selection-and-editing`
-6. `/ko/learn/basic-interactions`
-7. `/ko/learn/viewport`
-8. `/ko/learn/save-and-restore`
-9. `/ko/learn/add-to-react-app`
+1. `/ko`
+2. `/ko/learn`
+3. `/ko/learn/installation`
+4. `/ko/learn/when-to-use`
+5. `/ko/learn/nodes-and-edges`
+6. `/ko/learn/selection-and-editing`
+7. `/ko/learn/basic-interactions`
+8. `/ko/learn/viewport`
+9. `/ko/learn/save-and-restore`
+10. `/ko/learn/add-to-react-app`

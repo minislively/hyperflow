@@ -192,9 +192,9 @@ pnpm run verify
 Use `pnpm run check` for quick workspace validation and `pnpm run verify` for runtime test verification.
 
 
-## Fastest React docs path
+## Fastest React editor path
 
-If you want to understand the current frontend integration story first, start with the localized Learn surface:
+If you want to understand the current frontend integration story first, start with the localized main editor surface and use Learn as supporting docs:
 
 ```bash
 pnpm install
@@ -204,15 +204,16 @@ pnpm run dev:react-starter
 Open one of these URLs in your browser:
 
 ```text
-http://localhost:5173/ko/learn
-http://localhost:5173/en/learn
+http://localhost:5173/ko
+http://localhost:5173/en
 ```
 
-The current React starter is **not** a finished editor demo anymore.
-It is a **docs-first onboarding surface** for frontend teams.
+The current React starter is now **editor-first**.
+The docs path lives alongside it at `/:locale/learn`.
 
 What it explains today:
 
+- direct canvas authoring basics
 - installation and local workspace setup
 - the current React integration mental model
 - what HyperFlow owns vs. what the host app still owns

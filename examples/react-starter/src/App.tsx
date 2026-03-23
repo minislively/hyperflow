@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   HyperFlowPocCanvas,
+  type HyperFlowPocNodeRendererProps,
   createPocViewport,
   fitPocViewportToNodes,
   updateNodeData,
@@ -35,6 +36,17 @@ type PageId =
   | "minimal-embed"
   | "host-controlled-state"
   | "roadmap";
+
+type Route =
+  | {
+      locale: Locale;
+      kind: "editor";
+    }
+  | {
+      locale: Locale;
+      kind: "docs";
+      pageId: PageId;
+    };
 
 type PageCopy = {
   navLabel: string;
@@ -135,6 +147,7 @@ const topLevelDefaultPage: Record<SectionId, PageId> = {
 };
 
 const learnDemoCanvas = { width: 720, height: 360 } as const;
+const mainEditorCanvas = { width: 1280, height: 720 } as const;
 const initialLearnDemoNodes: LearnDemoNode[] = [
   {
     id: 1,
@@ -203,6 +216,10 @@ function createLearnDemoNode(
   };
 }
 
+function getEditorRouteLabel(locale: Locale) {
+  return locale === "ko" ? "에디터" : "Editor";
+}
+
 const copyByLocale: Record<Locale, Copy> = {
   ko: {
     brand: "HyperFlow",
@@ -212,16 +229,18 @@ const copyByLocale: Record<Locale, Copy> = {
     pager: { previous: "이전", next: "다음" },
     code: { copy: "복사", copied: "복사됨" },
     installationGuide: {
-      intro: "지금 이 페이지에서 해야 할 일은 단순하다. **repo root에서 `pnpm install`을 실행하고, 바로 `pnpm run dev:react-starter`로 Learn을 여는 것**이 현재 검증된 시작점이다.",
+      intro:
+        "지금 이 페이지에서 해야 할 일은 단순하다. **repo root에서 `pnpm install`을 실행하고, 바로 `pnpm run dev:react-starter`로 메인 editor를 여는 것**이 현재 검증된 시작점이다.",
       workspaceTitle: "검증된 workspace 설치 경로",
       workspaceCommands: ["pnpm install", "pnpm run dev:react-starter"],
       packageStatusTitle: "`@hyperflow/react`는 지금 어떤 상태인가",
       packageStatusLines: [
         "`@hyperflow/react`는 아직 private workspace package 입니다.",
         "즉 지금은 외부 앱에서 `pnpm add @hyperflow/react`를 실행하는 단계가 아닙니다.",
-        "먼저 이 repo를 로컬에서 실행하고 Learn과 Examples로 현재 제공 범위를 이해하는 단계입니다.",
+        "먼저 이 repo를 로컬에서 실행하고 메인 editor와 Learn 문서로 현재 제공 범위를 이해하는 단계입니다.",
       ],
-      installNote: "설치 직후에는 Learn surface가 먼저 열린다. 지금은 **패키지 배포 설치**보다 **repo 실행과 개념 이해**가 먼저다.",
+      installNote:
+        "설치 직후에는 locale-aware **메인 editor surface**를 먼저 열어 보는 편이 맞다. Learn은 그 다음에 `/ko/learn`에서 supporting docs로 읽으면 된다.",
       packageManagerNote: "npm / yarn / bun 설치 탭은 React Flow 스타일 참고용이었지만, 현재 repo 기준으로는 실제 지원 상태를 과장하므로 제거했다.",
       dockerNote: "Docker는 나중에 toolchain 고정용으로 도입할 수 있지만, 지금 repo에는 Dockerfile이나 공식 컨테이너 워크플로우가 없다.",
     },
@@ -246,7 +265,7 @@ HyperFlow는 프론트엔드 팀이 **기존 React 제품 안에 node editor 화
 - 제품 팀은 그 화면을 자기 React 앱 안에 붙여야 한다.
 
 ## 설치 후 무엇이 보이나
-현재 repo에서 먼저 뜨는 것은 localized Learn surface다. 여기서 개념을 먼저 익히고, 이후 basic node editor 방향으로 확장해 나간다.
+현재 repo에서 먼저 떠야 하는 것은 localized **메인 editor surface**다. Learn은 그 editor를 읽는 supporting docs로 따라오는 구조가 맞다.
 
 실제로 editor를 붙였을 때 사용자가 기대하는 첫 화면은 보통 이렇다.
 - 중앙에 node와 edge가 있는 canvas
@@ -341,12 +360,12 @@ HyperFlow는 "예제 많은 완성형 에디터"부터 만든 게 아니다.
 ## 지금 바로 하는 순서
 1. workspace 루트에서 \`pnpm install\`
 2. 이어서 \`pnpm run dev:react-starter\`
-3. 브라우저에서 \`http://localhost:5173/ko/learn\`
+3. 브라우저에서 \`http://localhost:5173/ko\`
 
 ## 설치 후 처음 확인할 것
-- Learn 페이지가 뜨는가
+- 메인 editor가 뜨는가
 - 설치 명령이 정상 동작하는가
-- 이후 문서에서 node / edge / interaction 개념을 따라갈 수 있는가
+- 이후 Learn 문서에서 node / edge / interaction 개념을 따라갈 수 있는가
 
 ## 여기서 헷갈리면 안 되는 것
 - 지금은 외부 앱에서 \`pnpm add @hyperflow/react\`를 하는 단계가 아니다.
@@ -360,14 +379,14 @@ HyperFlow는 "예제 많은 완성형 에디터"부터 만든 게 아니다.
 
 ## 지금 이 페이지의 목적
 지금 단계에서 설치는 “기능이 다 된다”를 확인하는 절차가 아니라,
-**HyperFlow를 어떤 순서로 배워야 하는지 진입점을 여는 절차**에 가깝다.`,
+**메인 editor를 먼저 띄우고, Learn 문서를 supporting docs로 따라가는 진입점**에 가깝다.`,
       },
       "nodes-and-edges": {
         navLabel: "노드와 엣지",
         title: "노드와 엣지",
-        markdown: `설치 후 editor 화면을 떠올릴 때 가장 먼저 보이는 것은 **박스와 선**이다. HyperFlow Learn에서도 이걸 먼저 설명해야 한다.
+        markdown: `설치 후 editor 화면을 떠올릴 때 가장 먼저 보이는 것은 **박스와 선**이다. 다만 이 페이지의 그림보다 중요한 것은 \`/:locale\` 메인 editor에서 직접 만져보는 경험이다.
 
-## 화면에서 먼저 보이는 것
+## 메인 editor에서 먼저 보이는 것
 - canvas 위에 node 박스가 보인다
 - node 사이를 잇는 edge가 보인다
 - 이 둘이 합쳐져 하나의 flow처럼 읽힌다
@@ -394,7 +413,7 @@ HyperFlow는 "예제 많은 완성형 에디터"부터 만든 게 아니다.
 ## 지금 HyperFlow에서 먼저 이해할 것
 - 화면에서는 box와 line이 먼저 보인다.
 - 그 아래에는 node/edge 데이터가 있다.
-- HyperFlow는 그 데이터를 canvas에 올리는 기반으로 읽는 편이 맞다.
+- 실제 조작은 \`/:locale\` 메인 editor에서, 이 Learn 페이지는 supporting docs에서 읽는 편이 맞다.
 
 ## 프론트 팀이 실제로 해야 하는 일
 - node id와 \`position\` / \`size\`를 만든다.
@@ -415,7 +434,7 @@ HyperFlow는 "예제 많은 완성형 에디터"부터 만든 게 아니다.
       "selection-and-editing": {
         navLabel: "선택과 수정",
         title: "선택과 수정",
-        markdown: `초보자가 editor를 처음 만지면 제일 먼저 하는 행동은 결국 두 가지다. **하나를 고르고, 값을 바꾼다.** HyperFlow도 여기부터 읽는 게 맞다.
+        markdown: `초보자가 editor를 처음 만지면 제일 먼저 하는 행동은 결국 두 가지다. **하나를 고르고, 값을 바꾼다.** 이 감각도 메인 editor에서 먼저 느끼고, 이 페이지에서 설명으로 정리하는 순서가 맞다.
 
 1. **선택한다**
 2. **수정한다**
@@ -461,7 +480,7 @@ HyperFlow도 초보자 기준에서는 먼저 이 루프를 같은 식으로 이
       viewport: {
         navLabel: "뷰포트",
         title: "뷰포트",
-        markdown: `React Flow Learn도 viewport를 따로 설명한다. 그만큼 editor를 쓸 때는 **화면이 지금 어디를 보고 있는지**를 이해하는 게 중요하다.
+        markdown: `React Flow Learn도 viewport를 따로 설명한다. 그만큼 editor를 쓸 때는 **화면이 지금 어디를 보고 있는지**를 이해하는 게 중요하다. 실제 pan/zoom 감각은 메인 editor에서 먼저 확인하는 편이 낫다.
 
 ## 뷰포트가 뜻하는 것
 - 지금 화면이 어느 좌표 범위를 보고 있는가
@@ -932,16 +951,18 @@ function renameSelectedNode(nextTitle: string) {
     pager: { previous: "Previous", next: "Next" },
     code: { copy: "Copy", copied: "Copied" },
     installationGuide: {
-      intro: "Do not overthink installation yet. **The verified starting point today is to run `pnpm install` at the repo root and then `pnpm run dev:react-starter`**.",
+      intro:
+        "Do not overthink installation yet. **The verified starting point today is to run `pnpm install` at the repo root and then `pnpm run dev:react-starter` to open the main editor**.",
       workspaceTitle: "Verified workspace setup",
       workspaceCommands: ["pnpm install", "pnpm run dev:react-starter"],
       packageStatusTitle: "What is the current state of `@hyperflow/react`?",
       packageStatusLines: [
         "`@hyperflow/react` is still a private workspace package.",
         "That means this is not yet the stage where you run `pnpm add @hyperflow/react` in an external app.",
-        "First you run this repo locally and use Learn plus Examples to understand the current surface.",
+        "First you run this repo locally and use the main editor plus Learn docs to understand the current surface.",
       ],
-      installNote: "Right after setup, the Learn surface is what appears first. At this stage, **running the repo locally matters more than package-installing it elsewhere**.",
+      installNote:
+        "Right after setup, it is better to open the locale-aware **main editor surface** first. Learn comes next as supporting docs at `/en/learn`.",
       packageManagerNote: "The npm / yarn / bun tabs matched the React Flow docs pattern, but they overstated actual support for this repo, so they were removed.",
       dockerNote: "Docker could be added later for toolchain pinning, but there is no Dockerfile or official container workflow in this repo today.",
     },
@@ -966,7 +987,7 @@ At the beginning, you can think of it like this.
 - the product team still has to fit that editor into a real React app
 
 ## What you see after setup
-Today this repo opens a localized Learn surface first. You learn the concepts here before the project grows back into a stronger basic node-editor demo.
+Today the repo should open a localized **main editor surface** first. Learn follows as supporting docs for understanding what that editor is doing.
 
 When HyperFlow is embedded into a real editor surface, the first screen people usually expect looks like this.
 - a central canvas with nodes and edges
@@ -1050,7 +1071,7 @@ Not as a default assumption. It is more accurate to read them as **alternative c
       installation: {
         navLabel: "Installation",
         title: "Installation",
-        markdown: `Do not overthink installation yet. The first step is simply to **run this repo locally and open Learn**.
+        markdown: `Do not overthink installation yet. The first step is simply to **run this repo locally and open the main editor**.
 
 ## Required environment
 - Node.js 24 line
@@ -1061,12 +1082,12 @@ Not as a default assumption. It is more accurate to read them as **alternative c
 ## What you actually do today
 1. run \`pnpm install\` from the workspace root
 2. run \`pnpm run dev:react-starter\`
-3. open \`http://localhost:5173/en/learn\`
+3. open \`http://localhost:5173/en\`
 
 ## What to verify right after setup
-- the Learn surface loads
+- the main editor loads
 - the setup commands succeed
-- you can continue into nodes / edges / interaction concepts
+- you can continue into Learn docs for nodes / edges / interaction concepts
 
 ## What you should not confuse here
 - this is not yet a package-install guide for an external app
@@ -1080,14 +1101,14 @@ Not as a default assumption. It is more accurate to read them as **alternative c
 
 ## The purpose of installation today
 At this stage installation is not the moment where everything becomes interactive.
-It is the moment where you enter the verified learning path for understanding what HyperFlow is trying to become.`,
+It is the moment where you open the main editor first, then use Learn as the supporting reading path for what HyperFlow is trying to become.`,
       },
       "nodes-and-edges": {
         navLabel: "Nodes and Edges",
         title: "Nodes and Edges",
-        markdown: `After setup, the first things people expect to see in an editor are **boxes and lines**. HyperFlow Learn should start there too.
+        markdown: `After setup, the first things people expect to see in an editor are **boxes and lines**. But the more important step is to touch them in the \`/:locale\` main editor, not just stare at a mini doc preview.
 
-## What appears on screen first
+## What appears in the main editor first
 - node boxes on a canvas
 - edges connecting those boxes
 - a flow that looks understandable at a glance
@@ -1114,7 +1135,7 @@ Only after that does it help to think about the underlying relationship data.
 ## What matters in HyperFlow today
 - the screen shows boxes and lines first
 - those boxes and lines come from node and edge data
-- HyperFlow is closer to the foundation that places that data onto a canvas safely
+- the real interaction happens in the main editor, while this page works better as supporting docs
 
 ## What the frontend team actually does
 - create node ids plus \`position\` / \`size\`
@@ -1654,7 +1675,7 @@ function detectPreferredLocale(): Locale {
   return candidates.some((value) => value.startsWith("ko")) ? "ko" : "en";
 }
 
-function buildPagePath(locale: Locale, pageId: PageId): string {
+function buildDocsPagePath(locale: Locale, pageId: PageId): string {
   const { section, slug } = pageMeta[pageId];
   if (section === "roadmap") {
     return `/${locale}/roadmap`;
@@ -1662,7 +1683,15 @@ function buildPagePath(locale: Locale, pageId: PageId): string {
   return slug ? `/${locale}/${section}/${slug}` : `/${locale}/${section}`;
 }
 
-function getRouteFromPath(pathname: string): { locale: Locale; pageId: PageId } {
+function buildEditorPath(locale: Locale) {
+  return `/${locale}`;
+}
+
+function buildRoutePath(route: Route) {
+  return route.kind === "editor" ? buildEditorPath(route.locale) : buildDocsPagePath(route.locale, route.pageId);
+}
+
+function getRouteFromPath(pathname: string): Route {
   const segments = pathname.split("/").filter(Boolean);
 
   let locale: Locale = detectPreferredLocale();
@@ -1675,70 +1704,78 @@ function getRouteFromPath(pathname: string): { locale: Locale; pageId: PageId } 
   const section = segments[sectionIndex] as SectionId | undefined;
   const sub = segments[sectionIndex + 1];
 
+  if (segments.length === 0) {
+    return { locale, kind: "editor" };
+  }
+
+  if (!section || section === "editor") {
+    return { locale, kind: "editor" };
+  }
+
   switch (section) {
     case "learn":
       switch (sub) {
         case undefined:
         case "what-is-hyperflow":
-          return { locale, pageId: "what-is-hyperflow" };
+          return { locale, kind: "docs", pageId: "what-is-hyperflow" };
         case "when-to-use":
-          return { locale, pageId: "when-to-use" };
+          return { locale, kind: "docs", pageId: "when-to-use" };
         case "installation":
-          return { locale, pageId: "installation" };
+          return { locale, kind: "docs", pageId: "installation" };
         case "nodes-and-edges":
-          return { locale, pageId: "nodes-and-edges" };
+          return { locale, kind: "docs", pageId: "nodes-and-edges" };
         case "selection-and-editing":
-          return { locale, pageId: "selection-and-editing" };
+          return { locale, kind: "docs", pageId: "selection-and-editing" };
         case "viewport":
-          return { locale, pageId: "viewport" };
+          return { locale, kind: "docs", pageId: "viewport" };
         case "basic-interactions":
-          return { locale, pageId: "basic-interactions" };
+          return { locale, kind: "docs", pageId: "basic-interactions" };
         case "save-and-restore":
-          return { locale, pageId: "save-and-restore" };
+          return { locale, kind: "docs", pageId: "save-and-restore" };
         case "add-to-react-app":
-          return { locale, pageId: "add-to-react-app" };
+          return { locale, kind: "docs", pageId: "add-to-react-app" };
         case "layouting":
-          return { locale, pageId: "layouting" };
+          return { locale, kind: "docs", pageId: "layouting" };
         case "performance":
-          return { locale, pageId: "performance" };
+          return { locale, kind: "docs", pageId: "performance" };
         case "troubleshooting":
-          return { locale, pageId: "troubleshooting" };
+          return { locale, kind: "docs", pageId: "troubleshooting" };
         default:
-          return { locale, pageId: "what-is-hyperflow" };
+          return { locale, kind: "docs", pageId: "what-is-hyperflow" };
       }
     case "reference":
       switch (sub) {
         case undefined:
         case "api-overview":
-          return { locale, pageId: "api-overview" };
+          return { locale, kind: "docs", pageId: "api-overview" };
         case "runtime-model":
-          return { locale, pageId: "runtime-model" };
+          return { locale, kind: "docs", pageId: "runtime-model" };
         case "viewport-selection":
-          return { locale, pageId: "viewport-selection" };
+          return { locale, kind: "docs", pageId: "viewport-selection" };
         default:
-          return { locale, pageId: "api-overview" };
+          return { locale, kind: "docs", pageId: "api-overview" };
       }
     case "examples":
       switch (sub) {
         case undefined:
         case "examples-overview":
-          return { locale, pageId: "examples-intro" };
+          return { locale, kind: "docs", pageId: "examples-intro" };
         case "minimal-embed":
-          return { locale, pageId: "minimal-embed" };
+          return { locale, kind: "docs", pageId: "minimal-embed" };
         case "host-controlled-state":
-          return { locale, pageId: "host-controlled-state" };
+          return { locale, kind: "docs", pageId: "host-controlled-state" };
         default:
-          return { locale, pageId: "examples-intro" };
+          return { locale, kind: "docs", pageId: "examples-intro" };
       }
     case "roadmap":
-      return { locale, pageId: "roadmap" };
+      return { locale, kind: "docs", pageId: "roadmap" };
     default:
-      return { locale, pageId: "what-is-hyperflow" };
+      return { locale, kind: "editor" };
   }
 }
 
-function navigateTo(locale: Locale, pageId: PageId, replace = false) {
-  const path = buildPagePath(locale, pageId);
+function navigateTo(route: Route, replace = false) {
+  const path = buildRoutePath(route);
   if (replace) {
     window.history.replaceState(null, "", path);
     return;
@@ -2098,12 +2135,634 @@ function MarkdownPage({ markdown, copy }: { markdown: string; copy: Copy["code"]
   );
 }
 
+function EditorNodeCard({
+  node,
+  data,
+  selected,
+  screenWidth,
+  screenHeight,
+}: HyperFlowPocNodeRendererProps<LearnDemoNode["data"]>) {
+  return (
+    <div
+      className={`editor-node-card${selected ? " is-selected" : ""}`}
+      data-node-card-id={node.id}
+      style={{
+        width: screenWidth,
+        height: screenHeight,
+      }}
+    >
+      <span className="editor-node-card-type">{node.type}</span>
+      <strong>{data.title}</strong>
+      <span className="editor-node-card-note">{data.note}</span>
+    </div>
+  );
+}
+
+function EditorControlButton({
+  label,
+  title,
+  onClick,
+  disabled,
+  tone = "default",
+  children,
+}: {
+  label: string;
+  title?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  tone?: "default" | "danger";
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={tone === "danger" ? "editor-icon-button is-danger" : "editor-icon-button"}
+      aria-label={label}
+      title={title ?? label}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <span aria-hidden="true">{children}</span>
+    </button>
+  );
+}
+
+function IconPlus() {
+  return <svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg>;
+}
+
+function IconTrash() {
+  return <svg viewBox="0 0 20 20"><path d="M5 6h10M8 6V4h4v2M7 6v9m6-9v9M6 6l.6 10h6.8L14 6" /></svg>;
+}
+
+function IconFit() {
+  return <svg viewBox="0 0 20 20"><path d="M7 4H4v3M13 4h3v3M16 13v3h-3M4 13v3h3" /></svg>;
+}
+
+function IconMinus() {
+  return <svg viewBox="0 0 20 20"><path d="M4 10h12" /></svg>;
+}
+
+function IconSearchPlus() {
+  return (
+    <svg viewBox="0 0 20 20">
+      <circle cx="8.5" cy="8.5" r="4.5" />
+      <path d="M15 15l-3.2-3.2M8.5 6.5v4M6.5 8.5h4" />
+    </svg>
+  );
+}
+
+function IconSave() {
+  return <svg viewBox="0 0 20 20"><path d="M5 4h8l2 2v10H5V4zm2 0v4h6V4M8 14h4" /></svg>;
+}
+
+function IconRestore() {
+  return <svg viewBox="0 0 20 20"><path d="M6 7H3V4M4 7a6 6 0 1 1-1 7m7-8v4l3 2" /></svg>;
+}
+
+function EditorMiniMap({
+  locale,
+  nodes,
+  edges,
+  viewport,
+  onViewportChange,
+}: {
+  locale: Locale;
+  nodes: LearnDemoNode[];
+  edges: LearnDemoEdge[];
+  viewport: PocViewport;
+  onViewportChange: (viewport: PocViewport) => void;
+}) {
+  const width = 220;
+  const height = 148;
+  const padding = 48;
+  const label = locale === "ko" ? "에디터 미니맵" : "Editor minimap";
+  const title = locale === "ko" ? "Minimap" : "Minimap";
+
+  const model = useMemo(() => {
+    const nodeMinX = Math.min(...nodes.map((node) => node.position.x));
+    const nodeMinY = Math.min(...nodes.map((node) => node.position.y));
+    const nodeMaxX = Math.max(...nodes.map((node) => node.position.x + node.size.width));
+    const nodeMaxY = Math.max(...nodes.map((node) => node.position.y + node.size.height));
+    const viewportWidth = viewport.width / viewport.zoom;
+    const viewportHeight = viewport.height / viewport.zoom;
+    const minX = Math.min(nodeMinX, viewport.x) - padding;
+    const minY = Math.min(nodeMinY, viewport.y) - padding;
+    const maxX = Math.max(nodeMaxX, viewport.x + viewportWidth) + padding;
+    const maxY = Math.max(nodeMaxY, viewport.y + viewportHeight) + padding;
+    const worldWidth = Math.max(maxX - minX, 1);
+    const worldHeight = Math.max(maxY - minY, 1);
+    const scale = Math.min((width - 24) / worldWidth, (height - 24) / worldHeight);
+    const offsetX = (width - worldWidth * scale) / 2;
+    const offsetY = (height - worldHeight * scale) / 2;
+
+    const projectX = (value: number) => offsetX + (value - minX) * scale;
+    const projectY = (value: number) => offsetY + (value - minY) * scale;
+
+    return {
+      minX,
+      minY,
+      scale,
+      offsetX,
+      offsetY,
+      projectX,
+      projectY,
+      viewportWidth,
+      viewportHeight,
+      rect: {
+        x: projectX(viewport.x),
+        y: projectY(viewport.y),
+        width: viewportWidth * scale,
+        height: viewportHeight * scale,
+      },
+    };
+  }, [edges, nodes, viewport]);
+
+  function recenterViewport(clientX: number, clientY: number, rect: DOMRect) {
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+    const worldX = model.minX + (localX - model.offsetX) / model.scale;
+    const worldY = model.minY + (localY - model.offsetY) / model.scale;
+    onViewportChange(
+      createPocViewport(viewport.width, viewport.height, {
+        x: Math.max(0, worldX - model.viewportWidth / 2),
+        y: Math.max(0, worldY - model.viewportHeight / 2),
+        zoom: viewport.zoom,
+      }),
+    );
+  }
+
+  return (
+    <div
+      className="editor-minimap"
+      aria-label={label}
+      onClick={(event) => recenterViewport(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect())}
+    >
+      <span className="editor-minimap-title">{title}</span>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-hidden="true">
+        {edges.map((edge) => {
+          const sourceNode = nodes.find((node) => Number(node.id) === Number(edge.source));
+          const targetNode = nodes.find((node) => Number(node.id) === Number(edge.target));
+          if (!sourceNode || !targetNode) return null;
+
+          const x1 = model.projectX(sourceNode.position.x + sourceNode.size.width / 2);
+          const y1 = model.projectY(sourceNode.position.y + sourceNode.size.height / 2);
+          const x2 = model.projectX(targetNode.position.x + targetNode.size.width / 2);
+          const y2 = model.projectY(targetNode.position.y + targetNode.size.height / 2);
+          return <line key={edge.id} className="editor-minimap-edge" x1={x1} y1={y1} x2={x2} y2={y2} />;
+        })}
+        {nodes.map((node) => (
+          <rect
+            key={node.id}
+            className="editor-minimap-node"
+            x={model.projectX(node.position.x)}
+            y={model.projectY(node.position.y)}
+            width={node.size.width * model.scale}
+            height={node.size.height * model.scale}
+            rx="6"
+          />
+        ))}
+        <rect
+          className="editor-minimap-viewport"
+          x={model.rect.x}
+          y={model.rect.y}
+          width={model.rect.width}
+          height={model.rect.height}
+          rx="8"
+        />
+      </svg>
+    </div>
+  );
+}
+
+function MainEditorSurface({
+  locale,
+  copy,
+  onOpenDocs,
+  onOpenSection,
+  onSwitchLocale,
+}: {
+  locale: Locale;
+  copy: Copy;
+  onOpenDocs: () => void;
+  onOpenSection: (sectionId: SectionId) => void;
+  onSwitchLocale: (locale: Locale) => void;
+}) {
+  const [nodes, setNodes] = useWorkflowNodesState<LearnDemoNode>(cloneLearnDemoNodes());
+  const [edges, setEdges] = useWorkflowEdgesState<LearnDemoEdge>(cloneLearnDemoEdges());
+  const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: null });
+  const selectedNode = useSelectedNode({ nodes, selection });
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [viewport, setViewport] = useState<PocViewport>(() =>
+    fitPocViewportToNodes(cloneLearnDemoNodes(), {
+      width: mainEditorCanvas.width,
+      height: mainEditorCanvas.height,
+      padding: 96,
+      minZoom: 0.35,
+      maxZoom: 1.4,
+    }),
+  );
+  const [titleDraft, setTitleDraft] = useState("");
+  const [savedSnapshot, setSavedSnapshot] = useState<{
+    nodes: LearnDemoNode[];
+    edges: LearnDemoEdge[];
+    viewport: PocViewport;
+  } | null>(null);
+
+  useEffect(() => {
+    setTitleDraft(selectedNode?.data.title ?? "");
+  }, [selectedNode?.data.title, selectedNode?.id]);
+
+  const ui =
+    locale === "ko"
+      ? {
+          shellEyebrow: "메인 interactive surface",
+          shellTitle: "바로 만져보는 HyperFlow editor",
+          shellBody: "노드를 추가하고, 잡아 움직이고, 핸들로 연결하고, 선택해서 지워보면 된다.",
+          canvasLabel: "HyperFlow 메인 editor",
+          docsButton: "학습 문서 보기",
+          controls: {
+            addNode: "노드 추가",
+            deleteSelection: "선택 삭제",
+            fit: "맞춤 보기",
+            zoomOut: "축소",
+            zoomIn: "확대",
+            save: "저장",
+            restore: "복원",
+          },
+          status: {
+            nodes: "노드",
+            edges: "엣지",
+            zoom: "줌",
+          },
+          inspector: {
+            eyebrow: "선택된 항목",
+            empty: "캔버스에서 노드나 엣지를 눌러 선택하면 여기서 현재 상태를 확인할 수 있다.",
+            field: "제목",
+            apply: "적용",
+            deleteNode: "노드 삭제",
+            deleteEdge: "엣지 삭제",
+            edgeLabel: "선택된 엣지",
+            edgeHint: "핸들을 눌러 새 연결을 만들고, 선을 선택한 뒤 삭제할 수 있다.",
+            saved: "저장된 스냅샷",
+            notSaved: "아직 저장된 스냅샷이 없다.",
+          },
+          topNav: {
+            editor: "에디터",
+          },
+        }
+      : {
+          shellEyebrow: "Main interactive surface",
+          shellTitle: "Touch the HyperFlow editor first",
+          shellBody: "Add a node, drag it, connect handles, and delete the current selection.",
+          canvasLabel: "HyperFlow main editor",
+          docsButton: "Open Learn docs",
+          controls: {
+            addNode: "Add node",
+            deleteSelection: "Delete selection",
+            fit: "Fit view",
+            zoomOut: "Zoom out",
+            zoomIn: "Zoom in",
+            save: "Save",
+            restore: "Restore",
+          },
+          status: {
+            nodes: "Nodes",
+            edges: "Edges",
+            zoom: "Zoom",
+          },
+          inspector: {
+            eyebrow: "Selected item",
+            empty: "Select a node or edge on the canvas to inspect what is active right now.",
+            field: "Title",
+            apply: "Apply",
+            deleteNode: "Delete node",
+            deleteEdge: "Delete edge",
+            edgeLabel: "Selected edge",
+            edgeHint: "Use the handles to create connections, then select an edge and remove it.",
+            saved: "Saved snapshot",
+            notSaved: "No saved snapshot yet.",
+          },
+          topNav: {
+            editor: "Editor",
+          },
+        };
+
+  function fitView() {
+    setViewport(
+      fitPocViewportToNodes(nodes, {
+        width: mainEditorCanvas.width,
+        height: mainEditorCanvas.height,
+        padding: 96,
+        minZoom: 0.35,
+        maxZoom: 1.4,
+      }),
+    );
+  }
+
+  function zoom(delta: number) {
+    setViewport((current) =>
+      createPocViewport(current.width, current.height, {
+        x: current.x,
+        y: current.y,
+        zoom: Math.max(0.3, Math.min(current.zoom + delta, 1.8)),
+      }),
+    );
+  }
+
+  function addNode() {
+    const nextId = getNextLearnDemoNodeId(nodes);
+    const nextPosition = {
+      x: Math.max(24, viewport.x + viewport.width / viewport.zoom / 2 - 110),
+      y: Math.max(24, viewport.y + viewport.height / viewport.zoom / 2 - 54),
+    };
+    setNodes((current) => [...current, createLearnDemoNode(nextId, { position: nextPosition, index: current.length })]);
+    onSelectionChange({ nodeId: nextId });
+    setSelectedEdgeId(null);
+  }
+
+  function deleteSelected() {
+    if (selectedEdgeId) {
+      setEdges((current) => current.filter((edge) => edge.id !== selectedEdgeId));
+      setSelectedEdgeId(null);
+      return;
+    }
+
+    if (!selectedNode) return;
+
+    setNodes((current) => current.filter((node) => Number(node.id) !== Number(selectedNode.id)));
+    setEdges((current) =>
+      current.filter(
+        (edge) => Number(edge.source) !== Number(selectedNode.id) && Number(edge.target) !== Number(selectedNode.id),
+      ),
+    );
+    onSelectionChange({ nodeId: null });
+  }
+
+  function applyTitle() {
+    if (!selectedNode) return;
+    updateNodeData(setNodes, selectedNode.id, (node) => ({
+      data: {
+        ...node.data,
+        title: titleDraft.trim() || node.data.title,
+      },
+    }));
+  }
+
+  function saveSnapshot() {
+    setSavedSnapshot({
+      nodes: nodes.map((node) => ({
+        ...node,
+        position: { ...node.position },
+        size: { ...node.size },
+        data: { ...node.data },
+      })),
+      edges: edges.map((edge) => ({ ...edge })),
+      viewport: { ...viewport },
+    });
+  }
+
+  function restoreSnapshot() {
+    if (!savedSnapshot) return;
+    setNodes(
+      savedSnapshot.nodes.map((node) => ({
+        ...node,
+        position: { ...node.position },
+        size: { ...node.size },
+        data: { ...node.data },
+      })),
+    );
+    setEdges(savedSnapshot.edges.map((edge) => ({ ...edge })));
+    setViewport({ ...savedSnapshot.viewport });
+    onSelectionChange({ nodeId: null });
+    setSelectedEdgeId(null);
+  }
+
+  return (
+    <main className="editor-shell">
+      <header className="editor-topbar">
+        <div className="editor-topbar-inner">
+          <div className="editor-brand-lockup">
+            <span className="editor-brand">{copy.brand}</span>
+            <span className="editor-brand-route">{ui.topNav.editor}</span>
+          </div>
+          <div className="editor-topbar-right">
+            <nav className="editor-topnav" aria-label="Primary">
+              <button type="button" className="is-active">
+                {getEditorRouteLabel(locale)}
+              </button>
+              {sectionOrder.map((sectionId) => (
+                <button key={sectionId} type="button" onClick={() => onOpenSection(sectionId)}>
+                  {copy.topNav[sectionId]}
+                </button>
+              ))}
+            </nav>
+            <div className="lang-toggle" aria-label="Language toggle">
+              <button type="button" className={locale === "ko" ? "is-active" : ""} onClick={() => onSwitchLocale("ko")}>
+                {copy.lang.ko}
+              </button>
+              <button type="button" className={locale === "en" ? "is-active" : ""} onClick={() => onSwitchLocale("en")}>
+                {copy.lang.en}
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section className="editor-layout">
+        <div className="editor-main">
+          <section className="editor-shell-header">
+            <div className="editor-shell-copy">
+              <p className="editor-eyebrow">{ui.shellEyebrow}</p>
+              <h1>{ui.shellTitle}</h1>
+              <p>{ui.shellBody}</p>
+            </div>
+            <button type="button" className="editor-docs-link" onClick={onOpenDocs}>
+              {ui.docsButton}
+            </button>
+          </section>
+
+          <section className="editor-canvas-shell" aria-label={ui.canvasLabel}>
+            <div className="editor-canvas-frame">
+              <div className="editor-canvas-overlay editor-canvas-overlay-left">
+                <div className="editor-toolbar-group">
+                  <EditorControlButton label={ui.controls.addNode} onClick={addNode}>
+                    <IconPlus />
+                  </EditorControlButton>
+                  <EditorControlButton
+                    label={ui.controls.deleteSelection}
+                    tone="danger"
+                    onClick={deleteSelected}
+                    disabled={!selectedNode && !selectedEdgeId}
+                  >
+                    <IconTrash />
+                  </EditorControlButton>
+                </div>
+              </div>
+              <div className="editor-canvas-controls" aria-label={locale === "ko" ? "캔버스 컨트롤" : "Canvas controls"}>
+                <div className="editor-toolbar-group editor-toolbar-group-vertical">
+                  <EditorControlButton label={ui.controls.fit} onClick={fitView}>
+                    <IconFit />
+                  </EditorControlButton>
+                  <EditorControlButton label={ui.controls.zoomOut} onClick={() => zoom(-0.1)}>
+                    <IconMinus />
+                  </EditorControlButton>
+                  <EditorControlButton label={ui.controls.zoomIn} onClick={() => zoom(0.1)}>
+                    <IconSearchPlus />
+                  </EditorControlButton>
+                </div>
+                <div className="editor-toolbar-group editor-toolbar-group-vertical">
+                  <EditorControlButton label={ui.controls.save} onClick={saveSnapshot}>
+                    <IconSave />
+                  </EditorControlButton>
+                  <EditorControlButton label={ui.controls.restore} onClick={restoreSnapshot} disabled={!savedSnapshot}>
+                    <IconRestore />
+                  </EditorControlButton>
+                </div>
+              </div>
+              <div className="editor-canvas-status">
+                <span>
+                  {ui.status.nodes}: {nodes.length}
+                </span>
+                <span>
+                  {ui.status.edges}: {edges.length}
+                </span>
+                <span>
+                  {ui.status.zoom}: {Math.round(viewport.zoom * 100)}%
+                </span>
+              </div>
+              <EditorMiniMap
+                locale={locale}
+                nodes={nodes}
+                edges={edges}
+                viewport={viewport}
+                onViewportChange={setViewport}
+              />
+              <HyperFlowPocCanvas
+                className="hf-main-editor-canvas"
+                nodes={nodes}
+                edges={edges}
+                viewport={viewport}
+                width={mainEditorCanvas.width}
+                height={mainEditorCanvas.height}
+                selectedNodeId={selection.nodeId}
+                selectedEdgeId={selectedEdgeId}
+                nodeRenderers={{ card: EditorNodeCard }}
+                getNodeRendererKey={() => "card"}
+                getNodeRendererData={(node) => node.data}
+                onNodeSelect={(nodeId) => {
+                  onSelectionChange({ nodeId });
+                  if (nodeId !== null) setSelectedEdgeId(null);
+                }}
+                onEdgeSelect={(edgeId) => {
+                  setSelectedEdgeId(edgeId);
+                  if (edgeId !== null) onSelectionChange({ nodeId: null });
+                }}
+                onNodePositionChange={(nodeId, nextPosition) => {
+                  updateNodeData(setNodes, nodeId, () => ({
+                    position: nextPosition,
+                  }));
+                }}
+                onEdgeConnect={(sourceNodeId, targetNodeId) => {
+                  setEdges((current) => {
+                    const existingIndex = current.findIndex(
+                      (edge) => Number(edge.source) === Number(sourceNodeId) && Number(edge.target) === Number(targetNodeId),
+                    );
+                    if (existingIndex >= 0) {
+                      return current.filter((_, index) => index !== existingIndex);
+                    }
+
+                    return [
+                      ...current,
+                      {
+                        id: `edge-${sourceNodeId}-${targetNodeId}-${current.length + 1}`,
+                        source: sourceNodeId,
+                        target: targetNodeId,
+                        type: "default",
+                      },
+                    ];
+                  });
+                }}
+                onViewportChange={setViewport}
+                interactive
+              />
+            </div>
+          </section>
+        </div>
+
+        <aside className="editor-sidebar">
+          <div className="editor-inspector-card">
+            <p className="editor-inspector-label">{ui.inspector.eyebrow}</p>
+            {selectedNode ? (
+              <>
+                <h2>{selectedNode.data.title}</h2>
+                <label className="editor-field">
+                  <span>{ui.inspector.field}</span>
+                  <input value={titleDraft} onChange={(event) => setTitleDraft(event.target.value)} />
+                </label>
+                <div className="editor-inspector-actions">
+                  <button type="button" onClick={applyTitle}>
+                    {ui.inspector.apply}
+                  </button>
+                  <button type="button" onClick={deleteSelected}>
+                    {ui.inspector.deleteNode}
+                  </button>
+                </div>
+              </>
+            ) : selectedEdgeId ? (
+              <div className="editor-edge-card">
+                <h2>{ui.inspector.edgeLabel}</h2>
+                <p>{selectedEdgeId}</p>
+                <button type="button" onClick={deleteSelected}>
+                  {ui.inspector.deleteEdge}
+                </button>
+              </div>
+            ) : (
+              <p className="editor-empty">{ui.inspector.empty}</p>
+            )}
+            <p className="editor-hint">{ui.inspector.edgeHint}</p>
+          </div>
+
+          <div className="editor-inspector-card">
+            <p className="editor-inspector-label">{ui.inspector.saved}</p>
+            <pre className="editor-snapshot">
+              {savedSnapshot
+                ? JSON.stringify(
+                    {
+                      nodes: savedSnapshot.nodes.map((node) => ({
+                        id: node.id,
+                        title: node.data.title,
+                        x: Math.round(node.position.x),
+                        y: Math.round(node.position.y),
+                      })),
+                      edges: savedSnapshot.edges.map((edge) => ({
+                        source: edge.source,
+                        target: edge.target,
+                      })),
+                      viewport: {
+                        x: Math.round(savedSnapshot.viewport.x),
+                        y: Math.round(savedSnapshot.viewport.y),
+                        zoom: Number(savedSnapshot.viewport.zoom.toFixed(2)),
+                      },
+                    },
+                    null,
+                    2,
+                  )
+                : ui.inspector.notSaved}
+            </pre>
+          </div>
+        </aside>
+      </section>
+    </main>
+  );
+}
+
 function LearnInteractiveDemo({
   locale,
   mode,
 }: {
   locale: Locale;
-  mode: "basic-interactions" | "save-and-restore";
+  mode: "nodes-and-edges" | "selection-and-editing" | "viewport" | "basic-interactions" | "save-and-restore";
 }) {
   const [nodes, setNodes] = useWorkflowNodesState<LearnDemoNode>(cloneLearnDemoNodes());
   const [edges, setEdges] = useWorkflowEdgesState<LearnDemoEdge>(cloneLearnDemoEdges());
@@ -2133,16 +2792,40 @@ function LearnInteractiveDemo({
   const copy =
     locale === "ko"
       ? {
-          eyebrow: mode === "basic-interactions" ? "보조 proof" : "보조 proof",
+          eyebrow:
+            mode === "nodes-and-edges" || mode === "selection-and-editing" || mode === "viewport"
+              ? "직접 조작 demo"
+              : "보조 proof",
           title:
-            mode === "basic-interactions"
+            mode === "nodes-and-edges"
+              ? "노드와 엣지를 바로 만져보는 live canvas"
+              : mode === "selection-and-editing"
+                ? "선택과 수정 흐름을 직접 확인하는 live canvas"
+                : mode === "viewport"
+                  ? "뷰포트를 직접 움직여보는 live canvas"
+                  : mode === "basic-interactions"
               ? "설명을 읽은 뒤 바로 만져볼 수 있는 기본 editor demo"
               : "설명을 읽은 뒤 저장과 복원을 직접 확인하는 demo",
           body:
-            mode === "basic-interactions"
+            mode === "nodes-and-edges"
+              ? "이 페이지의 핵심은 정적인 그림이 아니라 직접 조작이다. 노드를 추가하고, 잡아 움직이고, 핸들을 눌러 edge를 연결하면서 box와 line이 실제로 어떻게 작동하는지 바로 느껴보면 된다."
+              : mode === "selection-and-editing"
+                ? "캔버스에서 node를 고르고 오른쪽에서 제목을 바꾼 뒤 다시 반영하는 흐름을 직접 확인하면 된다."
+                : mode === "viewport"
+                  ? "빈 공간을 드래그해서 pan 하고, 확대·축소와 맞춤 보기를 눌러 viewport가 어떻게 움직이는지 직접 확인하면 된다."
+                  : mode === "basic-interactions"
               ? "주 설명은 위 문단이 담당한다. 아래 demo에서는 캔버스 안의 노드 추가, 직접 드래그, edge 연결, 선택 삭제가 지금 어느 수준까지 되는지만 손으로 확인하면 된다."
               : "주 설명은 위 문단이 담당한다. 아래 demo에서는 노드/엣지/viewport를 저장했다가 다시 돌려놓는 감각이 현재 어떻게 보이는지 직접 확인하면 된다.",
-          aria: mode === "basic-interactions" ? "기본 상호작용 보조 demo" : "저장과 복원 보조 demo",
+          aria:
+            mode === "nodes-and-edges"
+              ? "노드와 엣지 live demo"
+              : mode === "selection-and-editing"
+                ? "선택과 수정 live demo"
+                : mode === "viewport"
+                  ? "뷰포트 live demo"
+                  : mode === "basic-interactions"
+                    ? "기본 상호작용 보조 demo"
+                    : "저장과 복원 보조 demo",
           toolbar: {
             canvas: "캔버스 조작",
             fit: "맞춤 보기",
@@ -2168,16 +2851,40 @@ function LearnInteractiveDemo({
           },
         }
       : {
-          eyebrow: "Supporting proof",
+          eyebrow:
+            mode === "nodes-and-edges" || mode === "selection-and-editing" || mode === "viewport"
+              ? "Live demo"
+              : "Supporting proof",
           title:
-            mode === "basic-interactions"
+            mode === "nodes-and-edges"
+              ? "A live canvas for touching nodes and edges directly"
+              : mode === "selection-and-editing"
+                ? "A live canvas for feeling the select-and-edit loop directly"
+                : mode === "viewport"
+                  ? "A live canvas for moving the viewport directly"
+                  : mode === "basic-interactions"
               ? "A small editor demo you can touch after reading the explanation"
               : "A small save-and-restore demo you can verify after reading the explanation",
           body:
-            mode === "basic-interactions"
+            mode === "nodes-and-edges"
+              ? "This page should not stop at a static picture. Add nodes, drag them around, and connect handles so you can feel how boxes and lines actually behave on the canvas."
+              : mode === "selection-and-editing"
+                ? "Pick a node on the canvas, rename it on the right, and push that change back so the edit loop is something you can actually feel."
+                : mode === "viewport"
+                  ? "Pan empty space, zoom in and out, and use fit view so the viewport reads like something you can move rather than just something to read about."
+                  : mode === "basic-interactions"
               ? "The main explanation lives in the text above. Use the demo below only to feel the current level of in-canvas add, direct drag, edge creation, and delete behavior."
               : "The main explanation lives in the text above. Use the demo below to verify how nodes, edges, and viewport come back together after save and restore.",
-          aria: mode === "basic-interactions" ? "Basic interactions supporting demo" : "Save and restore supporting demo",
+          aria:
+            mode === "nodes-and-edges"
+              ? "Nodes and edges live demo"
+              : mode === "selection-and-editing"
+                ? "Selection and editing live demo"
+                : mode === "viewport"
+                  ? "Viewport live demo"
+                  : mode === "basic-interactions"
+                    ? "Basic interactions supporting demo"
+                    : "Save and restore supporting demo",
           toolbar: {
             canvas: "Canvas controls",
             fit: "Fit view",
@@ -2297,6 +3004,11 @@ function LearnInteractiveDemo({
     setSelectedEdgeId(null);
   }
 
+  const showInspector = mode !== "nodes-and-edges" && mode !== "viewport";
+  const showSaveRestore = mode === "save-and-restore";
+  const showDeleteChrome = mode !== "viewport";
+  const showAddChrome = mode !== "viewport";
+
   return (
     <section className="learn-live-card" aria-label={copy.aria}>
       <div className="learn-visual-copy">
@@ -2309,12 +3021,16 @@ function LearnInteractiveDemo({
         <div className="learn-live-canvas">
           <div className="learn-live-canvas-chrome" aria-label={copy.toolbar.canvas}>
             <div className="learn-live-toolbar-group">
-              <button type="button" onClick={addNode}>
-                {copy.toolbar.addNode}
-              </button>
-              <button type="button" onClick={deleteSelected} disabled={!selectedNode && !selectedEdgeId}>
-                {copy.toolbar.deleteSelection}
-              </button>
+              {showAddChrome ? (
+                <button type="button" onClick={addNode}>
+                  {copy.toolbar.addNode}
+                </button>
+              ) : null}
+              {showDeleteChrome ? (
+                <button type="button" onClick={deleteSelected} disabled={!selectedNode && !selectedEdgeId}>
+                  {copy.toolbar.deleteSelection}
+                </button>
+              ) : null}
             </div>
             <div className="learn-live-toolbar-group">
               <button type="button" onClick={fitView}>
@@ -2326,7 +3042,7 @@ function LearnInteractiveDemo({
               <button type="button" onClick={() => zoom(0.15)}>
                 {copy.toolbar.zoomIn}
               </button>
-              {mode === "save-and-restore" ? (
+              {showSaveRestore ? (
                 <>
                   <button type="button" onClick={saveSnapshot}>
                     {copy.toolbar.save}
@@ -2339,6 +3055,7 @@ function LearnInteractiveDemo({
             </div>
           </div>
           <HyperFlowPocCanvas
+            className="hf-learn-demo-canvas"
             nodes={nodes}
             edges={edges}
             viewport={viewport}
@@ -2381,225 +3098,119 @@ function LearnInteractiveDemo({
           />
         </div>
 
-        <aside className="learn-live-inspector">
-          <p className="learn-live-inspector-label">{copy.inspector.title}</p>
-          {selectedNode ? (
-            <>
-              <h3>{selectedNode.data.title}</h3>
-              <label className="learn-live-field">
-                <span>{copy.inspector.field}</span>
-                <input value={titleDraft} onChange={(event) => setTitleDraft(event.target.value)} />
-              </label>
-              <div className="learn-live-inspector-actions">
-                <button type="button" onClick={applyTitle}>
-                  {copy.inspector.apply}
-                </button>
+        {showInspector ? (
+          <aside className="learn-live-inspector">
+            <p className="learn-live-inspector-label">{copy.inspector.title}</p>
+            {selectedNode ? (
+              <>
+                <h3>{selectedNode.data.title}</h3>
+                <label className="learn-live-field">
+                  <span>{copy.inspector.field}</span>
+                  <input value={titleDraft} onChange={(event) => setTitleDraft(event.target.value)} />
+                </label>
+                <div className="learn-live-inspector-actions">
+                  <button type="button" onClick={applyTitle}>
+                    {copy.inspector.apply}
+                  </button>
+                  <button type="button" onClick={deleteSelected}>
+                    {copy.inspector.deleteNode}
+                  </button>
+                </div>
+              </>
+            ) : selectedEdgeId ? (
+              <div className="learn-live-edge-details">
+                <h3>{copy.inspector.edgeLabel}</h3>
+                <p className="learn-live-edge-id">{selectedEdgeId}</p>
                 <button type="button" onClick={deleteSelected}>
-                  {copy.inspector.deleteNode}
+                  {copy.inspector.deleteEdge}
                 </button>
               </div>
-            </>
-          ) : selectedEdgeId ? (
-            <div className="learn-live-edge-details">
-              <h3>{copy.inspector.edgeLabel}</h3>
-              <p className="learn-live-edge-id">{selectedEdgeId}</p>
-              <button type="button" onClick={deleteSelected}>
-                {copy.inspector.deleteEdge}
-              </button>
-            </div>
-          ) : (
-            <>
-              <p className="learn-live-empty">{copy.inspector.empty}</p>
-              <p className="learn-live-empty learn-live-edge-empty">{copy.inspector.edgeEmpty}</p>
-            </>
-          )}
-          <p className="learn-live-connect-hint">{copy.inspector.connectHint}</p>
+            ) : (
+              <>
+                <p className="learn-live-empty">{copy.inspector.empty}</p>
+                <p className="learn-live-empty learn-live-edge-empty">{copy.inspector.edgeEmpty}</p>
+              </>
+            )}
+            <p className="learn-live-connect-hint">{copy.inspector.connectHint}</p>
 
-          {mode === "save-and-restore" ? (
-            <div className="learn-live-saved">
-              <p className="learn-live-inspector-label">{copy.inspector.saved}</p>
-              <pre>
-                {savedSnapshot
-                  ? JSON.stringify(
-                      {
-                        nodes: savedSnapshot.nodes.map((node) => ({
-                          id: node.id,
-                          title: node.data.title,
-                          x: node.position.x,
-                          y: node.position.y,
-                        })),
-                        edges: savedSnapshot.edges.map((edge) => ({
-                          source: edge.source,
-                          target: edge.target,
-                        })),
-                        viewport: {
-                          x: savedSnapshot.viewport.x,
-                          y: savedSnapshot.viewport.y,
-                          zoom: Number(savedSnapshot.viewport.zoom.toFixed(2)),
+            {showSaveRestore ? (
+              <div className="learn-live-saved">
+                <p className="learn-live-inspector-label">{copy.inspector.saved}</p>
+                <pre>
+                  {savedSnapshot
+                    ? JSON.stringify(
+                        {
+                          nodes: savedSnapshot.nodes.map((node) => ({
+                            id: node.id,
+                            title: node.data.title,
+                            x: node.position.x,
+                            y: node.position.y,
+                          })),
+                          edges: savedSnapshot.edges.map((edge) => ({
+                            source: edge.source,
+                            target: edge.target,
+                          })),
+                          viewport: {
+                            x: savedSnapshot.viewport.x,
+                            y: savedSnapshot.viewport.y,
+                            zoom: Number(savedSnapshot.viewport.zoom.toFixed(2)),
+                          },
                         },
-                      },
-                      null,
-                      2,
-                    )
-                  : copy.inspector.notSaved}
-              </pre>
-            </div>
-          ) : null}
-        </aside>
+                        null,
+                        2,
+                      )
+                    : copy.inspector.notSaved}
+                </pre>
+              </div>
+            ) : null}
+          </aside>
+        ) : null}
       </div>
     </section>
   );
 }
 
-function LearnVisualPreview({ locale, pageId }: { locale: Locale; pageId: PageId }) {
-  if (pageId === "nodes-and-edges") {
-    const copy =
-      locale === "ko"
-        ? {
-            eyebrow: "결과 미리보기",
-            title: "화면에서는 이렇게 보인다",
-            body: "노드는 박스로, 엣지는 선으로 보인다. 먼저 화면에서 관계를 읽고, 그 다음에 데이터 shape를 이해하면 된다.",
-            aria: "노드와 엣지 미리보기",
-            footer: "Node A → Node B → Node C",
-          }
-        : {
-            eyebrow: "Result preview",
-            title: "This is what the screen looks like",
-            body: "Nodes show up as boxes and edges show up as lines. Read the relationships on screen first, then learn the data shape behind them.",
-            aria: "Nodes and edges preview",
-            footer: "Node A → Node B → Node C",
-          };
+function LearnEditorBridgeCard({ locale, onOpenEditor }: { locale: Locale; onOpenEditor: () => void }) {
+  const copy =
+    locale === "ko"
+      ? {
+          eyebrow: "메인 editor로 이동",
+          title: "이 개념은 mini preview보다 메인 editor에서 먼저 느끼는 편이 낫다",
+          body:
+            "노드와 엣지, 선택과 수정, 뷰포트 감각은 `/:locale` 메인 editor에서 직접 조작하면서 이해하는 편이 자연스럽다. Learn은 그 조작을 읽는 supporting docs로 보면 된다.",
+          button: "메인 editor 열기",
+        }
+      : {
+          eyebrow: "Open the main editor",
+          title: "This concept reads better after you touch the main editor first",
+          body:
+            "Nodes and edges, selection and editing, and viewport behavior make more sense in the `/:locale` main editor than in a cramped mini preview. Learn works better as supporting docs after that.",
+          button: "Open main editor",
+        };
 
-    return (
-      <section className="learn-visual-card" aria-label={copy.aria}>
-        <div className="learn-visual-copy">
-          <p className="learn-visual-eyebrow">{copy.eyebrow}</p>
-          <h2>{copy.title}</h2>
-          <p>{copy.body}</p>
-        </div>
-        <div className="flow-preview flow-preview--canvas" aria-hidden="true">
-          <div className="flow-preview-grid" />
-          <svg className="flow-preview-edges" viewBox="0 0 760 340" preserveAspectRatio="none">
-            <path d="M 206 118 C 270 118, 278 118, 342 118" />
-            <path d="M 478 118 C 542 118, 550 118, 614 118" />
-          </svg>
-          <div className="flow-preview-node flow-preview-node--a">
-            <span className="flow-preview-node-kind">default</span>
-            <strong>Node A</strong>
-          </div>
-          <div className="flow-preview-node flow-preview-node--b">
-            <span className="flow-preview-node-kind">transform</span>
-            <strong>Node B</strong>
-          </div>
-          <div className="flow-preview-node flow-preview-node--c">
-            <span className="flow-preview-node-kind">output</span>
-            <strong>Node C</strong>
-          </div>
-          <div className="flow-preview-caption">{copy.footer}</div>
-        </div>
-      </section>
-    );
-  }
+  return (
+    <section className="learn-editor-bridge">
+      <p className="learn-visual-eyebrow">{copy.eyebrow}</p>
+      <h2>{copy.title}</h2>
+      <p>{copy.body}</p>
+      <button type="button" className="editor-docs-link" onClick={onOpenEditor}>
+        {copy.button}
+      </button>
+    </section>
+  );
+}
 
-  if (pageId === "selection-and-editing") {
-    const copy =
-      locale === "ko"
-        ? {
-            eyebrow: "결과 미리보기",
-            title: "선택 후에는 이런 흐름이 보인다",
-            body: "캔버스에서 하나를 고르면 오른쪽 inspector에서 값을 바꾸고 다시 반영하는 식으로 읽으면 된다.",
-            aria: "선택과 수정 미리보기",
-            footer: "클릭 → 선택 표시 → inspector 수정 → 반영",
-          }
-        : {
-            eyebrow: "Result preview",
-            title: "This is the flow after selection",
-            body: "Pick a node on the canvas, edit it in the inspector, and read the update back on the node.",
-            aria: "Selection and editing preview",
-            footer: "Click → selected state → inspector edit → apply",
-          };
-
-    return (
-      <section className="learn-visual-card" aria-label={copy.aria}>
-        <div className="learn-visual-copy">
-          <p className="learn-visual-eyebrow">{copy.eyebrow}</p>
-          <h2>{copy.title}</h2>
-          <p>{copy.body}</p>
-        </div>
-        <div className="flow-preview flow-preview--editor" aria-hidden="true">
-          <div className="flow-preview-shell">
-            <div className="flow-preview-shell-grid" />
-            <div className="flow-preview-node flow-preview-node--selected">
-              <span className="flow-preview-node-kind">selected</span>
-              <strong>Node B</strong>
-              <span className="flow-preview-node-note">
-                {locale === "ko" ? "클릭 후 오른쪽에서 수정" : "Edit on the right after clicking"}
-              </span>
-            </div>
-          </div>
-          <aside className="flow-preview-inspector">
-            <p className="flow-preview-inspector-label">{locale === "ko" ? "선택된 노드" : "Selected node"}</p>
-            <h3>Node B</h3>
-            <div className="flow-preview-field">
-              <span>{locale === "ko" ? "제목" : "Title"}</span>
-              <div>Node B</div>
-            </div>
-            <div className="flow-preview-field">
-              <span>{locale === "ko" ? "종류" : "Kind"}</span>
-              <div>transform</div>
-            </div>
-            <div className="flow-preview-field">
-              <span>{locale === "ko" ? "메모" : "Notes"}</span>
-              <div>{locale === "ko" ? "값을 바꾸고 다시 반영" : "Change values and sync back"}</div>
-            </div>
-            <div className="flow-preview-actions">
-              <button type="button">{locale === "ko" ? "적용" : "Apply"}</button>
-              <button type="button">{locale === "ko" ? "되돌리기" : "Reset"}</button>
-            </div>
-          </aside>
-          <div className="flow-preview-caption">{copy.footer}</div>
-        </div>
-      </section>
-    );
-  }
-
-  if (pageId === "viewport") {
-    const copy =
-      locale === "ko"
-        ? {
-            eyebrow: "결과 미리보기",
-            title: "뷰포트는 화면의 카메라처럼 읽으면 된다",
-            body: "큰 캔버스에서도 지금 어디를 보고 있는지, 이동과 확대축소가 부드러운지가 중요하다.",
-            aria: "뷰포트 미리보기",
-          }
-        : {
-            eyebrow: "Result preview",
-            title: "Treat the viewport like the camera for the canvas",
-            body: "On a larger canvas, what matters is where the camera is and whether pan and zoom stay smooth.",
-            aria: "Viewport preview",
-          };
-
-    return (
-      <section className="learn-visual-card" aria-label={copy.aria}>
-        <div className="learn-visual-copy">
-          <p className="learn-visual-eyebrow">{copy.eyebrow}</p>
-          <h2>{copy.title}</h2>
-          <p>{copy.body}</p>
-        </div>
-        <div className="flow-preview flow-preview--viewport" aria-hidden="true">
-          <div className="flow-preview-grid" />
-          <div className="flow-preview-viewport-window">
-            <div className="flow-preview-node flow-preview-node--mini flow-preview-node--v1">
-              <strong>Node A</strong>
-            </div>
-            <div className="flow-preview-node flow-preview-node--mini flow-preview-node--v2">
-              <strong>Node B</strong>
-            </div>
-          </div>
-          <div className="flow-preview-viewport-pill">{locale === "ko" ? "현재 보고 있는 영역" : "Current view"}</div>
-        </div>
-      </section>
-    );
+function LearnVisualPreview({
+  locale,
+  pageId,
+  onOpenEditor,
+}: {
+  locale: Locale;
+  pageId: PageId;
+  onOpenEditor: () => void;
+}) {
+  if (pageId === "nodes-and-edges" || pageId === "selection-and-editing" || pageId === "viewport") {
+    return <LearnEditorBridgeCard locale={locale} onOpenEditor={onOpenEditor} />;
   }
 
   if (pageId === "basic-interactions") {
@@ -2641,17 +3252,17 @@ function LearnSidebar({
 
 export function App() {
   const contentRef = useRef<HTMLElement | null>(null);
-  const [route, setRoute] = useState<{ locale: Locale; pageId: PageId }>(() =>
-    typeof window === "undefined" ? { locale: "ko", pageId: "what-is-hyperflow" } : getRouteFromPath(window.location.pathname),
+  const [route, setRoute] = useState<Route>(() =>
+    typeof window === "undefined" ? { locale: "ko", kind: "editor" } : getRouteFromPath(window.location.pathname),
   );
 
   useEffect(() => {
     const syncFromLocation = () => {
       const nextRoute = getRouteFromPath(window.location.pathname);
       setRoute(nextRoute);
-      const canonical = buildPagePath(nextRoute.locale, nextRoute.pageId);
+      const canonical = buildRoutePath(nextRoute);
       if (window.location.pathname !== canonical) {
-        navigateTo(nextRoute.locale, nextRoute.pageId, true);
+        navigateTo(nextRoute, true);
       }
     };
 
@@ -2660,28 +3271,66 @@ export function App() {
     return () => window.removeEventListener("popstate", syncFromLocation);
   }, []);
 
-  const { locale, pageId: currentPage } = route;
+  const locale = route.locale;
   const copy = copyByLocale[locale];
+  const currentPage = route.kind === "docs" ? route.pageId : topLevelDefaultPage.learn;
   const current = copy.pages[currentPage];
-  const currentSection = pageMeta[currentPage].section;
+  const currentSection = route.kind === "docs" ? pageMeta[currentPage].section : "learn";
   const visiblePages = sectionPages[currentSection];
-  const currentIndex = visiblePages.indexOf(currentPage);
+  const currentIndex = route.kind === "docs" ? visiblePages.indexOf(currentPage) : -1;
   const previousPage = currentIndex > 0 ? visiblePages[currentIndex - 1] : null;
-  const nextPage = currentIndex < visiblePages.length - 1 ? visiblePages[currentIndex + 1] : null;
+  const nextPage = currentIndex >= 0 && currentIndex < visiblePages.length - 1 ? visiblePages[currentIndex + 1] : null;
+
+  const goToRoute = (nextRoute: Route, replace = false) => {
+    setRoute(nextRoute);
+    navigateTo(nextRoute, replace);
+  };
 
   const goToPage = (pageId: PageId) => {
-    setRoute({ locale, pageId });
-    navigateTo(locale, pageId);
+    goToRoute({ locale, kind: "docs", pageId });
+  };
+
+  const goToEditor = (nextLocale = locale) => {
+    goToRoute({ locale: nextLocale, kind: "editor" });
   };
 
   const switchLocale = (nextLocale: Locale) => {
-    setRoute({ locale: nextLocale, pageId: currentPage });
-    navigateTo(nextLocale, currentPage);
+    if (route.kind === "editor") {
+      goToEditor(nextLocale);
+      return;
+    }
+
+    goToRoute({ locale: nextLocale, kind: "docs", pageId: currentPage });
   };
 
   useEffect(() => {
-    contentRef.current?.scrollTo({ top: 0, behavior: "auto" });
-  }, [currentPage, currentSection, locale]);
+    if (route.kind === "docs") {
+      contentRef.current?.scrollTo(0, 0);
+    }
+  }, [currentPage, currentSection, locale, route.kind]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    if (route.kind === "editor") {
+      document.title = locale === "ko" ? "HyperFlow 에디터" : "HyperFlow Editor";
+      return;
+    }
+
+    document.title = `${current.title} — HyperFlow Learn`;
+  }, [current.title, locale, route.kind]);
+
+  if (route.kind === "editor") {
+    return (
+      <MainEditorSurface
+        locale={locale}
+        copy={copy}
+        onOpenDocs={() => goToPage(topLevelDefaultPage.learn)}
+        onOpenSection={(sectionId) => goToPage(topLevelDefaultPage[sectionId])}
+        onSwitchLocale={switchLocale}
+      />
+    );
+  }
 
   return (
     <main className="learn-shell">
@@ -2690,6 +3339,9 @@ export function App() {
           <div className="learn-brand">{copy.brand}</div>
           <div className="learn-topbar-right">
             <nav className="learn-topnav" aria-label="Primary">
+              <button type="button" onClick={() => goToEditor()}>
+                {getEditorRouteLabel(locale)}
+              </button>
               {sectionOrder.map((sectionId) => (
                 <button
                   key={sectionId}
@@ -2729,7 +3381,7 @@ export function App() {
           </section>
 
           {currentPage === "installation" ? <CommandGuide copy={copy.code} guide={copy.installationGuide} /> : null}
-          <LearnVisualPreview locale={locale} pageId={currentPage} />
+          <LearnVisualPreview locale={locale} pageId={currentPage} onOpenEditor={() => goToEditor()} />
 
           <MarkdownPage markdown={current.markdown} copy={copy.code} />
 
