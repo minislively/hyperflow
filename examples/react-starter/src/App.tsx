@@ -2223,6 +2223,44 @@ function IconRestore() {
   return <svg viewBox="0 0 20 20"><path d="M6 7H3V4M4 7a6 6 0 1 1-1 7m7-8v4l3 2" /></svg>;
 }
 
+function buildSmoothMiniMapEdgePath({
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  bendX,
+  bendY,
+}: {
+  sourceX: number;
+  sourceY: number;
+  targetX: number;
+  targetY: number;
+  bendX?: number | null;
+  bendY?: number | null;
+}) {
+  const dx = targetX - sourceX;
+  const sign = dx >= 0 ? 1 : -1;
+  const absoluteDx = Math.abs(dx);
+  const baseOffset = Math.max(12, absoluteDx * 0.35);
+
+  if (bendX == null || bendY == null) {
+    return `M ${sourceX} ${sourceY} C ${sourceX + sign * baseOffset} ${sourceY}, ${targetX - sign * baseOffset} ${targetY}, ${targetX} ${targetY}`;
+  }
+
+  const defaultMidX = (sourceX + targetX) / 2;
+  const defaultMidY = (sourceY + targetY) / 2;
+  const influenceX = (bendX - defaultMidX) * 0.18;
+  const influenceY = (bendY - defaultMidY) * 0.7;
+  const minX = Math.min(sourceX, targetX) + 6;
+  const maxX = Math.max(sourceX, targetX) - 6;
+  const controlOneX = Math.min(maxX, Math.max(minX, sourceX + sign * baseOffset + influenceX));
+  const controlTwoX = Math.min(maxX, Math.max(minX, targetX - sign * baseOffset + influenceX));
+  const controlOneY = sourceY + influenceY;
+  const controlTwoY = targetY + influenceY;
+
+  return `M ${sourceX} ${sourceY} C ${controlOneX} ${controlOneY}, ${controlTwoX} ${controlTwoY}, ${targetX} ${targetY}`;
+}
+
 function EditorMiniMap({
   locale,
   nodes,
@@ -2314,23 +2352,20 @@ function EditorMiniMap({
           const y2 = model.projectY(targetNode.position.y + targetNode.size.height / 2);
           const bendX = edge.bend ? model.projectX(edge.bend.x) : null;
           const bendY = edge.bend ? model.projectY(edge.bend.y) : null;
-
-          if (bendX !== null && bendY !== null) {
-            const controlStrength = 0.68;
-            const controlOneX = x1 + (bendX - x1) * controlStrength;
-            const controlOneY = y1 + (bendY - y1) * controlStrength;
-            const controlTwoX = x2 + (bendX - x2) * controlStrength;
-            const controlTwoY = y2 + (bendY - y2) * controlStrength;
-            return (
-              <path
-                key={edge.id}
-                className="editor-minimap-edge"
-                d={`M ${x1} ${y1} C ${controlOneX} ${controlOneY}, ${controlTwoX} ${controlTwoY}, ${x2} ${y2}`}
-              />
-            );
-          }
-
-          return <line key={edge.id} className="editor-minimap-edge" x1={x1} y1={y1} x2={x2} y2={y2} />;
+          return (
+            <path
+              key={edge.id}
+              className="editor-minimap-edge"
+              d={buildSmoothMiniMapEdgePath({
+                sourceX: x1,
+                sourceY: y1,
+                targetX: x2,
+                targetY: y2,
+                bendX,
+                bendY,
+              })}
+            />
+          );
         })}
         {nodes.map((node) => (
           <rect

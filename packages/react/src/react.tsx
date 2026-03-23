@@ -50,6 +50,44 @@ export type HyperFlowPocCanvasProps = {
   onReadyChange?: (ready: boolean) => void;
 };
 
+function buildSmoothEdgePath({
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  bendX,
+  bendY,
+}: {
+  sourceX: number;
+  sourceY: number;
+  targetX: number;
+  targetY: number;
+  bendX?: number | null;
+  bendY?: number | null;
+}) {
+  const dx = targetX - sourceX;
+  const sign = dx >= 0 ? 1 : -1;
+  const absoluteDx = Math.abs(dx);
+  const baseOffset = Math.max(48, absoluteDx * 0.35);
+
+  if (bendX == null || bendY == null) {
+    return `M ${sourceX} ${sourceY} C ${sourceX + sign * baseOffset} ${sourceY}, ${targetX - sign * baseOffset} ${targetY}, ${targetX} ${targetY}`;
+  }
+
+  const defaultMidX = (sourceX + targetX) / 2;
+  const defaultMidY = (sourceY + targetY) / 2;
+  const influenceX = (bendX - defaultMidX) * 0.18;
+  const influenceY = (bendY - defaultMidY) * 0.7;
+  const minX = Math.min(sourceX, targetX) + 18;
+  const maxX = Math.max(sourceX, targetX) - 18;
+  const controlOneX = Math.min(maxX, Math.max(minX, sourceX + sign * baseOffset + influenceX));
+  const controlTwoX = Math.min(maxX, Math.max(minX, targetX - sign * baseOffset + influenceX));
+  const controlOneY = sourceY + influenceY;
+  const controlTwoY = targetY + influenceY;
+
+  return `M ${sourceX} ${sourceY} C ${controlOneX} ${controlOneY}, ${controlTwoX} ${controlTwoY}, ${targetX} ${targetY}`;
+}
+
 export function HyperFlowPocCanvas({
   nodes,
   edges = [],
@@ -479,19 +517,14 @@ export function HyperFlowPocCanvas({
         const bendWorldY = edge.bend?.y ?? defaultBendY;
         const bendX = (bendWorldX - viewport.x) * viewport.zoom;
         const bendY = (bendWorldY - viewport.y) * viewport.zoom;
-        const defaultCurveOffset = Math.max(48, Math.abs(targetX - sourceX) * 0.35);
-        const path = edge.bend
-          ? (() => {
-              const controlStrength = 0.68;
-              const controlOneX = sourceX + (bendX - sourceX) * controlStrength;
-              const controlOneY = sourceY + (bendY - sourceY) * controlStrength;
-              const controlTwoX = targetX + (bendX - targetX) * controlStrength;
-              const controlTwoY = targetY + (bendY - targetY) * controlStrength;
-              return `M ${sourceX} ${sourceY} C ${controlOneX} ${controlOneY}, ${controlTwoX} ${controlTwoY}, ${targetX} ${targetY}`;
-            })()
-          : `M ${sourceX} ${sourceY} C ${sourceX + defaultCurveOffset} ${sourceY}, ${
-              targetX - defaultCurveOffset
-            } ${targetY}, ${targetX} ${targetY}`;
+        const path = buildSmoothEdgePath({
+          sourceX,
+          sourceY,
+          targetX,
+          targetY,
+          bendX: edge.bend ? bendX : null,
+          bendY: edge.bend ? bendY : null,
+        });
 
         return {
           id: edge.id,
