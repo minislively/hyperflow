@@ -900,13 +900,6 @@ button {
   stroke-width: 3;
 }
 
-.hf-edge-overlay-bend-indicator {
-  fill: #2563eb;
-  stroke: #ffffff;
-  stroke-width: 2;
-  pointer-events: none;
-}
-
 
 .hf-handle-overlay {
   pointer-events: none;

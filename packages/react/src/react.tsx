@@ -621,15 +621,7 @@ export function HyperFlowPocCanvas({
                 }
                 aria-hidden="true"
               />
-              {selectedEdgeId === edge.id && edge.hasBend ? (
-                <circle
-                  className="hf-edge-overlay-bend-indicator"
-                  cx={edge.midX}
-                  cy={edge.midY}
-                  r="5"
-                  aria-hidden="true"
-                />
-              ) : null}
+
             </Fragment>
           ))}
         </svg>
