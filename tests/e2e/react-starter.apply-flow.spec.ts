@@ -116,6 +116,14 @@ test("editor save and restore keeps authoring state together", async ({ page }) 
 test("main editor keyboard shortcuts clear selection and save snapshots", async ({ page }) => {
   await page.goto("/ko");
 
+  await page.getByLabel("HyperFlow 메인 editor").click({ position: { x: 160, y: 120 } });
+  await page.keyboard.press("n");
+  await expect(page.locator("[data-node-card-id='4']")).toBeVisible();
+  await expect(page.getByLabel("제목")).toBeFocused();
+  await page.getByLabel("제목").fill("Shortcut Node");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Shortcut Node" })).toBeVisible();
+
   await page.locator("[data-node-card-id='1']").click();
   await expect(page.getByRole("heading", { name: "Node A" })).toBeVisible();
 

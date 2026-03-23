@@ -35,6 +35,10 @@ button {
   background: #f8fafc;
 }
 
+.editor-shell:focus {
+  outline: none;
+}
+
 .editor-topbar {
   position: sticky;
   top: 0;

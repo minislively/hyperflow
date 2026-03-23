@@ -2497,10 +2497,28 @@ function MainEditorSurface({
     edges: LearnDemoEdge[];
     viewport: PocViewport;
   } | null>(null);
+  const editorShellRef = useRef<HTMLElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingTitleFocusNodeIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     setTitleDraft(selectedNode?.data.title ?? "");
   }, [selectedNode?.data.title, selectedNode?.id]);
+
+  useEffect(() => {
+    if (document.activeElement && document.activeElement !== document.body) return;
+    editorShellRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedNode || pendingTitleFocusNodeIdRef.current !== selectedNode.id || !titleInputRef.current) {
+      return;
+    }
+
+    titleInputRef.current.focus();
+    titleInputRef.current.select();
+    pendingTitleFocusNodeIdRef.current = null;
+  }, [selectedNode]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -2514,6 +2532,12 @@ function MainEditorSurface({
       }
 
       const shortcutKey = event.metaKey || event.ctrlKey;
+      if (!shortcutKey && !event.altKey && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        addNode();
+        return;
+      }
+
       if (shortcutKey && event.key === "0") {
         event.preventDefault();
         fitView();
@@ -2566,7 +2590,7 @@ function MainEditorSurface({
             nodes: "노드",
             edges: "엣지",
             zoom: "줌",
-            shortcuts: "Delete 삭제 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
+            shortcuts: "N 노드 추가 · Delete 삭제 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
           },
           inspector: {
             eyebrow: "선택된 항목",
@@ -2605,7 +2629,7 @@ function MainEditorSurface({
             nodes: "Nodes",
             edges: "Edges",
             zoom: "Zoom",
-            shortcuts: "Delete removes · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
+            shortcuts: "N adds nodes · Delete removes · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
           },
           inspector: {
             eyebrow: "Selected item",
@@ -2651,6 +2675,7 @@ function MainEditorSurface({
   function addNode() {
     const nextId = getNextLearnDemoNodeId(nodes);
     const nextPosition = findNextNodePlacement(nodes, viewport);
+    pendingTitleFocusNodeIdRef.current = nextId;
     setNodes((current) => [...current, createLearnDemoNode(nextId, { position: nextPosition, index: current.length })]);
     setSelectedNodeIds([nextId]);
     onSelectionChange({ nodeId: nextId });
@@ -2733,7 +2758,14 @@ function MainEditorSurface({
   }
 
   return (
-    <main className="editor-shell">
+    <main
+      ref={editorShellRef}
+      className="editor-shell"
+      tabIndex={-1}
+      onPointerDownCapture={() => {
+        editorShellRef.current?.focus();
+      }}
+    >
       <header className="editor-topbar">
         <div className="editor-topbar-inner">
           <div className="editor-brand-lockup">
@@ -2926,7 +2958,16 @@ function MainEditorSurface({
                 <h2>{selectedNode.data.title}</h2>
                 <label className="editor-field">
                   <span>{ui.inspector.field}</span>
-                  <input value={titleDraft} onChange={(event) => setTitleDraft(event.target.value)} />
+                  <input
+                    ref={titleInputRef}
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return;
+                      event.preventDefault();
+                      applyTitle();
+                    }}
+                  />
                 </label>
                 <div className="editor-inspector-actions">
                   <button type="button" onClick={applyTitle}>
