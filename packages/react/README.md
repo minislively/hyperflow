@@ -84,10 +84,9 @@ type ExampleNode = PocNode & {
 const initialNodes: ExampleNode[] = [
   {
     id: 1,
-    x: 0,
-    y: 0,
-    width: 180,
-    height: 92,
+    type: "default",
+    position: { x: 0, y: 0 },
+    size: { width: 180, height: 92 },
     data: { title: "Node A" },
   },
 ];
@@ -127,6 +126,34 @@ export function Example() {
 - the host app owns `selection`
 - HyperFlow renders the runtime-backed canvas
 - product-specific inspector, toolbar, persistence, and permissions stay in the host app
+
+## Public node vs runtime node
+
+The React-facing node shape is now editor-friendly:
+
+```ts
+type PocNode<TData = Record<string, unknown>> = {
+  id: number;
+  type: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  data: TData;
+};
+```
+
+The Rust + WASM runtime still uses a smaller geometry contract internally:
+
+```ts
+type PocRuntimeNode = {
+  id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+```
+
+`HyperFlowPocCanvas` projects editor nodes into runtime nodes before the viewport/culling path runs. That split keeps the public API easier to learn without pushing product-level data through the runtime boundary.
 
 ## Optional custom renderer seam
 

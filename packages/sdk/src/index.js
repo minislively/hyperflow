@@ -2,6 +2,18 @@
 
 import { createHyperflowWasmBridge } from "../../wasm-bindings/src/index.js";
 import { drawVisibleBoxes } from "../../renderer-canvas/src/index.js";
+export function projectPocNodeToRuntimeNode(node) {
+    return {
+        id: Number(node.id),
+        x: Number(node.position.x),
+        y: Number(node.position.y),
+        width: Number(node.size.width),
+        height: Number(node.size.height)
+    };
+}
+export function projectPocNodesToRuntimeNodes(nodes) {
+    return nodes.map(projectPocNodeToRuntimeNode);
+}
 export function createPocViewport(width = 960, height = 540, overrides = {}) {
     return {
         x: 0,

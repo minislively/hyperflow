@@ -1,5 +1,5 @@
 import { getFixture } from "../../../benchmarks/fixtures.js";
-import { createPocEngine, createPocViewport, type PocEngine, type PocMetrics, type PocNode, type PocViewport } from "../../../packages/sdk/src/index.js";
+import { createPocEngine, createPocViewport, type PocEngine, type PocMetrics, type PocRuntimeNode, type PocViewport } from "../../../packages/sdk/src/index.js";
 
 type Scenario = {
   id: string;
@@ -280,8 +280,8 @@ function queryRequiredElement<TSelector extends keyof RequiredElementMap>(select
   return element as RequiredElementMap[TSelector];
 }
 
-function getFixtureNodes(size: number): PocNode[] {
-  return getFixture(size) as PocNode[];
+function getFixtureNodes(size: number): PocRuntimeNode[] {
+  return getFixture(size) as PocRuntimeNode[];
 }
 
 function getBackgroundWorkflowNode(selectedId: number): WorkflowNode {

@@ -18,12 +18,13 @@ This document is that boundary.
 
 ### Shapes
 - `PocNode`
+- `PocRuntimeNode`
 - `PocViewport`
 - `VisibleBox`
 - `PocMetrics`
 
 ### Engine operations
-- `loadFixture(nodes)`
+- `loadFixture(runtimeNodes)`
 - `renderFrame(context, viewport, renderOptions?)`
 - `hitTest(worldPoint)`
 - `getVisibleNodeIds()`
@@ -41,6 +42,25 @@ This contract should be read as:
 - the **validated core** beneath the current HyperFlow story
 - the SDK layer that proves the PoC can be consumed intentionally
 - a narrow bridge between the Rust/WASM/canvas slice and future higher-level product surfaces
+
+## Public node shape vs runtime node shape
+
+The current SDK now separates:
+
+- **`PocNode`** — the editor-facing shape used by React consumers
+  - `id`
+  - `type`
+  - `position`
+  - `size`
+  - `data`
+- **`PocRuntimeNode`** — the geometry-only shape passed into the Rust/WASM runtime
+  - `id`
+  - `x`
+  - `y`
+  - `width`
+  - `height`
+
+That split is intentional. It makes the public node model easier to compare against React Flow-style editor nodes while keeping the runtime boundary focused on geometry and viewport work.
 
 This contract should **not** be read as:
 
@@ -66,7 +86,7 @@ The current contract is derived from the proven PoC behavior in `docs/architectu
 
 ## Known preconditions
 
-- `loadFixture(nodes)` must be called before `renderFrame(...)`
+- `loadFixture(runtimeNodes)` must be called before `renderFrame(...)`
 - the current SDK intentionally keeps fixture lifecycle explicit
 - the current SDK wraps both the engine-facing bridge and the canvas renderer for speed of validation in the PoC stage
 

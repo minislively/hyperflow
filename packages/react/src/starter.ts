@@ -18,10 +18,10 @@ export function fitPocViewportToNodes(
   const minZoom = options.minZoom ?? 0.35;
   const maxZoom = options.maxZoom ?? 1.25;
 
-  const minX = Math.min(...nodes.map((node) => node.x));
-  const minY = Math.min(...nodes.map((node) => node.y));
-  const maxX = Math.max(...nodes.map((node) => node.x + node.width));
-  const maxY = Math.max(...nodes.map((node) => node.y + node.height));
+  const minX = Math.min(...nodes.map((node) => node.position.x));
+  const minY = Math.min(...nodes.map((node) => node.position.y));
+  const maxX = Math.max(...nodes.map((node) => node.position.x + node.size.width));
+  const maxY = Math.max(...nodes.map((node) => node.position.y + node.size.height));
   const zoom = Math.min(
     width / (maxX - minX + padding * 2),
     height / (maxY - minY + padding * 2),
@@ -47,8 +47,8 @@ export function focusPocViewportOnNode(
   const height = options.height ?? currentViewport.height ?? 540;
   const minZoom = options.minZoom ?? 0.7;
   const zoom = Math.max(currentViewport.zoom, minZoom);
-  const centeredX = Math.max(0, node.x + node.width / 2 - width / (2 * zoom));
-  const centeredY = Math.max(0, node.y + node.height / 2 - height / (2 * zoom));
+  const centeredX = Math.max(0, node.position.x + node.size.width / 2 - width / (2 * zoom));
+  const centeredY = Math.max(0, node.position.y + node.size.height / 2 - height / (2 * zoom));
 
   return createPocViewport(width, height, {
     x: centeredX,

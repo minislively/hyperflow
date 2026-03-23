@@ -1,8 +1,33 @@
-import { createHyperflowWasmBridge, type HyperflowNode, type HyperflowPoint, type HyperflowViewport, type HyperflowWasmBridge, type HyperflowWasmSourceOptions } from "../../wasm-bindings/src/index.js";
+import {
+  createHyperflowWasmBridge,
+  type HyperflowPoint,
+  type HyperflowRuntimeNode,
+  type HyperflowViewport,
+  type HyperflowWasmBridge,
+  type HyperflowWasmSourceOptions,
+} from "../../wasm-bindings/src/index.js";
 import { drawVisibleBoxes, type CanvasLikeContext, type CanvasRenderOptions } from "../../renderer-canvas/src/index.js";
 
-export type PocNode = HyperflowNode;
-export type VisibleBox = HyperflowNode;
+export type PocNodePosition = {
+  x: number;
+  y: number;
+};
+
+export type PocNodeSize = {
+  width: number;
+  height: number;
+};
+
+export type PocNode<TData extends Record<string, unknown> = Record<string, unknown>, TType extends string = string> = {
+  id: number;
+  position: PocNodePosition;
+  size: PocNodeSize;
+  data: TData;
+  type: TType;
+};
+
+export type PocRuntimeNode = HyperflowRuntimeNode;
+export type VisibleBox = HyperflowRuntimeNode;
 export type PocViewport = HyperflowViewport;
 
 export type PocMetrics = {
@@ -39,13 +64,31 @@ export type PocFrame = {
 };
 
 export type PocEngine = {
-  loadFixture(nodes: PocNode[]): number;
+  loadFixture(nodes: PocRuntimeNode[]): number;
   renderFrame(context: CanvasLikeContext, viewport: PocViewport, renderOptions?: PocRenderOptions): PocFrame;
   hitTest(worldPoint: HyperflowPoint): number | null;
   getVisibleNodeIds(): number[];
   getVisibleBoxes(): VisibleBox[];
   getNodeCount(): number;
 };
+
+export function projectPocNodeToRuntimeNode<TData extends Record<string, unknown>, TType extends string>(
+  node: PocNode<TData, TType>,
+): PocRuntimeNode {
+  return {
+    id: Number(node.id),
+    x: Number(node.position.x),
+    y: Number(node.position.y),
+    width: Number(node.size.width),
+    height: Number(node.size.height),
+  };
+}
+
+export function projectPocNodesToRuntimeNodes<TData extends Record<string, unknown>, TType extends string>(
+  nodes: Array<PocNode<TData, TType>>,
+): PocRuntimeNode[] {
+  return nodes.map(projectPocNodeToRuntimeNode);
+}
 
 export function createPocViewport(width = 960, height = 540, overrides: Partial<PocViewport> = {}): PocViewport {
   return {

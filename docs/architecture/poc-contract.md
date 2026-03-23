@@ -2,12 +2,12 @@
 
 This document defines the temporary contract for the first architecture proof slice.
 
-## Fixture node shape
+## Runtime fixture node shape
 
-Each node is represented as:
+The Rust + WASM boundary still receives geometry-first nodes:
 
 ```ts
-type PocNode = {
+type PocRuntimeNode = {
   id: number;
   x: number;
   y: number;

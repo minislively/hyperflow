@@ -1,12 +1,14 @@
 const DEFAULT_WASM_URL = new URL("../../core-rs/target/wasm32-unknown-unknown/release/hyperflow_core.wasm", import.meta.url);
 
-export type HyperflowNode = {
+export type HyperflowRuntimeNode = {
   id: number;
   x: number;
   y: number;
   width: number;
   height: number;
 };
+
+export type HyperflowNode = HyperflowRuntimeNode;
 
 export type HyperflowViewport = {
   x: number;
@@ -45,10 +47,10 @@ type WasmExports = {
 };
 
 export type HyperflowWasmBridge = {
-  loadFixture(nodes: HyperflowNode[]): number;
+  loadFixture(nodes: HyperflowRuntimeNode[]): number;
   setViewport(viewport: HyperflowViewport): number;
   getVisibleNodeIds(): number[];
-  getVisibleBoxes(): HyperflowNode[];
+  getVisibleBoxes(): HyperflowRuntimeNode[];
   hitTest(point: HyperflowPoint): number | null;
   getNodeCount(): number;
 };
@@ -78,7 +80,7 @@ async function loadWasmBytes(source: HyperflowWasmSourceOptions = {}): Promise<B
   return new Uint8Array(await response.arrayBuffer());
 }
 
-function packNodes(nodes: HyperflowNode[]): Float32Array {
+function packNodes(nodes: HyperflowRuntimeNode[]): Float32Array {
   const packed = new Float32Array(nodes.length * 5);
   nodes.forEach((node, index) => {
     const offset = index * 5;
@@ -144,7 +146,7 @@ export async function createHyperflowWasmBridge(options: HyperflowWasmSourceOpti
         return [];
       }
       const values = new Float32Array(exports.memory.buffer, pointer, length);
-      const boxes = new Array<HyperflowNode>(values.length / 5);
+      const boxes = new Array<HyperflowRuntimeNode>(values.length / 5);
 
       for (let index = 0; index < values.length; index += 5) {
         boxes[index / 5] = {

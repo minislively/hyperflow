@@ -289,11 +289,10 @@ HyperFlow는 "예제 많은 완성형 에디터"부터 만든 게 아니다.
 
 ~~~ts
 {
-  id: "node-a",
-  x: 120,
-  y: 80,
-  width: 180,
-  height: 96,
+  id: 1,
+  type: "default",
+  position: { x: 120, y: 80 },
+  size: { width: 180, height: 96 },
   data: { title: "Node A" }
 }
 ~~~
@@ -309,7 +308,7 @@ HyperFlow는 "예제 많은 완성형 에디터"부터 만든 게 아니다.
 - HyperFlow는 그 데이터를 canvas에 올리는 기반으로 읽는 편이 맞다.
 
 ## 프론트 팀이 실제로 해야 하는 일
-- node id와 좌표를 만든다.
+- node id와 \`position\` / \`size\`를 만든다.
 - edge source / target을 정한다.
 - 화면에 보이는 박스와 선이 이 데이터의 시각화라는 점을 이해한다.
 
@@ -531,18 +530,16 @@ import {
 const initialNodes: PocNode[] = [
   {
     id: 1,
-    x: 80,
-    y: 80,
-    width: 180,
-    height: 96,
+    type: "default",
+    position: { x: 80, y: 80 },
+    size: { width: 180, height: 96 },
     data: { title: "Node A" },
   },
   {
     id: 2,
-    x: 360,
-    y: 80,
-    width: 180,
-    height: 96,
+    type: "default",
+    position: { x: 360, y: 80 },
+    size: { width: 180, height: 96 },
     data: { title: "Node B" },
   },
 ];
@@ -604,8 +601,8 @@ export function Example() {
         markdown: `레이아웃은 많은 프론트엔드 팀이 가장 먼저 묻는 질문이다. 현재 HyperFlow는 complete auto-layout engine을 제공한다고 약속하지 않는다.
 
 ## 현재 현실
-- node 위치값은 host가 소유한다.
-- HyperFlow는 주어진 node positions를 기반으로 viewport / culling / rendering을 수행한다.
+- node의 \`position\`과 \`size\`는 host가 소유한다.
+- HyperFlow는 editor-friendly node를 받은 뒤 runtime geometry로 projection해서 viewport / culling / rendering을 수행한다.
 
 ## 그래서 실무에서는
 - 간단한 고정 layout을 직접 넣거나
@@ -616,7 +613,9 @@ export function Example() {
 ~~~text
 host calculates positions
 ↓
-HyperFlow receives nodes with x/y/width/height
+HyperFlow receives nodes with position/size
+↓
+projects them to runtime x/y/width/height
 ↓
 runtime computes visibility and hit-test
 ~~~
@@ -752,7 +751,13 @@ import {
 } from "@hyperflow/react";
 
 const nodes: PocNode[] = [
-  { id: 1, x: 64, y: 64, width: 180, height: 96, data: { title: "Node A" } },
+  {
+    id: 1,
+    type: "default",
+    position: { x: 64, y: 64 },
+    size: { width: 180, height: 96 },
+    data: { title: "Node A" },
+  },
 ];
 
 export function MinimalEmbed() {
@@ -993,11 +998,10 @@ Then add the second layer: that box is backed by a **piece of data** that usuall
 
 ~~~ts
 {
-  id: "node-a",
-  x: 120,
-  y: 80,
-  width: 180,
-  height: 96,
+  id: 1,
+  type: "default",
+  position: { x: 120, y: 80 },
+  size: { width: 180, height: 96 },
   data: { title: "Node A" }
 }
 ~~~
@@ -1013,7 +1017,7 @@ Only after that does it help to think about the underlying relationship data.
 - HyperFlow is closer to the foundation that places that data onto a canvas safely
 
 ## What the frontend team actually does
-- create node ids and positions
+- create node ids plus \`position\` / \`size\`
 - define edge source / target
 - treat boxes and lines on screen as the visual output of that data
 
@@ -1234,18 +1238,16 @@ import {
 const initialNodes: PocNode[] = [
   {
     id: 1,
-    x: 80,
-    y: 80,
-    width: 180,
-    height: 96,
+    type: "default",
+    position: { x: 80, y: 80 },
+    size: { width: 180, height: 96 },
     data: { title: "Node A" },
   },
   {
     id: 2,
-    x: 360,
-    y: 80,
-    width: 180,
-    height: 96,
+    type: "default",
+    position: { x: 360, y: 80 },
+    size: { width: 180, height: 96 },
     data: { title: "Node B" },
   },
 ];
@@ -1307,8 +1309,8 @@ export function Example() {
         markdown: `Layouting is one of the first questions frontend teams ask. HyperFlow does not currently promise a complete layout engine.
 
 ## Current reality
-- node positions belong to the host
-- HyperFlow renders and computes visibility from the positions it receives
+- node \`position\` and \`size\` belong to the host
+- HyperFlow projects editor-facing nodes into runtime geometry before it computes visibility and rendering
 
 ## In practice
 - keep a fixed layout for simple cases
@@ -1319,7 +1321,9 @@ export function Example() {
 ~~~text
 host calculates positions
 ↓
-HyperFlow receives nodes with x/y/width/height
+HyperFlow receives nodes with position/size
+↓
+projects them to runtime x/y/width/height
 ↓
 runtime computes visibility and hit-test
 ~~~
@@ -1455,7 +1459,13 @@ import {
 } from "@hyperflow/react";
 
 const nodes: PocNode[] = [
-  { id: 1, x: 64, y: 64, width: 180, height: 96, data: { title: "Node A" } },
+  {
+    id: 1,
+    type: "default",
+    position: { x: 64, y: 64 },
+    size: { width: 180, height: 96 },
+    data: { title: "Node A" },
+  },
 ];
 
 export function MinimalEmbed() {

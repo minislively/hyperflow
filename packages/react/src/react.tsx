@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPocEngine, type PocEngine, type PocMetrics, type PocNode, type PocViewport, type VisibleBox } from "@hyperflow/sdk";
+import {
+  createPocEngine,
+  projectPocNodesToRuntimeNodes,
+  type PocEngine,
+  type PocMetrics,
+  type PocNode,
+  type PocViewport,
+  type VisibleBox,
+} from "@hyperflow/sdk";
 import { isInteractiveCanvasMode, type HyperFlowCanvasMode } from "./starter";
 
 export type HyperFlowPocNodeRendererProps<TData = unknown> = {
@@ -78,7 +86,7 @@ export function HyperFlowPocCanvas({
 
   useEffect(() => {
     if (!engine) return;
-    engine.loadFixture(nodes);
+    engine.loadFixture(projectPocNodesToRuntimeNodes(nodes));
   }, [engine, nodes]);
 
   useEffect(() => {
