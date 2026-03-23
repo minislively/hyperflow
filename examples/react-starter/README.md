@@ -49,7 +49,7 @@ HyperFlow를 처음 보는 프론트엔드 팀을 위한 **beginner-first Learn 
 ## live demo에 대한 현재 원칙
 
 `basic-interactions`와 `save-and-restore`는 유지한다.  
-하지만 이 둘은 **주 설명**이 아니라 **supporting proof**다.
+여기서 `basic-interactions`는 **직접 authoring 기본기 proof**, `save-and-restore`는 **그 상태가 persistence까지 이어지는지 보는 proof**다.
 
 즉 문서는 먼저:
 - what you see
@@ -58,6 +58,13 @@ HyperFlow를 처음 보는 프론트엔드 팀을 위한 **beginner-first Learn 
 - what is later
 
 를 설명하고, live demo는 그 뒤에서 손으로 확인하게 한다.
+
+현재 live demo에서 바로 해볼 수 있는 것은:
+- 캔버스 안의 **노드 추가** 버튼으로 viewport 중심에 새 노드 추가
+- 노드 직접 드래그
+- handle 클릭으로 edge 연결
+- node / edge 선택 후 **선택 삭제**
+- `save-and-restore`에서 nodes / edges / viewport 저장/복원
 
 ## 아직 주장하지 않는 것
 

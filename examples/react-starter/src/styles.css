@@ -354,6 +354,7 @@ button {
 }
 
 .learn-live-canvas {
+  position: relative;
   min-height: 360px;
   overflow: hidden;
   border: 1px solid #d0d5dd;
@@ -368,6 +369,28 @@ button {
   width: 100%;
   height: 100%;
   position: relative;
+}
+
+.learn-live-canvas-chrome {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  z-index: 4;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.learn-live-canvas-chrome .learn-live-toolbar-group {
+  padding: 8px;
+  border: 1px solid rgba(208, 213, 221, 0.92);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
 }
 
 .hf-edge-overlay,
