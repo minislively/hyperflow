@@ -110,6 +110,18 @@ test("editor save and restore keeps authoring state together", async ({ page })=
     }).click();
     await expect(page.locator("[data-node-card-id='4']")).toBeVisible();
 });
+test("main editor keyboard shortcuts clear selection and save snapshots", async ({ page })=>{
+    await page.goto("/ko");
+    await page.locator("[data-node-card-id='1']").click();
+    await expect(page.getByRole("heading", {
+        name: "Node A"
+    })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("캔버스에서 노드나 엣지를 눌러 선택하면 여기서 현재 상태를 확인할 수 있다.")).toBeVisible();
+    await page.keyboard.press("ControlOrMeta+S");
+    await expect(page.locator(".editor-snapshot")).toContainText('"nodes"');
+    await expect(page.locator(".editor-snapshot")).toContainText('"edges"');
+});
 test("main editor supports box selection and keyboard delete", async ({ page })=>{
     await page.goto("/ko");
     const nodeOne = page.locator("[data-node-card-id='1']");

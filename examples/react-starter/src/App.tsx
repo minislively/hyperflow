@@ -2432,7 +2432,6 @@ function MainEditorSurface({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Delete" && event.key !== "Backspace") return;
       const target = event.target;
       if (
         target instanceof HTMLInputElement ||
@@ -2441,6 +2440,30 @@ function MainEditorSurface({
       ) {
         return;
       }
+
+      const shortcutKey = event.metaKey || event.ctrlKey;
+      if (shortcutKey && event.key === "0") {
+        event.preventDefault();
+        fitView();
+        return;
+      }
+
+      if (shortcutKey && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        saveSnapshot();
+        return;
+      }
+
+      if (event.key === "Escape") {
+        if (!selectedEdgeId && selectedNodeIds.length === 0 && !selectedNode) return;
+        event.preventDefault();
+        setSelectedNodeIds([]);
+        setSelectedEdgeId(null);
+        onSelectionChange({ nodeId: null });
+        return;
+      }
+
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
       if (!selectedEdgeId && selectedNodeIds.length === 0 && !selectedNode) return;
       event.preventDefault();
       deleteSelected();
@@ -2471,6 +2494,7 @@ function MainEditorSurface({
             nodes: "노드",
             edges: "엣지",
             zoom: "줌",
+            shortcuts: "Delete 삭제 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
           },
           inspector: {
             eyebrow: "선택된 항목",
@@ -2509,6 +2533,7 @@ function MainEditorSurface({
             nodes: "Nodes",
             edges: "Edges",
             zoom: "Zoom",
+            shortcuts: "Delete removes · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
           },
           inspector: {
             eyebrow: "Selected item",
@@ -2730,6 +2755,7 @@ function MainEditorSurface({
                 <span>
                   {ui.status.zoom}: {Math.round(viewport.zoom * 100)}%
                 </span>
+                <span>{ui.status.shortcuts}</span>
               </div>
               <EditorMiniMap
                 locale={locale}
