@@ -264,6 +264,12 @@ button {
   color: #344054;
 }
 
+.markdown-page strong,
+.install-guide strong {
+  color: #111827;
+  font-weight: 700;
+}
+
 .markdown-inline-code {
   display: inline-block;
   padding: 0.08rem 0.38rem;
@@ -293,6 +299,44 @@ button {
   padding-left: 16px;
   border-left: 3px solid #d0d5dd;
   color: #475467;
+}
+
+.markdown-table-shell {
+  overflow-x: auto;
+}
+
+.markdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #eaecf0;
+  font-size: 15px;
+  line-height: 1.65;
+  background: #fff;
+}
+
+.markdown-table th,
+.markdown-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #eaecf0;
+  border-right: 1px solid #eaecf0;
+  vertical-align: top;
+  text-align: left;
+  color: #344054;
+}
+
+.markdown-table th:last-child,
+.markdown-table td:last-child {
+  border-right: 0;
+}
+
+.markdown-table thead th {
+  background: #f9fafb;
+  color: #111827;
+  font-weight: 700;
+}
+
+.markdown-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 .install-guide-note {

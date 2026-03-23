@@ -3,11 +3,15 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 type Locale = "ko" | "en";
 type SectionId = "learn" | "reference" | "examples" | "roadmap";
 type PageId =
-  | "quick-start"
+  | "what-is-hyperflow"
+  | "when-to-use"
   | "installation"
-  | "core-concepts"
-  | "react-integration"
-  | "customization"
+  | "nodes-and-edges"
+  | "selection-and-editing"
+  | "viewport"
+  | "basic-interactions"
+  | "save-and-restore"
+  | "add-to-react-app"
   | "layouting"
   | "performance"
   | "troubleshooting"
@@ -52,27 +56,46 @@ type Block =
   | { type: "bullet-list"; items: string[] }
   | { type: "ordered-list"; items: string[] }
   | { type: "blockquote"; text: string }
+  | { type: "table"; headers: string[]; rows: string[][] }
   | { type: "code"; text: string };
 
 type InlineSegment =
   | { type: "text"; text: string }
+  | { type: "bold"; text: string }
   | { type: "code"; text: string };
 
 
 const locales: Locale[] = ["ko", "en"];
 const sectionOrder: SectionId[] = ["learn", "reference", "examples", "roadmap"];
 const sectionPages: Record<SectionId, PageId[]> = {
-  learn: ["quick-start", "installation", "core-concepts", "react-integration", "customization", "layouting", "performance", "troubleshooting"],
+  learn: [
+    "what-is-hyperflow",
+    "when-to-use",
+    "installation",
+    "nodes-and-edges",
+    "selection-and-editing",
+    "viewport",
+    "basic-interactions",
+    "save-and-restore",
+    "add-to-react-app",
+    "layouting",
+    "performance",
+    "troubleshooting",
+  ],
   reference: ["api-overview", "runtime-model", "viewport-selection"],
   examples: ["examples-intro", "minimal-embed", "host-controlled-state"],
   roadmap: ["roadmap"],
 };
 const pageMeta: Record<PageId, { section: SectionId; slug: string | null }> = {
-  "quick-start": { section: "learn", slug: null },
+  "what-is-hyperflow": { section: "learn", slug: null },
+  "when-to-use": { section: "learn", slug: "when-to-use" },
   installation: { section: "learn", slug: "installation" },
-  "core-concepts": { section: "learn", slug: "core-concepts" },
-  "react-integration": { section: "learn", slug: "react-integration" },
-  customization: { section: "learn", slug: "customization" },
+  "nodes-and-edges": { section: "learn", slug: "nodes-and-edges" },
+  "selection-and-editing": { section: "learn", slug: "selection-and-editing" },
+  viewport: { section: "learn", slug: "viewport" },
+  "basic-interactions": { section: "learn", slug: "basic-interactions" },
+  "save-and-restore": { section: "learn", slug: "save-and-restore" },
+  "add-to-react-app": { section: "learn", slug: "add-to-react-app" },
   layouting: { section: "learn", slug: "layouting" },
   performance: { section: "learn", slug: "performance" },
   troubleshooting: { section: "learn", slug: "troubleshooting" },
@@ -85,7 +108,7 @@ const pageMeta: Record<PageId, { section: SectionId; slug: string | null }> = {
   roadmap: { section: "roadmap", slug: null },
 };
 const topLevelDefaultPage: Record<SectionId, PageId> = {
-  learn: "quick-start",
+  learn: "what-is-hyperflow",
   reference: "api-overview",
   examples: "examples-intro",
   roadmap: "roadmap",
@@ -116,36 +139,83 @@ const copyByLocale: Record<Locale, Copy> = {
       roadmap: "로드맵",
     },
     pages: {
-      "quick-start": {
-        navLabel: "빠른 시작",
-        title: "빠른 시작",
-        markdown: `HyperFlow는 프론트엔드 팀이 자기 제품 안에 node-editor와 workflow surface를 넣을 때 사용하는 foundation이다. 완성된 workflow SaaS나 full editor shell로 읽으면 바로 헷갈린다.
+      "what-is-hyperflow": {
+        navLabel: "HyperFlow 소개",
+        title: "HyperFlow 소개",
+        markdown: `HyperFlow는 프론트엔드 팀이 자기 제품 안에 node editor나 workflow surface를 넣을 때 사용하는 foundation이다. 완성된 SaaS나 전체 editor product로 읽기보다, **기존 React 앱 안에 심는 기반 레이어**로 읽는 편이 정확하다.
 
-## 30초 이해
-- host app이 상태를 소유한다.
-- HyperFlow는 canvas/runtime seam을 제공한다.
-- inspector, toolbar, persistence는 host app이 만든다.
-- 현재 repo는 narrow validated slice를 증명한다.
+## 한 줄 정의
+> HyperFlow는 host app이 소유한 상태를 바탕으로, canvas와 runtime 경로를 연결해 주는 프론트엔드 foundation이다.
 
-## 프론트엔드 팀 기준 사용 흐름
-1. \`@hyperflow/react\`를 설치한다.
-2. host app에서 \`nodes\`, \`selection\`, \`viewport\`를 만든다.
-3. \`HyperFlowPocCanvas\`에 그 상태를 전달한다.
-4. 선택된 node를 읽어 inspector UI를 만든다.
-5. 변경은 host state commit으로 반영한다.
+## 지금 바로 이해해야 할 것
+- HyperFlow가 app shell 전체를 대신하지는 않는다.
+- product UX, inspector, persistence는 host app이 만든다.
+- HyperFlow는 canvas/runtime seam과 large-surface runtime path에 강점이 있다.
+- 현재 repo는 broad authoring platform이 아니라 **narrow validated slice**를 설명한다.
 
-## 먼저 확인할 문서
-1. 설치 환경
-2. 핵심 개념
-3. React 연동
-4. 커스터마이징
-5. 레이아웃
-6. 성능
-7. 문제 해결`,
+## 이 문서를 읽는 추천 순서
+1. 왜 HyperFlow가 있나
+2. 설치하기
+3. 노드와 엣지
+4. 선택과 수정
+5. 뷰포트
+6. 기본 상호작용
+7. 저장과 복원
+8. React 앱에 붙이기
+9. 위치와 레이아웃
+10. 성능 이해하기
+11. 자주 헷갈리는 점`,
+      },
+      "when-to-use": {
+        navLabel: "왜 HyperFlow가 있나",
+        title: "왜 HyperFlow가 있나",
+        markdown: `HyperFlow를 이해하는 가장 쉬운 방법은 이 질문부터 보는 것이다.
+
+> **"React Flow로도 노드 UI를 만들 수 있는데, 왜 HyperFlow를 또 만들었지?"**
+
+짧게 말하면 이렇다.
+
+- **React Flow는 노드 에디터를 빨리 만드는 데 강하다.**
+- **HyperFlow는 기존 서비스 안에서 editor의 상태, 성능, 캔버스 동작을 더 직접 통제하려는 상황에서 나온 쪽이다.**
+
+## React Flow를 쓰다가 답답해지는 순간
+- 에디터 상태를 제품 앱이 계속 직접 들고 있어야 할 때
+- 캔버스와 제품 UI를 더 분리해서 보고 싶을 때
+- 그래프가 커질수록 pan / zoom / selection 반응성이 더 중요해질 때
+- 데모용 편집기가 아니라 **제품 안에 들어가는 화면**을 만들고 싶을 때
+
+## 그래서 HyperFlow는 무엇을 먼저 풀려고 했나
+HyperFlow는 "예제 많은 완성형 에디터"부터 만든 게 아니다.
+먼저 아래 문제를 풀려고 했다.
+
+1. **제품 상태는 host app이 계속 소유한다**
+2. **캔버스와 런타임 경로를 분리해서 본다**
+3. **큰 화면에서도 viewport 반응성을 먼저 챙긴다**
+
+즉 HyperFlow는 React Flow를 무조건 대체하려고 나온 게 아니라,
+**React Flow로 빠르게 시작한 뒤 더 깊은 제품 구조가 필요해질 때의 다른 출발점**에 가깝다.
+
+## 한 줄 차이
+| 질문 | React Flow | HyperFlow |
+| --- | --- | --- |
+| 무엇에 더 가깝나 | 노드 에디터를 빨리 만드는 툴킷 | 제품 안에 심는 editor foundation |
+| 먼저 잘하는 것 | broad authoring UI, examples, interaction 패턴 | host app 상태와 canvas/runtime 경로 분리 |
+| 잘 맞는 상황 | 범용 편집기를 빨리 시작할 때 | 기존 React 제품 안에 editor surface를 깊게 넣을 때 |
+| 지금 기대해야 할 것 | 넓은 authoring 예제 | 더 좁지만 구조적인 기반 |
+
+## 언제 HyperFlow를 보면 되나
+- "일단 에디터를 빨리 띄우고 싶다"면 React Flow가 더 자연스럽다.
+- "기존 제품 안에서 상태와 성능을 더 직접 통제해야 한다"면 HyperFlow를 볼 이유가 있다.
+
+## 아직 기대하면 안 되는 것
+- React Flow 수준의 broad authoring parity
+- 설치만으로 바로 완성형 editor shell이 나오는 경험
+- ready-made workflow builder template
+- built-in auto-layout engine |`,
       },
       installation: {
-        navLabel: "설치 환경",
-        title: "설치 환경",
+        navLabel: "설치하기",
+        title: "설치하기",
         markdown: `설치는 시작점일 뿐이고, 중요한 건 설치 직후 어떤 mental model로 붙이느냐다.
 
 ## 필요한 환경
@@ -174,40 +244,160 @@ const copyByLocale: Record<Locale, Copy> = {
 - Learn에서 mental model을 먼저 잡는 게 더 중요하다.
 - 지금 starter는 onboarding과 reference를 위한 surface다.`,
       },
-      "core-concepts": {
-        navLabel: "핵심 개념",
-        title: "핵심 개념",
-        markdown: `HyperFlow를 읽을 때 가장 먼저 고정해야 하는 mental model은 아래 네 가지다.
+      "nodes-and-edges": {
+        navLabel: "노드와 엣지",
+        title: "노드와 엣지",
+        markdown: `React Flow를 대체하는 방향으로 간다면, 제일 먼저 이해해야 하는 건 **노드와 엣지가 무엇을 뜻하느냐**다.
 
-## 1. Foundation, not full product
-- HyperFlow는 editor product 자체가 아니다.
-- host product 안에 들어가는 foundation이다.
+## 노드
+노드는 화면 위 박스가 아니라, **host app이 들고 있는 데이터 단위**다.
+보통 최소 shape은 아래처럼 본다.
 
-## 2. Host-controlled state
-- nodes, selection, persistence는 host가 소유한다.
-- HyperFlow는 그 상태를 그리는 seam과 runtime path를 제공한다.
+~~~ts
+{
+  id: "node-a",
+  x: 120,
+  y: 80,
+  width: 180,
+  height: 96,
+  data: { title: "Node A" }
+}
+~~~
 
-## 3. Thin React surface
-- React layer는 host app을 대체하지 않는다.
-- app shell, form, permissions, persistence는 host 앱 몫이다.
+## 엣지
+엣지는 두 노드 사이 관계다.
+React Flow에서처럼 연결선이 보이는 UI를 기대하게 되지만, HyperFlow를 읽을 때는 먼저 **관계 데이터도 host app이 소유한다**는 생각부터 잡는 게 낫다.
 
-## 4. Narrow validated slice
-- viewport
-- culling
-- selection
-- runtime responsiveness
+## 지금 중요하게 봐야 할 점
+- 노드는 host app의 제품 데이터와 이어진다.
+- 엣지도 마찬가지로 host 쪽 모델에서 정의하는 것이 자연스럽다.
+- HyperFlow는 이 데이터를 canvas/runtime 쪽에 안전하게 전달하는 기반에 더 가깝다.
 
-## 실무 체크
-- “무엇을 그릴지”는 host가 결정한다.
-- “어떻게 빨리 그릴지”는 HyperFlow가 돕는다.
-- “완성된 editor UX”는 아직 별도 제품 레이어다.`,
+## 초보자 체크
+- "지금 내가 보는 박스가 진짜 데이터인가, 그냥 화면 표현인가?"
+- "이 연결은 캔버스 장식인가, 제품 로직 관계인가?"
+
+이 두 질문을 먼저 구분하면 문서가 훨씬 덜 헷갈린다.`,
       },
-      "react-integration": {
-        navLabel: "React 연동",
-        title: "React 연동",
-        markdown: `프론트엔드 팀은 HyperFlow를 standalone app이 아니라 host app 안에 심는 library로 읽는 게 가장 쉽다.
+      "selection-and-editing": {
+        navLabel: "선택과 수정",
+        title: "선택과 수정",
+        markdown: `노드 기반 UI에서 사용자가 제일 먼저 배우는 행동은 보통 두 가지다.
 
-## 가장 단순한 코드 shape
+1. **선택한다**
+2. **수정한다**
+
+## 일반적인 흐름
+1. canvas에서 node를 클릭한다.
+2. host app이 selected node id를 읽는다.
+3. 오른쪽 inspector나 별도 panel이 열린다.
+4. 사용자가 값을 바꾼다.
+5. host app이 그 값을 다시 node data에 commit한다.
+
+## 왜 이게 중요하나
+지금 HyperFlow 문서를 읽는 사람은 “예쁜 editor”보다도 먼저,
+**선택과 수정의 책임이 어디 있냐**를 이해해야 한다.
+
+- 선택 시작점: canvas
+- 수정 UI: host app
+- 최종 commit: host state
+
+## React Flow와 닿는 지점
+React Flow도 결국 선택과 수정이 핵심이다.
+다만 HyperFlow 쪽은 이 흐름을 더 **host app 중심**으로 읽는 편이 맞다.
+
+## 초보자 체크
+- 클릭했을 때 누가 selected id를 들고 있나?
+- 수정한 값은 어디서 commit되나?
+- canvas와 inspector 중 어느 쪽이 진짜 편집 책임을 가지나?`,
+      },
+      viewport: {
+        navLabel: "뷰포트",
+        title: "뷰포트",
+        markdown: `React Flow처럼 node editor를 쓴다면, 결국 **viewport**를 이해해야 한다.
+
+## 뷰포트가 뜻하는 것
+- 지금 화면이 어느 좌표 범위를 보고 있는가
+- pan / zoom / fit view가 어떻게 움직이는가
+- 큰 그래프에서도 반응성이 유지되는가
+
+## 왜 HyperFlow에서 더 중요하게 보나
+HyperFlow는 바로 이 지점에서 강점을 만들려고 시작했다.
+특히 문서에서 계속 말하는 culling, hit-test, responsiveness는 대부분 viewport 경험과 연결된다.
+
+## 초보자 기준 관찰 포인트
+- pan 할 때 버벅이지 않는가
+- zoom 해도 선택과 hit-test가 어긋나지 않는가
+- 큰 surface에서도 필요한 것만 그리는가
+
+## 쉬운 해석
+뷰포트는 그냥 "카메라"라고 생각하면 된다.
+HyperFlow는 이 카메라가 큰 화면에서도 덜 버벅이도록 runtime 쪽을 더 강하게 본다.`,
+      },
+      "basic-interactions": {
+        navLabel: "기본 상호작용",
+        title: "기본 상호작용",
+        markdown: `React Flow를 대체하려면 사용자가 기대하는 기본 상호작용부터 정리해야 한다.
+
+## 사용자가 먼저 기대하는 것
+- node 추가
+- node 선택
+- node 이동
+- edge 연결
+- 값 수정
+- 삭제
+- 저장 후 다시 열기
+
+## 지금 문서에서 중요한 포인트
+현재 HyperFlow는 이 전체를 이미 완성했다고 주장하면 안 된다.
+대신 **이 상호작용 목록이 앞으로 맞춰야 하는 기준선**이라는 걸 먼저 이해하는 게 중요하다.
+
+## 왜 이 목록이 중요하나
+사용자는 “이걸로 뭘 할 수 있지?”보다,
+“내가 아는 node editor처럼 기본 행동이 되나?”를 먼저 본다.
+그래서 이 목록이 HyperFlow의 learn path에서도 앞에 와야 한다.
+
+## 실무 체크리스트
+- 선택은 되는가
+- 이동은 되는가
+- 연결은 되는가
+- 수정이 다시 반영되는가
+- 저장/복원이 가능한가
+
+이 다섯 가지가 beginner에게는 가장 현실적인 기준이다.`,
+      },
+      "save-and-restore": {
+        navLabel: "저장과 복원",
+        title: "저장과 복원",
+        markdown: `node editor를 실제 제품에 넣으려면 결국 저장과 복원이 필요하다.
+
+## 왜 중요한가
+- 사용자는 만든 화면을 다시 열 수 있어야 한다.
+- 제품 팀은 node / edge / viewport를 persistence와 연결해야 한다.
+- 여기서부터 단순 데모와 실제 제품의 차이가 커진다.
+
+## 초보자 기준 mental model
+저장 대상은 보통 세 덩어리다.
+
+1. nodes
+2. edges
+3. viewport
+
+## HyperFlow 쪽에서 먼저 봐야 하는 것
+- host app이 persistence를 계속 소유하는가
+- canvas state와 제품 저장 모델이 분리되는가
+- 저장 후 복원했을 때 selection과 viewport가 일관되게 돌아오는가
+
+## 쉬운 결론
+저장과 복원은 부가 기능이 아니라,
+**"이게 진짜 제품 안에 들어가나"를 보여주는 핵심 개념**이다.`,
+      },
+      "add-to-react-app": {
+        navLabel: "React 앱에 붙이기",
+        title: "React 앱에 붙이기",
+        markdown: `이 페이지는 구현자용 저수준 설명이 아니라, **기존 React 앱에 HyperFlow를 어떻게 끼워 넣는가**를 이해하기 위한 페이지다.
+
+## 최소 코드 shape
 ~~~tsx
 import {
   HyperFlowPocCanvas,
@@ -219,65 +409,22 @@ import {
 } from "@hyperflow/react";
 ~~~
 
-## 사용 순서
-1. host app이 \`nodes\`를 만든다.
-2. host app이 \`selection\`을 만든다.
-3. \`HyperFlowPocCanvas\`에 \`nodes\`, \`viewport\`, \`selectedNodeId\`를 전달한다.
-4. inspector는 \`useSelectedNode(...)\`로 현재 노드를 읽는다.
-5. 수정은 \`updateNodeData(...)\`로 commit한다.
+## 보통 붙이는 순서
+1. host app이 nodes를 만든다.
+2. host app이 selection을 만든다.
+3. canvas에 nodes와 viewport를 넘긴다.
+4. selected node를 읽는다.
+5. inspector나 panel에서 값을 바꾼다.
+6. host state에 다시 commit한다.
 
-## 이 패턴이 중요한 이유
-- HyperFlow가 form library를 강제하지 않는다.
-- HyperFlow가 persistence architecture를 대신하지 않는다.
-- React layer는 canvas/runtime 연결이 중심이다.
-
-## 최소 mental model
-~~~text
-host state
-↓
-React adapter
-↓
-runtime-backed canvas
-~~~`,
-      },
-      customization: {
-        navLabel: "커스터마이징",
-        title: "커스터마이징",
-        markdown: `HyperFlow에서 커스터마이징은 “완성된 editor를 테마 변경한다”가 아니라, host app이 필요한 제품 레이어를 직접 올리는 방식이다.
-
-## 지금 가능한 커스터마이징
-- host-owned inspector
-- host-owned toolbar
-- host-owned selection behavior
-- package-level custom node renderer seam
-
-## 커스터마이징 예시
-~~~tsx
-<HyperFlowPocCanvas
-  nodes={nodes}
-  viewport={viewport}
-  selectedNodeId={selection.nodeId}
-  onNodeSelect={(nodeId) => onSelectionChange({ nodeId })}
-  nodeRenderers={{
-    "task-brief": TaskBriefNode,
-  }}
-  getNodeRendererKey={(node) => (node.id === 1 ? "task-brief" : null)}
-/>
-~~~
-
-## 아직 아닌 것
-- broad palette system
-- full node registry platform
-- template marketplace style customization
-
-## 실무 해석
-- node 모양을 바꾸는 것보다 먼저 state ownership을 설계해야 한다.
-- inspector UX는 host app 도메인에 맞춰 따로 설계하는 편이 자연스럽다.
-- 현재 seam은 “필요한 만큼 올려붙이는” 방향에 가깝다.`,
+## 중요한 점
+- HyperFlow는 form library를 강제하지 않는다.
+- persistence는 여전히 host app 책임이다.
+- React layer는 canvas/runtime 연결 seam에 가깝다.`,
       },
       layouting: {
-        navLabel: "레이아웃",
-        title: "레이아웃",
+        navLabel: "위치와 레이아웃",
+        title: "위치와 레이아웃",
         markdown: `레이아웃은 많은 프론트엔드 팀이 가장 먼저 묻는 질문이다. 현재 HyperFlow는 complete auto-layout engine을 제공한다고 약속하지 않는다.
 
 ## 현재 현실
@@ -309,8 +456,8 @@ runtime computes visibility and hit-test
 3. HyperFlow는 rendering / visibility / hit-test 쪽에 집중해서 본다.`,
       },
       performance: {
-        navLabel: "성능",
-        title: "성능",
+        navLabel: "성능 이해하기",
+        title: "성능 이해하기",
         markdown: `성능은 현재 HyperFlow가 가장 명확하게 증명하는 영역 중 하나다. 특히 large-surface viewport responsiveness를 먼저 봐야 한다.
 
 ## 현재 집중점
@@ -329,9 +476,9 @@ runtime computes visibility and hit-test
 - React shell 문제와 runtime path 문제를 분리해서 볼 수 있는가`,
       },
       troubleshooting: {
-        navLabel: "문제 해결",
-        title: "문제 해결",
-        markdown: `프론트엔드 사용자가 초반에 가장 헷갈리는 지점은 기대치 mismatch다.
+        navLabel: "자주 헷갈리는 점",
+        title: "자주 헷갈리는 점",
+        markdown: `초보자가 가장 먼저 막히는 이유는 기대치가 어긋나기 때문이다.
 
 ## 자주 생기는 오해
 - React Flow처럼 모든 authoring 기능이 이미 있는 줄 아는 경우
@@ -464,31 +611,79 @@ Rust + WASM core
       roadmap: "Roadmap",
     },
     pages: {
-      "quick-start": {
-        navLabel: "Quick Start",
-        title: "Quick Start",
-        markdown: `HyperFlow is a foundation that frontend teams use when they need node-editor and workflow surfaces inside their own products. If you read it as a finished workflow SaaS or full authoring shell, the repo becomes confusing immediately.
+      "what-is-hyperflow": {
+        navLabel: "Introduction",
+        title: "Introduction",
+        markdown: `HyperFlow is a foundation that frontend teams use when they need a node-editor or workflow surface inside an existing product. It is easier to understand when you read it as **an embedded layer inside your React app**, not as a finished SaaS or full editor shell.
 
-## 30-second model
-- the host app owns state
-- HyperFlow provides canvas/runtime seams
-- the host app owns inspector, toolbar, and persistence
-- the current repo proves a narrow validated slice
+## One-line definition
+> HyperFlow is a frontend foundation that connects host-owned state to canvas and runtime seams.
 
-## How frontend teams usually use it
-1. install \`@hyperflow/react\`
-2. create \`nodes\`, \`selection\`, and \`viewport\` in the host app
-3. render \`HyperFlowPocCanvas\`
-4. build product-specific UI around that seam
+## What to understand first
+- HyperFlow does not replace your full app shell.
+- Product UX, inspector, and persistence still live in the host app.
+- HyperFlow is strongest around canvas/runtime seams and large-surface runtime paths.
+- The current repo explains a narrow validated slice, not a broad authoring platform.
 
 ## Suggested reading order
-1. Quick Start
+1. Why HyperFlow Exists
 2. Installation
-3. Core Concepts
-4. React Integration
-5. Customization
-6. Layouting
-7. Performance`,
+3. Nodes and Edges
+4. Selection and Editing
+5. The Viewport
+6. Basic Interactions
+7. Save and Restore
+8. Add to a React App
+9. Layout and Positioning
+10. Understand Performance
+11. Common Confusion`,
+      },
+      "when-to-use": {
+        navLabel: "Why HyperFlow Exists",
+        title: "Why HyperFlow Exists",
+        markdown: `The easiest way to understand HyperFlow is to start with this question.
+
+> **"If React Flow already exists, why build HyperFlow at all?"**
+
+The short answer is this.
+
+- **React Flow is strong when you want to build a node editor quickly.**
+- **HyperFlow comes from the point where a team needs more direct control over editor state, performance, and canvas behavior inside an existing product.**
+
+## Where React Flow starts to feel limiting
+- your product app must keep owning editor state directly
+- you want a clearer separation between canvas behavior and product UI
+- pan / zoom / selection responsiveness matters more as graphs grow
+- you are building a product surface, not just a demo editor
+
+## So what was HyperFlow built to solve first
+HyperFlow did not start by chasing a "finished editor with lots of examples".
+It started by focusing on three things first.
+
+1. **the host app keeps owning product state**
+2. **canvas and runtime paths are treated as a separate layer**
+3. **viewport responsiveness is handled early for larger surfaces**
+
+So HyperFlow is not "React Flow, but better".
+It is closer to **a different starting point for teams that outgrow the easy editor-first path and need a more embedded product structure.**
+
+## One-line difference
+| Question | React Flow | HyperFlow |
+| --- | --- | --- |
+| What is it closer to? | a toolkit for building node editors quickly | an editor foundation embedded inside a product |
+| What does it do first? | broad authoring UI, examples, interaction patterns | clearer separation of host state and canvas/runtime paths |
+| When is it a better fit? | when you want to start a general editor quickly | when you need to embed an editor surface deeply into an existing React app |
+| What should you expect today? | broad authoring examples | a narrower but more structural foundation |
+
+## When to look at HyperFlow
+- If you mainly want to get an editor on screen quickly, React Flow is the more natural starting point.
+- If you need tighter control over state, structure, and responsiveness inside a larger product, HyperFlow is worth evaluating.
+
+## What not to assume yet
+- broad authoring parity with React Flow
+- a finished editor shell after install
+- ready-made workflow-builder templates
+- a built-in auto-layout engine |`,
       },
       installation: {
         navLabel: "Installation",
@@ -521,40 +716,158 @@ Rust + WASM core
 - it does not replace host state architecture
 - it does not remove the need for product-specific inspector UX`,
       },
-      "core-concepts": {
-        navLabel: "Core Concepts",
-        title: "Core Concepts",
-        markdown: `Four ideas matter most when reading HyperFlow docs.
+      "nodes-and-edges": {
+        navLabel: "Nodes and Edges",
+        title: "Nodes and Edges",
+        markdown: `If HyperFlow is going to grow into a React Flow alternative, the first concepts to understand are **nodes and edges**.
 
-## 1. Foundation, not full product
-- HyperFlow is not the editor product itself.
-- It is the foundation inside a host product.
+## Nodes
+A node is not just a box on screen. It is a **unit of host-owned data**.
+A minimal shape usually looks like this.
 
-## 2. Host-controlled state
-- nodes, selection, and persistence stay in the host app
-- HyperFlow exposes canvas/runtime seams
+~~~ts
+{
+  id: "node-a",
+  x: 120,
+  y: 80,
+  width: 180,
+  height: 96,
+  data: { title: "Node A" }
+}
+~~~
 
-## 3. Thin React surface
-- the React layer does not replace your app shell
-- it stays small on purpose
+## Edges
+An edge is a relationship between two nodes.
+React Flow users naturally expect visible connection lines, but the healthier HyperFlow mental model starts one layer earlier: **the host app still owns the relationship data**.
 
-## 4. Narrow validated slice
-- viewport
-- culling
-- selection
-- runtime responsiveness
+## What matters right now
+- nodes should stay connected to product data
+- edges should also make sense in the host model
+- HyperFlow is closer to the canvas/runtime foundation that receives this data safely
 
-## Practical check
-- the host decides what to render
-- HyperFlow helps render and reason about it efficiently
-- complete authoring UX is still a separate layer`,
+## Beginner check
+- is this box real product data, or only a visual shell?
+- is this connection only decoration, or part of the product logic?
+
+Those two questions remove a lot of confusion early.`,
       },
-      "react-integration": {
-        navLabel: "React Integration",
-        title: "React Integration",
-        markdown: `Frontend teams should read HyperFlow as something embedded into an existing React app.
+      "selection-and-editing": {
+        navLabel: "Selection and Editing",
+        title: "Selection and Editing",
+        markdown: `In any node-based UI, the first two actions people learn are usually these.
 
-## The smallest usage shape
+1. **select something**
+2. **edit something**
+
+## The usual flow
+1. click a node in the canvas
+2. let the host app read the selected node id
+3. open an inspector or side panel
+4. edit a field
+5. commit that change back into host-owned node data
+
+## Why this matters
+Before people care about advanced editor features, they need to understand **where selection and editing actually live**.
+
+- selection starts in the canvas
+- editing UI usually lives in host space
+- the final commit goes back into host state
+
+## Where this meets React Flow
+React Flow also revolves around selection and editing.
+The difference is that HyperFlow is easier to read when this loop stays **host-app first**.
+
+## Beginner check
+- who owns the selected id?
+- where does the change commit happen?
+- which layer really owns the editing UX?`,
+      },
+      viewport: {
+        navLabel: "The Viewport",
+        title: "The Viewport",
+        markdown: `If you want to replace React Flow, you eventually have to understand the viewport.
+
+## What the viewport means
+- which coordinate range the screen is currently looking at
+- how pan / zoom / fit view behave
+- whether responsiveness holds as the graph grows
+
+## Why HyperFlow cares so much about it
+This is one of the reasons HyperFlow exists in the first place.
+The docs keep talking about culling, hit-test, and responsiveness because all of those show up through viewport behavior.
+
+## What beginners should look for
+- does pan stay responsive?
+- does zoom keep selection and hit-testing aligned?
+- does the surface draw only what it needs?
+
+## Easy framing
+Think of the viewport as the camera.
+HyperFlow is trying to make that camera feel stable even when the surface gets larger.`,
+      },
+      "basic-interactions": {
+        navLabel: "Basic Interactions",
+        title: "Basic Interactions",
+        markdown: `If HyperFlow is going to replace React Flow for some teams, it has to be measured against the basic interaction checklist people already expect.
+
+## The first interactions people expect
+- add a node
+- select a node
+- move a node
+- connect nodes
+- edit values
+- delete
+- save and reopen
+
+## The important reading today
+The docs should not pretend all of this is already fully finished.
+But this list is still important because **it defines the baseline that a React Flow-style editor must eventually meet.**
+
+## Why this list matters
+Before users care about architecture, they ask a simpler question:
+"Does it behave like a node editor I already understand?"
+
+That is why this page belongs near the front of Learn.
+
+## Practical checklist
+- can I select?
+- can I move?
+- can I connect?
+- can I see edits reflected?
+- can I save and restore?`,
+      },
+      "save-and-restore": {
+        navLabel: "Save and Restore",
+        title: "Save and Restore",
+        markdown: `A node editor stops being a toy as soon as users expect to come back to the same graph later.
+
+## Why it matters
+- users need to reopen what they built
+- product teams need node / edge / viewport state to survive persistence
+- this is where demo UX and product UX start to separate
+
+## Beginner mental model
+There are usually three things you eventually want to persist.
+
+1. nodes
+2. edges
+3. viewport
+
+## What to inspect in HyperFlow
+- does persistence stay in the host app?
+- is the canvas state separate from the product save model?
+- does restore bring back a consistent viewport and selection state?
+
+## Easy conclusion
+Save and restore is not extra polish.
+It is one of the clearest signs that an editor surface can really live inside a product.`,
+      },
+      "add-to-react-app": {
+        navLabel: "Add to a React App",
+        title: "Add to a React App",
+        markdown: `This page is not meant as low-level implementation jargon. It is meant to answer a simpler question: **how does HyperFlow get embedded into an existing React app?**
+
+## Smallest code shape
 ~~~tsx
 import {
   HyperFlowPocCanvas,
@@ -566,65 +879,22 @@ import {
 } from "@hyperflow/react";
 ~~~
 
-## The usual flow
-1. the host app creates \`nodes\`
-2. the host app creates \`selection\`
-3. \`HyperFlowPocCanvas\` receives \`nodes\`, \`viewport\`, and \`selectedNodeId\`
-4. an inspector derives the selected node through \`useSelectedNode(...)\`
-5. updates commit through \`updateNodeData(...)\`
+## Usual embedding flow
+1. the host app creates nodes
+2. the host app creates selection
+3. pass nodes and viewport into the canvas
+4. read the selected node
+5. edit fields in an inspector or panel
+6. commit back into host state
 
 ## Important framing
 - HyperFlow does not force a form library
-- HyperFlow does not replace persistence architecture
-- the React layer is mainly a canvas/runtime connection seam
-
-## Minimal mental model
-~~~text
-host state
-↓
-React adapter
-↓
-runtime-backed canvas
-~~~`,
-      },
-      customization: {
-        navLabel: "Customization",
-        title: "Customization",
-        markdown: `Customization should be understood as host-level product layering, not as a complete built-in editor framework.
-
-## What is customizable today
-- host-owned inspector
-- host-owned toolbar
-- host-owned selection behavior
-- package-level custom node renderer seam
-
-## Example
-~~~tsx
-<HyperFlowPocCanvas
-  nodes={nodes}
-  viewport={viewport}
-  selectedNodeId={selection.nodeId}
-  onNodeSelect={(nodeId) => onSelectionChange({ nodeId })}
-  nodeRenderers={{
-    "task-brief": TaskBriefNode,
-  }}
-  getNodeRendererKey={(node) => (node.id === 1 ? "task-brief" : null)}
-/>
-~~~
-
-## What is not here yet
-- broad palette systems
-- full node registry platforms
-- template marketplace style customization
-
-## Practical reading
-- design state ownership before styling node chrome
-- build the inspector in host space
-- use the seams to add only what your product needs`,
+- persistence still belongs to the host app
+- the React layer is mostly a canvas/runtime connection seam`,
       },
       layouting: {
-        navLabel: "Layouting",
-        title: "Layouting",
+        navLabel: "Layout and Positioning",
+        title: "Layout and Positioning",
         markdown: `Layouting is one of the first questions frontend teams ask. HyperFlow does not currently promise a complete layout engine.
 
 ## Current reality
@@ -656,8 +926,8 @@ runtime computes visibility and hit-test
 3. evaluate HyperFlow primarily on rendering / visibility / hit-test behavior`,
       },
       performance: {
-        navLabel: "Performance",
-        title: "Performance",
+        navLabel: "Understand Performance",
+        title: "Understand Performance",
         markdown: `Performance is one of the clearest things HyperFlow can prove today.
 
 ## Current focus
@@ -676,8 +946,8 @@ runtime computes visibility and hit-test
 - whether React shell issues are being confused with engine issues`,
       },
       troubleshooting: {
-        navLabel: "Troubleshooting",
-        title: "Troubleshooting",
+        navLabel: "Common Confusion",
+        title: "Common Confusion",
         markdown: `The most common early problem is expectation mismatch.
 
 ## Common misunderstandings
@@ -823,16 +1093,24 @@ function getRouteFromPath(pathname: string): { locale: Locale; pageId: PageId } 
     case "learn":
       switch (sub) {
         case undefined:
-        case "quick-start":
-          return { locale, pageId: "quick-start" };
+        case "what-is-hyperflow":
+          return { locale, pageId: "what-is-hyperflow" };
+        case "when-to-use":
+          return { locale, pageId: "when-to-use" };
         case "installation":
           return { locale, pageId: "installation" };
-        case "core-concepts":
-          return { locale, pageId: "core-concepts" };
-        case "react-integration":
-          return { locale, pageId: "react-integration" };
-        case "customization":
-          return { locale, pageId: "customization" };
+        case "nodes-and-edges":
+          return { locale, pageId: "nodes-and-edges" };
+        case "selection-and-editing":
+          return { locale, pageId: "selection-and-editing" };
+        case "viewport":
+          return { locale, pageId: "viewport" };
+        case "basic-interactions":
+          return { locale, pageId: "basic-interactions" };
+        case "save-and-restore":
+          return { locale, pageId: "save-and-restore" };
+        case "add-to-react-app":
+          return { locale, pageId: "add-to-react-app" };
         case "layouting":
           return { locale, pageId: "layouting" };
         case "performance":
@@ -840,7 +1118,7 @@ function getRouteFromPath(pathname: string): { locale: Locale; pageId: PageId } 
         case "troubleshooting":
           return { locale, pageId: "troubleshooting" };
         default:
-          return { locale, pageId: "quick-start" };
+          return { locale, pageId: "what-is-hyperflow" };
       }
     case "reference":
       switch (sub) {
@@ -869,7 +1147,7 @@ function getRouteFromPath(pathname: string): { locale: Locale; pageId: PageId } 
     case "roadmap":
       return { locale, pageId: "roadmap" };
     default:
-      return { locale, pageId: "quick-start" };
+      return { locale, pageId: "what-is-hyperflow" };
   }
 }
 
@@ -920,6 +1198,32 @@ function parseMarkdown(markdown: string): Block[] {
       continue;
     }
 
+    if (
+      line.trim().startsWith("|") &&
+      i + 1 < lines.length &&
+      /^\s*\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(lines[i + 1])
+    ) {
+      const parseTableCells = (value: string) =>
+        value
+          .trim()
+          .replace(/^\|/, "")
+          .replace(/\|$/, "")
+          .split("|")
+          .map((cell) => cell.trim());
+
+      const headers = parseTableCells(line);
+      i += 2;
+      const rows: string[][] = [];
+
+      while (i < lines.length && lines[i].trim().startsWith("|")) {
+        rows.push(parseTableCells(lines[i]));
+        i += 1;
+      }
+
+      blocks.push({ type: "table", headers, rows });
+      continue;
+    }
+
     if (line.startsWith("- ")) {
       const items: string[] = [];
       while (i < lines.length && lines[i].trimStart().startsWith("- ")) {
@@ -944,7 +1248,16 @@ function parseMarkdown(markdown: string): Block[] {
     i += 1;
     while (i < lines.length) {
       const next = lines[i].trim();
-      if (!next || next.startsWith("## ") || next.startsWith("> ") || next.startsWith("- ") || /^\d+\.\s/.test(next) || next.startsWith("```") || next.startsWith("~~~")) {
+      if (
+        !next ||
+        next.startsWith("## ") ||
+        next.startsWith("> ") ||
+        next.startsWith("- ") ||
+        /^\d+\.\s/.test(next) ||
+        next.startsWith("```") ||
+        next.startsWith("~~~") ||
+        next.startsWith("|")
+      ) {
         break;
       }
       paragraphLines.push(next);
@@ -977,7 +1290,7 @@ async function copyText(text: string) {
 
 function parseInlineSegments(text: string): InlineSegment[] {
   const segments: InlineSegment[] = [];
-  const pattern = /`([^`]+)`/g;
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*)/g;
   let lastIndex = 0;
 
   for (const match of text.matchAll(pattern)) {
@@ -985,7 +1298,12 @@ function parseInlineSegments(text: string): InlineSegment[] {
     if (start > lastIndex) {
       segments.push({ type: "text", text: text.slice(lastIndex, start) });
     }
-    segments.push({ type: "code", text: match[1] });
+    const token = match[0];
+    if (token.startsWith("`")) {
+      segments.push({ type: "code", text: token.slice(1, -1) });
+    } else {
+      segments.push({ type: "bold", text: token.slice(2, -2) });
+    }
     lastIndex = start + match[0].length;
   }
 
@@ -1006,6 +1324,8 @@ function InlineMarkdown({ text }: { text: string }) {
           <code key={`${segment.type}-${index}`} className="markdown-inline-code">
             {segment.text}
           </code>
+        ) : segment.type === "bold" ? (
+          <strong key={`${segment.type}-${index}`}>{segment.text}</strong>
         ) : (
           <Fragment key={`${segment.type}-${index}`}>{segment.text}</Fragment>
         ),
@@ -1132,6 +1452,33 @@ function MarkdownPage({ markdown, copy }: { markdown: string; copy: Copy["code"]
                 <InlineMarkdown text={block.text} />
               </blockquote>
             );
+          case "table":
+            return (
+              <div key={key} className="markdown-table-shell">
+                <table className="markdown-table">
+                  <thead>
+                    <tr>
+                      {block.headers.map((header, headerIndex) => (
+                        <th key={`${key}-header-${headerIndex}`}>
+                          <InlineMarkdown text={header} />
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {block.rows.map((row, rowIndex) => (
+                      <tr key={`${key}-row-${rowIndex}`}>
+                        {row.map((cell, cellIndex) => (
+                          <td key={`${key}-cell-${rowIndex}-${cellIndex}`}>
+                            <InlineMarkdown text={cell} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
           case "code":
             return (
               <div key={key} className="markdown-code-shell">
@@ -1162,7 +1509,7 @@ function MarkdownPage({ markdown, copy }: { markdown: string; copy: Copy["code"]
 
 export function App() {
   const [route, setRoute] = useState<{ locale: Locale; pageId: PageId }>(() =>
-    typeof window === "undefined" ? { locale: "ko", pageId: "quick-start" } : getRouteFromPath(window.location.pathname),
+    typeof window === "undefined" ? { locale: "ko", pageId: "what-is-hyperflow" } : getRouteFromPath(window.location.pathname),
   );
 
   useEffect(() => {
