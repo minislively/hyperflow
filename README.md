@@ -192,78 +192,53 @@ pnpm run verify
 Use `pnpm run check` for quick workspace validation and `pnpm run verify` for runtime test verification.
 
 
-## Fastest React proof path
+## Fastest React docs path
 
-If you want to see the current workflow-builder foundation direction in a React surface first, run:
+If you want to understand the current frontend integration story first, start with the localized Learn surface:
 
 ```bash
-pnpm run dev
+pnpm install
+pnpm run dev:react-starter
 ```
 
-Open this URL in your browser:
+Open one of these URLs in your browser:
 
 ```text
-http://localhost:5173/
+http://localhost:5173/ko/learn
+http://localhost:5173/en/learn
 ```
 
-If the page loads correctly, you should immediately see:
+The current React starter is **not** a finished editor demo anymore.
+It is a **docs-first onboarding surface** for frontend teams.
 
-- a toolbar at the top
-- a workflow canvas in the center
-- an inspector panel for the selected node
+What it explains today:
 
-Quick 30-second user check:
+- installation and local workspace setup
+- the current React integration mental model
+- what HyperFlow owns vs. what the host app still owns
+- customization and layouting expectations
+- runtime/performance boundaries
 
-1. Click a visible node on the canvas.
-2. Change a field in the inspector.
-3. Click `Apply` and confirm the node content updates.
+Current verified frontend environment:
 
-If this works, the current React starter proof path is running as intended.
+- Node.js 24 line
+- pnpm workspace
+- React 19
+- React DOM 19
 
-The current React starter is designed to prove the product experience directly:
+Important honesty note:
 
-- select a workflow node
-- edit its inspector form
-- click `Apply`
-- watch the custom node UI and graph state update together
-- power the inspector with `react-hook-form` while keeping `@hyperflow/react` graph-state-first
+- the repo is verified through a **pnpm-only workspace flow** today
+- `@hyperflow/react` is still a **private workspace package** in this repo
+- npm / yarn / bun install flows are **not** currently documented as supported
+- Docker could be added later for toolchain pinning, but there is **no official Docker workflow** in this repo today
 
-Supporting proof that makes that possible:
+The intended usage model is still:
 
-- starter-like `toolbar + canvas + inspector` composition
-- bounded starter states (`live / loading / empty / error`)
-- package-level custom node injection through `nodeRenderers`
-- React-like host state ownership through `useWorkflowNodesState`
-- explicit package-level selection handling through `useWorkflowSelection`
-- a documented `react-hook-form` integration pattern built on `useSelectedNode` + `updateNodeData`
-
-Minimal custom-node seam example:
-
-```tsx
-import { HyperFlowPocCanvas } from "@hyperflow/react";
-
-<HyperFlowPocCanvas
-  nodes={nodes}
-  viewport={viewport}
-  nodeRenderers={{
-    "task-brief": TaskBriefNode,
-    "manager-response": ManagerResponseNode,
-  }}
-  getNodeRendererKey={(node) =>
-    node.id === 1 ? "task-brief" : node.id === 6 ? "manager-response" : null
-  }
-/>
-```
-
-This is still a thin proof seam, not a full stable node registry API.
-
-The intended usage model is:
-
-- HyperFlow owns canvas + graph-state seams
-- the host app owns `nodes` and `selection`
-- inspector forms can be built with libraries like `react-hook-form`
-- Apply flows commit back through `updateNodeData(...)`
-
+- HyperFlow owns canvas/runtime seams
+- the host app owns `nodes`, `selection`, persistence, and product UX
+- `packages/react` stays a thin React adapter over the validated runtime slice
+- `examples/react-starter` explains that model before pretending to be a full editor
 
 ## Primary commands
 
