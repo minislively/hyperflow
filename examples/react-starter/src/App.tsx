@@ -187,7 +187,10 @@ function cloneLearnDemoNodes() {
 }
 
 function cloneLearnDemoEdges() {
-  return initialLearnDemoEdges.map((edge) => ({ ...edge }));
+  return initialLearnDemoEdges.map((edge) => ({
+    ...edge,
+    bend: edge.bend ? { ...edge.bend } : edge.bend ?? null,
+  }));
 }
 
 function getNextLearnDemoNodeId(nodes: LearnDemoNode[]) {
@@ -2309,7 +2312,18 @@ function EditorMiniMap({
           const y1 = model.projectY(sourceNode.position.y + sourceNode.size.height / 2);
           const x2 = model.projectX(targetNode.position.x + targetNode.size.width / 2);
           const y2 = model.projectY(targetNode.position.y + targetNode.size.height / 2);
-          return <line key={edge.id} className="editor-minimap-edge" x1={x1} y1={y1} x2={x2} y2={y2} />;
+          const bendX = edge.bend ? model.projectX(edge.bend.x) : null;
+          const bendY = edge.bend ? model.projectY(edge.bend.y) : null;
+
+          return bendX !== null && bendY !== null ? (
+            <polyline
+              key={edge.id}
+              className="editor-minimap-edge"
+              points={`${x1},${y1} ${bendX},${bendY} ${x2},${y2}`}
+            />
+          ) : (
+            <line key={edge.id} className="editor-minimap-edge" x1={x1} y1={y1} x2={x2} y2={y2} />
+          );
         })}
         {nodes.map((node) => (
           <rect
@@ -2403,7 +2417,7 @@ function MainEditorSurface({
             deleteNode: "노드 삭제",
             deleteEdge: "엣지 삭제",
             edgeLabel: "선택된 엣지",
-            edgeHint: "핸들을 눌러 새 연결을 만들고, 선을 선택한 뒤 삭제할 수 있다.",
+            edgeHint: "핸들을 눌러 새 연결을 만들고, 선이나 파란 점을 끌어 경로를 움직인 뒤 삭제할 수 있다.",
             saved: "저장된 스냅샷",
             notSaved: "아직 저장된 스냅샷이 없다.",
           },
@@ -2439,7 +2453,7 @@ function MainEditorSurface({
             deleteNode: "Delete node",
             deleteEdge: "Delete edge",
             edgeLabel: "Selected edge",
-            edgeHint: "Use the handles to create connections, then select an edge and remove it.",
+            edgeHint: "Use handles to create connections, drag the blue edge point to reroute the line, then remove it if needed.",
             saved: "Saved snapshot",
             notSaved: "No saved snapshot yet.",
           },
@@ -2517,7 +2531,10 @@ function MainEditorSurface({
         size: { ...node.size },
         data: { ...node.data },
       })),
-      edges: edges.map((edge) => ({ ...edge })),
+      edges: edges.map((edge) => ({
+        ...edge,
+        bend: edge.bend ? { ...edge.bend } : edge.bend ?? null,
+      })),
       viewport: { ...viewport },
     });
   }
@@ -2532,7 +2549,12 @@ function MainEditorSurface({
         data: { ...node.data },
       })),
     );
-    setEdges(savedSnapshot.edges.map((edge) => ({ ...edge })));
+    setEdges(
+      savedSnapshot.edges.map((edge) => ({
+        ...edge,
+        bend: edge.bend ? { ...edge.bend } : edge.bend ?? null,
+      })),
+    );
     setViewport({ ...savedSnapshot.viewport });
     onSelectionChange({ nodeId: null });
     setSelectedEdgeId(null);
@@ -2679,9 +2701,22 @@ function MainEditorSurface({
                         source: sourceNodeId,
                         target: targetNodeId,
                         type: "default",
+                        bend: null,
                       },
                     ];
                   });
+                }}
+                onEdgeBendChange={(edgeId, nextBend) => {
+                  setEdges((current) =>
+                    current.map((edge) =>
+                      edge.id === edgeId
+                        ? {
+                            ...edge,
+                            bend: nextBend ? { ...nextBend } : null,
+                          }
+                        : edge,
+                    ),
+                  );
                 }}
                 onViewportChange={setViewport}
                 interactive
@@ -2738,6 +2773,12 @@ function MainEditorSurface({
                       edges: savedSnapshot.edges.map((edge) => ({
                         source: edge.source,
                         target: edge.target,
+                        bend: edge.bend
+                          ? {
+                              x: Math.round(edge.bend.x),
+                              y: Math.round(edge.bend.y),
+                            }
+                          : null,
                       })),
                       viewport: {
                         x: Math.round(savedSnapshot.viewport.x),
@@ -2847,7 +2888,7 @@ function LearnInteractiveDemo({
             notSaved: "아직 저장된 스냅샷이 없다.",
             connectHint: "오른쪽 점을 눌러 시작하고 다른 노드의 왼쪽 점을 눌러 연결한다.",
             edgeLabel: "선택된 엣지",
-            edgeEmpty: "엣지를 클릭하면 연결을 삭제할 수 있다.",
+            edgeEmpty: "엣지를 클릭하거나 파란 점을 끌어서 연결을 지우거나 경로를 바꿀 수 있다.",
           },
         }
       : {
@@ -2906,7 +2947,7 @@ function LearnInteractiveDemo({
             notSaved: "No saved snapshot yet.",
             connectHint: "Click a right handle to start, then a left handle on another node to connect them.",
             edgeLabel: "Selected edge",
-            edgeEmpty: "Click an edge to remove that connection.",
+            edgeEmpty: "Click an edge or drag the blue point to remove or reroute that connection.",
           },
         };
 
@@ -2983,7 +3024,10 @@ function LearnInteractiveDemo({
         size: { ...node.size },
         data: { ...node.data },
       })),
-      edges: edges.map((edge) => ({ ...edge })),
+      edges: edges.map((edge) => ({
+        ...edge,
+        bend: edge.bend ? { ...edge.bend } : edge.bend ?? null,
+      })),
       viewport: { ...viewport },
     });
   }
@@ -2998,7 +3042,12 @@ function LearnInteractiveDemo({
         data: { ...node.data },
       })),
     );
-    setEdges(savedSnapshot.edges.map((edge) => ({ ...edge })));
+    setEdges(
+      savedSnapshot.edges.map((edge) => ({
+        ...edge,
+        bend: edge.bend ? { ...edge.bend } : edge.bend ?? null,
+      })),
+    );
     setViewport({ ...savedSnapshot.viewport });
     onSelectionChange({ nodeId: null });
     setSelectedEdgeId(null);
@@ -3089,9 +3138,22 @@ function LearnInteractiveDemo({
                     source: sourceNodeId,
                     target: targetNodeId,
                     type: "default",
+                    bend: null,
                   },
                 ];
               });
+            }}
+            onEdgeBendChange={(edgeId, nextBend) => {
+              setEdges((current) =>
+                current.map((edge) =>
+                  edge.id === edgeId
+                    ? {
+                        ...edge,
+                        bend: nextBend ? { ...nextBend } : null,
+                      }
+                    : edge,
+                ),
+              );
             }}
             onViewportChange={setViewport}
             interactive
@@ -3149,6 +3211,12 @@ function LearnInteractiveDemo({
                           edges: savedSnapshot.edges.map((edge) => ({
                             source: edge.source,
                             target: edge.target,
+                            bend: edge.bend
+                              ? {
+                                  x: Math.round(edge.bend.x),
+                                  y: Math.round(edge.bend.y),
+                                }
+                              : null,
                           })),
                           viewport: {
                             x: savedSnapshot.viewport.x,

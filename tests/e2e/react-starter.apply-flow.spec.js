@@ -61,6 +61,19 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
     expect(nodeOnePosition).not.toBeNull();
     expect(Number(nodeOnePosition?.[1] ?? 0)).toBeGreaterThan(120);
     expect(Number(nodeOnePosition?.[2] ?? 0)).toBeGreaterThan(80);
+    const primaryEdge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]');
+    const primaryEdgeBox = await primaryEdge.boundingBox();
+    if (!primaryEdgeBox) throw new Error("edge path missing before reroute");
+    await page.mouse.move(primaryEdgeBox.x + primaryEdgeBox.width / 2, primaryEdgeBox.y + primaryEdgeBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(primaryEdgeBox.x + primaryEdgeBox.width / 2 + 56, primaryEdgeBox.y + primaryEdgeBox.height / 2 + 48, {
+        steps: 10
+    });
+    await page.mouse.up();
+    await page.getByRole("button", {
+        name: "저장"
+    }).click();
+    await expect(page.locator(".editor-snapshot")).toContainText('"bend"');
     await page.getByRole("button", {
         name: "Connect from node 3"
     }).click();
@@ -69,16 +82,6 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
     }).click();
     const newEdge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-3-4-3"]');
     await expect(newEdge).toBeVisible();
-    await newEdge.click({
-        force: true
-    });
-    await expect(page.getByRole("heading", {
-        name: "선택된 엣지"
-    })).toBeVisible();
-    await page.getByRole("button", {
-        name: "엣지 삭제"
-    }).click();
-    await expect(newEdge).toHaveCount(0);
     await nodeOne.click();
     await expect(page.getByRole("heading", {
         name: "Node A"

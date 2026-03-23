@@ -31,6 +31,7 @@ export type PocEdge<TType extends string = string> = {
   source: number;
   target: number;
   type?: TType;
+  bend?: PocNodePosition | null;
 };
 
 export type PocRuntimeNode = HyperflowRuntimeNode;

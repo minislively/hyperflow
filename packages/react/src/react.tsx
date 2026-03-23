@@ -45,6 +45,7 @@ export type HyperFlowPocCanvasProps = {
   onNodePositionChange?: (nodeId: number, nextPosition: PocNode["position"]) => void;
   onViewportChange?: (viewport: PocViewport) => void;
   onEdgeConnect?: (sourceNodeId: number, targetNodeId: number) => void;
+  onEdgeBendChange?: (edgeId: string, nextBend: PocEdge["bend"]) => void;
   onMetricsChange?: (metrics: PocMetrics) => void;
   onReadyChange?: (ready: boolean) => void;
 };
@@ -68,6 +69,7 @@ export function HyperFlowPocCanvas({
   onNodePositionChange,
   onViewportChange,
   onEdgeConnect,
+  onEdgeBendChange,
   onMetricsChange,
   onReadyChange,
 }: HyperFlowPocCanvasProps) {
@@ -80,11 +82,14 @@ export function HyperFlowPocCanvas({
   const viewportRef = useRef(viewport);
   const onNodePositionChangeRef = useRef(onNodePositionChange);
   const onViewportChangeRef = useRef(onViewportChange);
+  const onEdgeBendChangeRef = useRef(onEdgeBendChange);
+  const ignoreCanvasClickUntilRef = useRef(0);
   const dragStateRef = useRef<
     | null
     | {
         kind: "node";
         pointerId: number | null;
+        moved: boolean;
         nodeId: number;
         startClientX: number;
         startClientY: number;
@@ -93,9 +98,19 @@ export function HyperFlowPocCanvas({
     | {
         kind: "pan";
         pointerId: number | null;
+        moved: boolean;
         startClientX: number;
         startClientY: number;
         startViewport: PocViewport;
+      }
+    | {
+        kind: "edge";
+        pointerId: number | null;
+        moved: boolean;
+        edgeId: string;
+        startClientX: number;
+        startClientY: number;
+        startBend: PocNode["position"];
       }
   >(null);
   const hasCustomNodeRendering = useMemo(() => {
@@ -110,7 +125,8 @@ export function HyperFlowPocCanvas({
     viewportRef.current = viewport;
     onNodePositionChangeRef.current = onNodePositionChange;
     onViewportChangeRef.current = onViewportChange;
-  }, [onNodePositionChange, onViewportChange, viewport]);
+    onEdgeBendChangeRef.current = onEdgeBendChange;
+  }, [onEdgeBendChange, onNodePositionChange, onViewportChange, viewport]);
 
   function getCanvasPoint(event: Pick<React.PointerEvent<HTMLCanvasElement>, "clientX" | "clientY">) {
     if (!canvasRef.current) return null;
@@ -190,6 +206,7 @@ export function HyperFlowPocCanvas({
 
   function handleClick(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!isInteractive || !engine || !canvasRef.current) return;
+    if (Date.now() < ignoreCanvasClickUntilRef.current) return;
 
     const canvasPoint = getCanvasPoint(event);
     if (!canvasPoint) return;
@@ -208,10 +225,11 @@ export function HyperFlowPocCanvas({
     dragStateRef.current = {
       kind: "node",
       pointerId,
+      moved: false,
       nodeId: node.id,
       startClientX: clientX,
-        startClientY: clientY,
-        startPosition: { ...node.position },
+      startClientY: clientY,
+      startPosition: { ...node.position },
     };
   }
 
@@ -234,9 +252,30 @@ export function HyperFlowPocCanvas({
     dragStateRef.current = {
       kind: "pan",
       pointerId,
+      moved: false,
       startClientX: clientX,
       startClientY: clientY,
       startViewport: { ...viewportRef.current },
+    };
+  }
+
+  function startEdgeDrag(
+    edgeId: string,
+    clientX: number,
+    clientY: number,
+    startBend: PocNode["position"],
+    pointerId: number | null = null,
+  ) {
+    selectNode(null);
+    selectEdge(edgeId);
+    dragStateRef.current = {
+      kind: "edge",
+      pointerId,
+      moved: false,
+      edgeId,
+      startClientX: clientX,
+      startClientY: clientY,
+      startBend,
     };
   }
 
@@ -307,11 +346,22 @@ export function HyperFlowPocCanvas({
     const currentViewport = viewportRef.current;
     const deltaWorldX = ((event.clientX - dragState.startClientX) * xScale) / currentViewport.zoom;
     const deltaWorldY = ((event.clientY - dragState.startClientY) * yScale) / currentViewport.zoom;
+    if (Math.abs(deltaWorldX) > 0.5 || Math.abs(deltaWorldY) > 0.5) {
+      dragState.moved = true;
+    }
 
     if (dragState.kind === "node" && onNodePositionChangeRef.current) {
       onNodePositionChangeRef.current(dragState.nodeId, {
         x: Math.max(0, dragState.startPosition.x + deltaWorldX),
         y: Math.max(0, dragState.startPosition.y + deltaWorldY),
+      });
+      return;
+    }
+
+    if (dragState.kind === "edge" && onEdgeBendChangeRef.current) {
+      onEdgeBendChangeRef.current(dragState.edgeId, {
+        x: Math.max(0, dragState.startBend.x + deltaWorldX),
+        y: Math.max(0, dragState.startBend.y + deltaWorldY),
       });
       return;
     }
@@ -328,6 +378,9 @@ export function HyperFlowPocCanvas({
   function handlePointerEnd(event: { pointerId: number | null } | React.PointerEvent<HTMLCanvasElement>) {
     if (!dragStateRef.current) return;
     if (!matchesDragPointer(event.pointerId)) return;
+    if (dragStateRef.current.moved) {
+      ignoreCanvasClickUntilRef.current = Date.now() + 180;
+    }
     dragStateRef.current = null;
   }
 
@@ -342,6 +395,9 @@ export function HyperFlowPocCanvas({
 
   function handleMouseEnd() {
     if (!dragStateRef.current || dragStateRef.current.pointerId !== null) return;
+    if (dragStateRef.current.moved) {
+      ignoreCanvasClickUntilRef.current = Date.now() + 180;
+    }
     dragStateRef.current = null;
   }
 
@@ -416,17 +472,42 @@ export function HyperFlowPocCanvas({
         const sourceY = (sourceNode.position.y + sourceNode.size.height / 2 - viewport.y) * viewport.zoom;
         const targetX = (targetNode.position.x - viewport.x) * viewport.zoom;
         const targetY = (targetNode.position.y + targetNode.size.height / 2 - viewport.y) * viewport.zoom;
-        const controlOffset = Math.max(48, Math.abs(targetX - sourceX) * 0.35);
-        const path = `M ${sourceX} ${sourceY} C ${sourceX + controlOffset} ${sourceY}, ${targetX - controlOffset} ${targetY}, ${targetX} ${targetY}`;
+        const defaultBendX = (sourceNode.position.x + sourceNode.size.width + targetNode.position.x) / 2;
+        const defaultBendY =
+          (sourceNode.position.y + sourceNode.size.height / 2 + targetNode.position.y + targetNode.size.height / 2) / 2;
+        const bendWorldX = edge.bend?.x ?? defaultBendX;
+        const bendWorldY = edge.bend?.y ?? defaultBendY;
+        const bendX = (bendWorldX - viewport.x) * viewport.zoom;
+        const bendY = (bendWorldY - viewport.y) * viewport.zoom;
+        const path = edge.bend
+          ? `M ${sourceX} ${sourceY} L ${bendX} ${bendY} L ${targetX} ${targetY}`
+          : `M ${sourceX} ${sourceY} C ${sourceX + Math.max(48, Math.abs(targetX - sourceX) * 0.35)} ${sourceY}, ${
+              targetX - Math.max(48, Math.abs(targetX - sourceX) * 0.35)
+            } ${targetY}, ${targetX} ${targetY}`;
 
         return {
           id: edge.id,
           path,
-          midX: (sourceX + targetX) / 2,
-          midY: (sourceY + targetY) / 2,
+          bendX,
+          bendY,
+          bendWorldX,
+          bendWorldY,
+          hasBend: Boolean(edge.bend),
+          midX: edge.bend ? bendX : (sourceX + targetX) / 2,
+          midY: edge.bend ? bendY : (sourceY + targetY) / 2,
         };
       })
-      .filter(Boolean) as Array<{ id: string; path: string; midX: number; midY: number }>;
+      .filter(Boolean) as Array<{
+      id: string;
+      path: string;
+      midX: number;
+      midY: number;
+      bendX: number;
+      bendY: number;
+      bendWorldX: number;
+      bendWorldY: number;
+      hasBend: boolean;
+    }>;
   }, [edges, nodes, viewport.x, viewport.y, viewport.zoom]);
 
   const renderedHandles = useMemo(() => {
@@ -500,10 +581,18 @@ export function HyperFlowPocCanvas({
                 onPointerDown={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
+                  selectNode(null);
+                  selectEdge(edge.id);
+                  if (!isInteractive || !onEdgeBendChange) return;
+                  startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendWorldX, y: edge.bendWorldY }, event.pointerId);
                 }}
                 onMouseDown={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
+                  selectNode(null);
+                  selectEdge(edge.id);
+                  if (!isInteractive || !onEdgeBendChange || event.button !== 0) return;
+                  startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendWorldX, y: edge.bendWorldY });
                 }}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -527,13 +616,46 @@ export function HyperFlowPocCanvas({
                 aria-hidden="true"
               />
               {selectedEdgeId === edge.id ? (
-                <circle
-                  className="hf-edge-overlay-marker"
-                  cx={edge.midX}
-                  cy={edge.midY}
-                  r="6"
-                  aria-hidden="true"
-                />
+                <>
+                  <circle
+                    className="hf-edge-overlay-marker"
+                    cx={edge.midX}
+                    cy={edge.midY}
+                    r="6"
+                    aria-hidden="true"
+                  />
+                  <circle
+                    className="hf-edge-overlay-control"
+                    data-edge-control-id={edge.id}
+                    cx={edge.midX}
+                    cy={edge.midY}
+                    r="10"
+                    role="button"
+                    aria-label={`Move edge ${edge.id}`}
+                    tabIndex={0}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      selectNode(null);
+                      selectEdge(edge.id);
+                      if (!isInteractive || !onEdgeBendChange) return;
+                      startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendWorldX, y: edge.bendWorldY }, event.pointerId);
+                    }}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      selectNode(null);
+                      selectEdge(edge.id);
+                      if (!isInteractive || !onEdgeBendChange || event.button !== 0) return;
+                      startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendWorldX, y: edge.bendWorldY });
+                    }}
+                    onDoubleClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onEdgeBendChange?.(edge.id, null);
+                    }}
+                  />
+                </>
               ) : null}
             </Fragment>
           ))}
