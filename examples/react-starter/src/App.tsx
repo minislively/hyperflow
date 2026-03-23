@@ -219,6 +219,51 @@ function createLearnDemoNode(
   };
 }
 
+function findNextNodePlacement<TData>(
+  nodes: Array<PocNode<TData>>,
+  viewport: PocViewport,
+  size: PocNode<TData>["size"] = { width: 180, height: 96 },
+) {
+  const baseX = Math.max(24, viewport.x + viewport.width / viewport.zoom / 2 - size.width / 2);
+  const baseY = Math.max(24, viewport.y + viewport.height / viewport.zoom / 2 - size.height / 2);
+  const stepX = size.width + 44;
+  const stepY = size.height + 36;
+  const overlapPadding = 24;
+
+  const overlapsExistingNode = (position: PocNode<TData>["position"]) =>
+    nodes.some((node) => {
+      const nextLeft = position.x - overlapPadding;
+      const nextTop = position.y - overlapPadding;
+      const nextRight = position.x + size.width + overlapPadding;
+      const nextBottom = position.y + size.height + overlapPadding;
+      const currentLeft = node.position.x;
+      const currentTop = node.position.y;
+      const currentRight = node.position.x + node.size.width;
+      const currentBottom = node.position.y + node.size.height;
+
+      return nextLeft < currentRight && nextRight > currentLeft && nextTop < currentBottom && nextBottom > currentTop;
+    });
+
+  for (let radius = 0; radius <= 4; radius += 1) {
+    for (let row = -radius; row <= radius; row += 1) {
+      for (let column = -radius; column <= radius; column += 1) {
+        if (radius > 0 && Math.max(Math.abs(column), Math.abs(row)) !== radius) continue;
+
+        const candidate = {
+          x: Math.max(24, baseX + column * stepX),
+          y: Math.max(24, baseY + row * stepY),
+        };
+
+        if (!overlapsExistingNode(candidate)) {
+          return candidate;
+        }
+      }
+    }
+  }
+
+  return { x: baseX, y: baseY };
+}
+
 function getEditorRouteLabel(locale: Locale) {
   return locale === "ko" ? "에디터" : "Editor";
 }
@@ -2578,10 +2623,7 @@ function MainEditorSurface({
 
   function addNode() {
     const nextId = getNextLearnDemoNodeId(nodes);
-    const nextPosition = {
-      x: Math.max(24, viewport.x + viewport.width / viewport.zoom / 2 - 110),
-      y: Math.max(24, viewport.y + viewport.height / viewport.zoom / 2 - 54),
-    };
+    const nextPosition = findNextNodePlacement(nodes, viewport);
     setNodes((current) => [...current, createLearnDemoNode(nextId, { position: nextPosition, index: current.length })]);
     setSelectedNodeIds([nextId]);
     onSelectionChange({ nodeId: nextId });
@@ -3113,10 +3155,7 @@ function LearnInteractiveDemo({
 
   function addNode() {
     const nextId = getNextLearnDemoNodeId(nodes);
-    const nextPosition = {
-      x: Math.max(0, viewport.x + viewport.width / viewport.zoom / 2 - 90),
-      y: Math.max(0, viewport.y + viewport.height / viewport.zoom / 2 - 48),
-    };
+    const nextPosition = findNextNodePlacement(nodes, viewport);
     setNodes((current) => [...current, createLearnDemoNode(nextId, { position: nextPosition, index: current.length })]);
     onSelectionChange({ nodeId: nextId });
     setSelectedEdgeId(null);

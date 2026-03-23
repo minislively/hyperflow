@@ -35,6 +35,17 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
 
   await page.getByRole("button", { name: "노드 추가" }).click();
   await expect(page.locator("[data-node-card-id='4']")).toBeVisible();
+  await page.getByRole("button", { name: "노드 추가" }).click();
+  await expect(page.locator("[data-node-card-id='5']")).toBeVisible();
+  const nodeFourBox = await page.locator("[data-node-card-id='4']").boundingBox();
+  const nodeFiveBox = await page.locator("[data-node-card-id='5']").boundingBox();
+  if (!nodeFourBox || !nodeFiveBox) throw new Error("new node boxes missing after add");
+  const overlaps =
+    nodeFourBox.x < nodeFiveBox.x + nodeFiveBox.width &&
+    nodeFourBox.x + nodeFourBox.width > nodeFiveBox.x &&
+    nodeFourBox.y < nodeFiveBox.y + nodeFiveBox.height &&
+    nodeFourBox.y + nodeFourBox.height > nodeFiveBox.y;
+  expect(overlaps).toBeFalsy();
 
   const nodeOne = page.locator("[data-node-card-id='1']");
   const before = await nodeOne.boundingBox();
@@ -64,10 +75,11 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
   await page.getByRole("button", { name: "저장" }).click();
   await expect(page.locator(".editor-snapshot")).toContainText('"bend"');
 
-  await page.getByRole("button", { name: "Connect from node 3" }).click();
-  await page.getByRole("button", { name: "Connect into node 4" }).click();
-  const newEdge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-3-4-3"]');
-  await expect(newEdge).toBeVisible();
+  await page.getByRole("button", { name: "Connect from node 4" }).click();
+  await page.getByRole("button", { name: "Connect into node 5" }).click();
+  const newEdge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-4-5-3"]');
+  await expect(newEdge).toHaveCount(1);
+  await expect(page.getByText("엣지: 3")).toBeVisible();
 
   await nodeOne.click();
   await expect(page.getByRole("heading", { name: "Node A" })).toBeVisible();
