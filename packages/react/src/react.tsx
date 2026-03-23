@@ -31,6 +31,7 @@ export type HyperFlowPocCanvasProps = {
   edges?: PocEdge[];
   viewport: PocViewport;
   selectedNodeId?: number | null;
+  selectedEdgeId?: string | null;
   width?: number;
   height?: number;
   className?: string;
@@ -40,6 +41,7 @@ export type HyperFlowPocCanvasProps = {
   getNodeRendererKey?: (node: PocNode) => string | null;
   getNodeRendererData?: (node: PocNode) => unknown;
   onNodeSelect?: (nodeId: number | null) => void;
+  onEdgeSelect?: (edgeId: string | null) => void;
   onNodePositionChange?: (nodeId: number, nextPosition: PocNode["position"]) => void;
   onViewportChange?: (viewport: PocViewport) => void;
   onEdgeConnect?: (sourceNodeId: number, targetNodeId: number) => void;
@@ -52,6 +54,7 @@ export function HyperFlowPocCanvas({
   edges = [],
   viewport,
   selectedNodeId = null,
+  selectedEdgeId = null,
   width = 960,
   height = 540,
   className,
@@ -61,6 +64,7 @@ export function HyperFlowPocCanvas({
   getNodeRendererKey,
   getNodeRendererData,
   onNodeSelect,
+  onEdgeSelect,
   onNodePositionChange,
   onViewportChange,
   onEdgeConnect,
@@ -164,6 +168,10 @@ export function HyperFlowPocCanvas({
     onNodeSelect?.(nodeId);
   }
 
+  function selectEdge(edgeId: string | null) {
+    onEdgeSelect?.(edgeId);
+  }
+
   function handleClick(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!isInteractive || !engine || !canvasRef.current) return;
 
@@ -175,6 +183,7 @@ export function HyperFlowPocCanvas({
     };
 
     selectNode(engine.hitTest(worldPoint));
+    selectEdge(null);
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -191,6 +200,7 @@ export function HyperFlowPocCanvas({
 
     if (node && onNodePositionChange) {
       selectNode(node.id);
+      selectEdge(null);
       dragStateRef.current = {
         kind: "node",
         pointerId: event.pointerId,
@@ -204,6 +214,8 @@ export function HyperFlowPocCanvas({
     }
 
     if (onViewportChange) {
+      selectNode(null);
+      selectEdge(null);
       dragStateRef.current = {
         kind: "pan",
         pointerId: event.pointerId,
@@ -305,9 +317,11 @@ export function HyperFlowPocCanvas({
         return {
           id: edge.id,
           path,
+          midX: (sourceX + targetX) / 2,
+          midY: (sourceY + targetY) / 2,
         };
       })
-      .filter(Boolean) as Array<{ id: string; path: string }>;
+      .filter(Boolean) as Array<{ id: string; path: string; midX: number; midY: number }>;
   }, [edges, nodes, viewport.x, viewport.y, viewport.zoom]);
 
   const renderedHandles = useMemo(() => {
@@ -331,6 +345,8 @@ export function HyperFlowPocCanvas({
     if (!onEdgeConnect) return;
 
     if (role === "source") {
+      selectNode(nodeId);
+      selectEdge(null);
       setPendingConnectionSourceId((current) => (Number(current) === Number(nodeId) ? null : nodeId));
       return;
     }
@@ -342,6 +358,8 @@ export function HyperFlowPocCanvas({
     }
 
     onEdgeConnect(pendingConnectionSourceId, nodeId);
+    selectNode(nodeId);
+    selectEdge(null);
     setPendingConnectionSourceId(null);
   }
 
@@ -366,9 +384,41 @@ export function HyperFlowPocCanvas({
       />
 
       {renderedEdges.length > 0 ? (
-        <svg className="hf-edge-overlay" width={width} height={height} aria-hidden="true">
+        <svg className="hf-edge-overlay" width={width} height={height}>
           {renderedEdges.map((edge) => (
-            <path key={edge.id} d={edge.path} className="hf-edge-overlay-path" />
+            <Fragment key={edge.id}>
+              <path
+                d={edge.path}
+                className="hf-edge-overlay-hit"
+                data-edge-id={edge.id}
+                role="button"
+                aria-label={`Select edge ${edge.id}`}
+                tabIndex={0}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  selectNode(null);
+                  selectEdge(edge.id);
+                }}
+              />
+              <path
+                d={edge.path}
+                className={
+                  selectedEdgeId === edge.id
+                    ? "hf-edge-overlay-path hf-edge-overlay-path-selected"
+                    : "hf-edge-overlay-path"
+                }
+                aria-hidden="true"
+              />
+              {selectedEdgeId === edge.id ? (
+                <circle
+                  className="hf-edge-overlay-marker"
+                  cx={edge.midX}
+                  cy={edge.midY}
+                  r="6"
+                  aria-hidden="true"
+                />
+              ) : null}
+            </Fragment>
           ))}
         </svg>
       ) : null}

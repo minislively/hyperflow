@@ -177,6 +177,23 @@ function cloneLearnDemoEdges() {
   return initialLearnDemoEdges.map((edge) => ({ ...edge }));
 }
 
+function getNextLearnDemoNodeId(nodes: LearnDemoNode[]) {
+  return nodes.reduce((maxId, node) => Math.max(maxId, Number(node.id)), 0) + 1;
+}
+
+function createLearnDemoNode(nodeId: number, index: number): LearnDemoNode {
+  return {
+    id: nodeId,
+    type: "default",
+    position: { x: 120 + index * 220, y: 220 },
+    size: { width: 180, height: 96 },
+    data: {
+      title: `Node ${String.fromCharCode(64 + Math.min(nodeId, 26))}`,
+      note: "New node",
+    },
+  };
+}
+
 const copyByLocale: Record<Locale, Copy> = {
   ko: {
     brand: "HyperFlow",
@@ -2061,6 +2078,7 @@ function LearnInteractiveDemo({
   const [edges, setEdges] = useWorkflowEdgesState<LearnDemoEdge>(cloneLearnDemoEdges());
   const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: null });
   const selectedNode = useSelectedNode({ nodes, selection });
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<PocViewport>(() =>
     fitPocViewportToNodes(cloneLearnDemoNodes(), {
       width: learnDemoCanvas.width,
@@ -2091,24 +2109,30 @@ function LearnInteractiveDemo({
               : "저장했다가 다시 복원하는 흐름을 직접 볼 수 있다",
           body:
             mode === "basic-interactions"
-              ? "노드를 직접 끌어서 옮기고, 빈 공간을 드래그해서 화면을 이동해봐라. 오른쪽 점을 누른 뒤 다른 노드의 왼쪽 점을 누르면 연결도 만들 수 있다."
-              : "노드를 직접 옮기거나 제목을 바꾼 뒤 저장해봐라. 연결을 추가한 뒤 복원을 누르면 저장된 nodes, edges, viewport가 함께 돌아온다.",
+              ? "노드를 직접 끌어서 옮기고, 빈 공간을 드래그해서 화면을 이동해봐라. 오른쪽 점을 누른 뒤 다른 노드의 왼쪽 점을 누르면 연결도 만들 수 있고, 위 버튼으로 노드를 추가하거나 선택된 항목을 지울 수도 있다."
+              : "노드를 직접 옮기거나 제목을 바꾼 뒤 저장해봐라. 연결을 추가하거나 선택한 항목을 지운 뒤 복원을 누르면 저장된 nodes, edges, viewport가 함께 돌아온다.",
           aria: mode === "basic-interactions" ? "기본 상호작용 live demo" : "저장과 복원 live demo",
           toolbar: {
             fit: "맞춤 보기",
             zoomIn: "확대",
             zoomOut: "축소",
+            addNode: "노드 추가",
+            deleteSelection: "선택 삭제",
             save: "저장",
             restore: "복원",
           },
           inspector: {
-            title: "선택된 노드",
+            title: "선택된 항목",
             empty: "캔버스에서 노드를 클릭하면 여기서 제목을 바꾸고 다시 반영할 수 있다.",
             field: "제목",
             apply: "적용",
+            deleteNode: "노드 삭제",
+            deleteEdge: "엣지 삭제",
             saved: "저장된 데이터",
             notSaved: "아직 저장된 스냅샷이 없다.",
             connectHint: "오른쪽 점을 눌러 시작하고 다른 노드의 왼쪽 점을 눌러 연결한다.",
+            edgeLabel: "선택된 엣지",
+            edgeEmpty: "엣지를 클릭하면 연결을 삭제할 수 있다.",
           },
         }
       : {
@@ -2119,24 +2143,30 @@ function LearnInteractiveDemo({
               : "You can save and restore the flow here",
           body:
             mode === "basic-interactions"
-              ? "Drag a node directly, drag empty canvas space to pan, and use zoom or fit view. Click a right handle, then a left handle, to create a connection."
-              : "Move a node or rename it, add a connection, save the state, and then restore it. That shows how nodes, edges, and viewport come back together.",
+              ? "Drag a node directly, drag empty canvas space to pan, and use zoom or fit view. Click a right handle, then a left handle, to create a connection. Use the toolbar to add nodes or delete the current selection."
+              : "Move a node or rename it, add a connection, remove the current selection, save the state, and then restore it. That shows how nodes, edges, and viewport come back together.",
           aria: mode === "basic-interactions" ? "Basic interactions live demo" : "Save and restore live demo",
           toolbar: {
             fit: "Fit view",
             zoomIn: "Zoom in",
             zoomOut: "Zoom out",
+            addNode: "Add node",
+            deleteSelection: "Delete selection",
             save: "Save",
             restore: "Restore",
           },
           inspector: {
-            title: "Selected node",
+            title: "Selected item",
             empty: "Click a node on the canvas to rename it and push the change back.",
             field: "Title",
             apply: "Apply",
+            deleteNode: "Delete node",
+            deleteEdge: "Delete edge",
             saved: "Saved snapshot",
             notSaved: "No saved snapshot yet.",
             connectHint: "Click a right handle to start, then a left handle on another node to connect them.",
+            edgeLabel: "Selected edge",
+            edgeEmpty: "Click an edge to remove that connection.",
           },
         };
 
@@ -2176,6 +2206,33 @@ function LearnInteractiveDemo({
     }));
   }
 
+  function addNode() {
+    setNodes((current) => {
+      const nextId = getNextLearnDemoNodeId(current);
+      return [...current, createLearnDemoNode(nextId, current.length)];
+    });
+    onSelectionChange({ nodeId: null });
+    setSelectedEdgeId(null);
+  }
+
+  function deleteSelected() {
+    if (selectedEdgeId) {
+      setEdges((current) => current.filter((edge) => edge.id !== selectedEdgeId));
+      setSelectedEdgeId(null);
+      return;
+    }
+
+    if (!selectedNode) return;
+
+    setNodes((current) => current.filter((node) => Number(node.id) !== Number(selectedNode.id)));
+    setEdges((current) =>
+      current.filter(
+        (edge) => Number(edge.source) !== Number(selectedNode.id) && Number(edge.target) !== Number(selectedNode.id),
+      ),
+    );
+    onSelectionChange({ nodeId: null });
+  }
+
   function saveSnapshot() {
     setSavedSnapshot({
       nodes: nodes.map((node) => ({
@@ -2202,6 +2259,7 @@ function LearnInteractiveDemo({
     setEdges(savedSnapshot.edges.map((edge) => ({ ...edge })));
     setViewport({ ...savedSnapshot.viewport });
     onSelectionChange({ nodeId: null });
+    setSelectedEdgeId(null);
   }
 
   return (
@@ -2222,6 +2280,16 @@ function LearnInteractiveDemo({
           </button>
           <button type="button" onClick={() => zoom(0.15)}>
             {copy.toolbar.zoomIn}
+          </button>
+          <button type="button" onClick={addNode}>
+            {copy.toolbar.addNode}
+          </button>
+          <button
+            type="button"
+            onClick={deleteSelected}
+            disabled={!selectedNode && !selectedEdgeId}
+          >
+            {copy.toolbar.deleteSelection}
           </button>
         </div>
         {mode === "save-and-restore" ? (
@@ -2245,7 +2313,15 @@ function LearnInteractiveDemo({
             width={learnDemoCanvas.width}
             height={learnDemoCanvas.height}
             selectedNodeId={selection.nodeId}
-            onNodeSelect={(nodeId) => onSelectionChange({ nodeId })}
+            selectedEdgeId={selectedEdgeId}
+            onNodeSelect={(nodeId) => {
+              onSelectionChange({ nodeId });
+              if (nodeId !== null) setSelectedEdgeId(null);
+            }}
+            onEdgeSelect={(edgeId) => {
+              setSelectedEdgeId(edgeId);
+              if (edgeId !== null) onSelectionChange({ nodeId: null });
+            }}
             onNodePositionChange={(nodeId, nextPosition) => {
               updateNodeData(setNodes, nodeId, () => ({
                 position: nextPosition,
@@ -2282,12 +2358,28 @@ function LearnInteractiveDemo({
                 <span>{copy.inspector.field}</span>
                 <input value={titleDraft} onChange={(event) => setTitleDraft(event.target.value)} />
               </label>
-              <button type="button" onClick={applyTitle}>
-                {copy.inspector.apply}
-              </button>
+              <div className="learn-live-inspector-actions">
+                <button type="button" onClick={applyTitle}>
+                  {copy.inspector.apply}
+                </button>
+                <button type="button" onClick={deleteSelected}>
+                  {copy.inspector.deleteNode}
+                </button>
+              </div>
             </>
+          ) : selectedEdgeId ? (
+            <div className="learn-live-edge-details">
+              <h3>{copy.inspector.edgeLabel}</h3>
+              <p className="learn-live-edge-id">{selectedEdgeId}</p>
+              <button type="button" onClick={deleteSelected}>
+                {copy.inspector.deleteEdge}
+              </button>
+            </div>
           ) : (
-            <p className="learn-live-empty">{copy.inspector.empty}</p>
+            <>
+              <p className="learn-live-empty">{copy.inspector.empty}</p>
+              <p className="learn-live-empty learn-live-edge-empty">{copy.inspector.edgeEmpty}</p>
+            </>
           )}
           <p className="learn-live-connect-hint">{copy.inspector.connectHint}</p>
 

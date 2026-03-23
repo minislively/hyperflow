@@ -358,13 +358,30 @@ button {
 }
 
 .hf-edge-overlay {
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .hf-edge-overlay-path {
   fill: none;
   stroke: #94a3b8;
   stroke-width: 2;
+  pointer-events: none;
+}
+
+.hf-edge-overlay-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  cursor: pointer;
+}
+
+.hf-edge-overlay-path-selected {
+  stroke: #2563eb;
+  stroke-width: 3;
+}
+
+.hf-edge-overlay-marker {
+  fill: #2563eb;
 }
 
 .hf-handle-overlay {
@@ -447,11 +464,33 @@ button {
   color: #475467;
 }
 
+.learn-live-edge-empty {
+  margin-top: -4px;
+}
+
 .learn-live-connect-hint {
   margin: -2px 0 0;
   font-size: 14px;
   line-height: 1.6;
   color: #667085;
+}
+
+.learn-live-inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.learn-live-edge-details {
+  display: grid;
+  gap: 10px;
+}
+
+.learn-live-edge-id {
+  margin: 0;
+  color: #475467;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .learn-live-saved {

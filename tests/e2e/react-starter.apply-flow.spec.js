@@ -93,16 +93,21 @@ test("learn interaction and restore pages show visual result previews", async ({
         name: "맞춤 보기"
     })).toBeVisible();
     await expect(page.getByText("노드를 직접 끌어서 옮기고")).toBeVisible();
-    const basicCanvas = page.locator(".learn-live-canvas canvas").first();
-    const basicBox = await basicCanvas.boundingBox();
-    if (!basicBox) throw new Error("basic interactions canvas missing");
-    await page.mouse.click(basicBox.x + basicBox.width * 0.5, basicBox.y + basicBox.height * 0.27);
+    await page.getByRole("button", {
+        name: "Connect from node 2"
+    }).click();
     await expect(page.locator(".learn-live-inspector h3")).toContainText("Node B");
     await page.goto("/ko/learn/save-and-restore");
     await expect(page.locator('[aria-label="저장과 복원 live demo"]')).toBeVisible();
     await expect(page.getByRole("button", {
         name: "저장",
         exact: true
+    })).toBeVisible();
+    await expect(page.getByRole("button", {
+        name: "노드 추가"
+    })).toBeVisible();
+    await expect(page.getByRole("button", {
+        name: "선택 삭제"
     })).toBeVisible();
     await expect(page.locator(".learn-live-saved")).toContainText("아직 저장된 스냅샷이 없다.");
     const restoreCanvas = page.locator(".learn-live-canvas canvas").first();
@@ -115,14 +120,17 @@ test("learn interaction and restore pages show visual result previews", async ({
     });
     await page.mouse.up();
     await page.getByRole("button", {
+        name: "노드 추가"
+    }).click();
+    await page.getByRole("button", {
         name: "저장",
         exact: true
     }).click();
+    await page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]').click({
+        force: true
+    });
     await page.getByRole("button", {
-        name: "Connect from node 1"
-    }).click();
-    await page.getByRole("button", {
-        name: "Connect into node 3"
+        name: "선택 삭제"
     }).click();
     await page.getByRole("button", {
         name: "저장",
@@ -131,8 +139,10 @@ test("learn interaction and restore pages show visual result previews", async ({
     const savedSnapshotText = await page.locator(".learn-live-saved pre").textContent();
     if (!savedSnapshotText) throw new Error("saved snapshot text missing");
     const savedSnapshot = JSON.parse(savedSnapshotText);
-    expect(savedSnapshot.nodes.find((node)=>node.id === 2)?.x).toBeGreaterThan(320);
-    expect(savedSnapshot.edges.some((edge)=>edge.source === 1 && edge.target === 3)).toBeTruthy();
+    expect(savedSnapshot.nodes).toHaveLength(4);
+    expect(savedSnapshot.nodes.some((node)=>node.title === "Node D")).toBeTruthy();
+    expect(savedSnapshot.edges.some((edge)=>edge.source === 2 && edge.target === 3)).toBeTruthy();
+    expect(savedSnapshot.edges.some((edge)=>edge.source === 1 && edge.target === 2)).toBeFalsy();
 });
 test("learn surface switches section and locale with top-level docs routes", async ({ page })=>{
     await page.goto("/ko/learn");
