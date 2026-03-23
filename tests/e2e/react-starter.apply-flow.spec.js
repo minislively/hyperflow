@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 test("react starter loads the learn quick start surface", async ({ page })=>{
     await page.goto("/ko/learn");
     await expect(page.getByRole("heading", {
-        name: "HyperFlow 소개"
+        name: "처음 시작하기"
     })).toBeVisible();
     await expect(page.getByRole("navigation", {
         name: "Learn navigation"
@@ -111,7 +111,7 @@ test("missing locale redirects with browser language detection", async ({ browse
     await page.goto("/learn");
     await expect(page).toHaveURL(/\/en\/learn$/);
     await expect(page.getByRole("heading", {
-        name: "Introduction"
+        name: "Getting Started"
     })).toBeVisible();
     await context.close();
 });

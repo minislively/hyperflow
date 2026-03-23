@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("react starter loads the learn quick start surface", async ({ page }) => {
   await page.goto("/ko/learn");
 
-  await expect(page.getByRole("heading", { name: "HyperFlow 소개" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "처음 시작하기" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Learn navigation" })).toBeVisible();
   await expect(page.getByRole("button", { name: "학습" })).toBeVisible();
   await expect(page.getByRole("button", { name: "레퍼런스" })).toBeVisible();
@@ -69,7 +69,7 @@ test("missing locale redirects with browser language detection", async ({ browse
 
   await page.goto("/learn");
   await expect(page).toHaveURL(/\/en\/learn$/);
-  await expect(page.getByRole("heading", { name: "Introduction" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Getting Started" })).toBeVisible();
 
   await context.close();
 });
