@@ -2315,15 +2315,19 @@ function EditorMiniMap({
           const bendX = edge.bend ? model.projectX(edge.bend.x) : null;
           const bendY = edge.bend ? model.projectY(edge.bend.y) : null;
 
-          return bendX !== null && bendY !== null ? (
-            <polyline
-              key={edge.id}
-              className="editor-minimap-edge"
-              points={`${x1},${y1} ${bendX},${bendY} ${x2},${y2}`}
-            />
-          ) : (
-            <line key={edge.id} className="editor-minimap-edge" x1={x1} y1={y1} x2={x2} y2={y2} />
-          );
+          if (bendX !== null && bendY !== null) {
+            const incomingOffset = Math.max(4, Math.abs(bendX - x1) * 0.35);
+            const outgoingOffset = Math.max(4, Math.abs(x2 - bendX) * 0.35);
+            return (
+              <path
+                key={edge.id}
+                className="editor-minimap-edge"
+                d={`M ${x1} ${y1} C ${x1 + incomingOffset} ${y1}, ${bendX - incomingOffset * 0.6} ${bendY}, ${bendX} ${bendY} C ${bendX + outgoingOffset * 0.6} ${bendY}, ${x2 - outgoingOffset} ${y2}, ${x2} ${y2}`}
+              />
+            );
+          }
+
+          return <line key={edge.id} className="editor-minimap-edge" x1={x1} y1={y1} x2={x2} y2={y2} />;
         })}
         {nodes.map((node) => (
           <rect
