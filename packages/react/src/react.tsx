@@ -482,9 +482,12 @@ export function HyperFlowPocCanvas({
         const defaultCurveOffset = Math.max(48, Math.abs(targetX - sourceX) * 0.35);
         const path = edge.bend
           ? (() => {
-              const firstControlX = sourceX + (bendX - sourceX) * 0.5;
-              const secondControlX = bendX + (targetX - bendX) * 0.5;
-              return `M ${sourceX} ${sourceY} Q ${firstControlX} ${sourceY}, ${bendX} ${bendY} Q ${secondControlX} ${targetY}, ${targetX} ${targetY}`;
+              const controlStrength = 0.68;
+              const controlOneX = sourceX + (bendX - sourceX) * controlStrength;
+              const controlOneY = sourceY + (bendY - sourceY) * controlStrength;
+              const controlTwoX = targetX + (bendX - targetX) * controlStrength;
+              const controlTwoY = targetY + (bendY - targetY) * controlStrength;
+              return `M ${sourceX} ${sourceY} C ${controlOneX} ${controlOneY}, ${controlTwoX} ${controlTwoY}, ${targetX} ${targetY}`;
             })()
           : `M ${sourceX} ${sourceY} C ${sourceX + defaultCurveOffset} ${sourceY}, ${
               targetX - defaultCurveOffset

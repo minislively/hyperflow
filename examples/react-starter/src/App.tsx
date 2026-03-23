@@ -2316,13 +2316,16 @@ function EditorMiniMap({
           const bendY = edge.bend ? model.projectY(edge.bend.y) : null;
 
           if (bendX !== null && bendY !== null) {
-            const firstControlX = x1 + (bendX - x1) * 0.5;
-            const secondControlX = bendX + (x2 - bendX) * 0.5;
+            const controlStrength = 0.68;
+            const controlOneX = x1 + (bendX - x1) * controlStrength;
+            const controlOneY = y1 + (bendY - y1) * controlStrength;
+            const controlTwoX = x2 + (bendX - x2) * controlStrength;
+            const controlTwoY = y2 + (bendY - y2) * controlStrength;
             return (
               <path
                 key={edge.id}
                 className="editor-minimap-edge"
-                d={`M ${x1} ${y1} Q ${firstControlX} ${y1}, ${bendX} ${bendY} Q ${secondControlX} ${y2}, ${x2} ${y2}`}
+                d={`M ${x1} ${y1} C ${controlOneX} ${controlOneY}, ${controlTwoX} ${controlTwoY}, ${x2} ${y2}`}
               />
             );
           }
