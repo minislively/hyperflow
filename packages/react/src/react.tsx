@@ -53,6 +53,9 @@ export type HyperFlowPocCanvasProps = {
   onReadyChange?: (ready: boolean) => void;
 };
 
+const HANDLE_SIZE = 18;
+const HANDLE_HALF = HANDLE_SIZE / 2;
+
 function buildSmoothEdgePath({
   sourceX,
   sourceY,
@@ -934,9 +937,9 @@ export function HyperFlowPocCanvas({
       const screenHeight = node.size.height * viewport.zoom;
       return {
         id: node.id,
-        inputX: screenLeft - 7,
-        outputX: screenLeft + screenWidth - 7,
-        y: screenTop + screenHeight / 2 - 7,
+        inputX: screenLeft - HANDLE_HALF,
+        outputX: screenLeft + screenWidth - HANDLE_HALF,
+        y: screenTop + screenHeight / 2 - HANDLE_HALF,
       };
     });
   }, [nodes, onEdgeConnect, viewport.x, viewport.y, viewport.zoom]);
@@ -1110,8 +1113,8 @@ export function HyperFlowPocCanvas({
                   event.stopPropagation();
                   startConnectionDrag(
                     handle.id,
-                    handle.outputX + 7,
-                    handle.y + 7,
+                    handle.outputX + HANDLE_HALF,
+                    handle.y + HANDLE_HALF,
                     event.clientX,
                     event.clientY,
                     event.pointerId,
