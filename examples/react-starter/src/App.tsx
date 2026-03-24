@@ -251,19 +251,28 @@ function findNextNodePlacement<TData>(
   viewport: PocViewport,
   size: PocNode<TData>["size"] = { width: 180, height: 96 },
 ) {
-  const screenPaddingX = 56;
-  const screenPaddingY = 56;
-  const worldPaddingX = screenPaddingX / viewport.zoom;
-  const worldPaddingY = screenPaddingY / viewport.zoom;
-  const minX = Math.max(24, viewport.x + worldPaddingX);
-  const minY = Math.max(24, viewport.y + worldPaddingY);
-  const maxX = Math.max(minX, viewport.x + viewport.width / viewport.zoom - size.width - worldPaddingX);
-  const maxY = Math.max(minY, viewport.y + viewport.height / viewport.zoom - size.height - worldPaddingY);
+  const safeScreenPadding = {
+    left: 72,
+    right: 232,
+    top: 56,
+    bottom: 152,
+  };
+  const minX = Math.max(24, viewport.x + safeScreenPadding.left / viewport.zoom);
+  const minY = Math.max(24, viewport.y + safeScreenPadding.top / viewport.zoom);
+  const maxX = Math.max(minX, viewport.x + viewport.width / viewport.zoom - size.width - safeScreenPadding.right / viewport.zoom);
+  const maxY = Math.max(minY, viewport.y + viewport.height / viewport.zoom - size.height - safeScreenPadding.bottom / viewport.zoom);
   const baseX = Math.min(maxX, Math.max(minX, viewport.x + viewport.width / viewport.zoom / 2 - size.width / 2));
   const baseY = Math.min(maxY, Math.max(minY, viewport.y + viewport.height / viewport.zoom / 2 - size.height / 2));
-  const stepX = size.width + 44;
-  const stepY = size.height + 36;
-  const overlapPadding = 24;
+  const stepX = size.width + 84;
+  const stepY = size.height + 56;
+  const overlapPadding = 28;
+  const screenInset = 12;
+
+  const reservedScreenRegions = [
+    { left: 12, top: 12, right: 92, bottom: 92 },
+    { left: 12, top: viewport.height - 184, right: 376, bottom: viewport.height - 12 },
+    { left: viewport.width - 220, top: viewport.height - 156, right: viewport.width - 12, bottom: viewport.height - 12 },
+  ];
 
   const overlapsExistingNode = (position: PocNode<TData>["position"]) =>
     nodes.some((node) => {
@@ -279,20 +288,31 @@ function findNextNodePlacement<TData>(
       return nextLeft < currentRight && nextRight > currentLeft && nextTop < currentBottom && nextBottom > currentTop;
     });
 
+  const overlapsEditorChrome = (position: PocNode<TData>["position"]) => {
+    const screenLeft = (position.x - viewport.x) * viewport.zoom - screenInset;
+    const screenTop = (position.y - viewport.y) * viewport.zoom - screenInset;
+    const screenRight = screenLeft + size.width * viewport.zoom + screenInset * 2;
+    const screenBottom = screenTop + size.height * viewport.zoom + screenInset * 2;
+
+    return reservedScreenRegions.some((region) =>
+      screenLeft < region.right && screenRight > region.left && screenTop < region.bottom && screenBottom > region.top,
+    );
+  };
+
   const preferredOffsets = [
     { x: 0, y: 0 },
-    { x: stepX, y: 0 },
     { x: -stepX, y: 0 },
-    { x: 0, y: stepY },
     { x: 0, y: -stepY },
-    { x: stepX, y: stepY },
-    { x: stepX, y: -stepY },
-    { x: -stepX, y: stepY },
+    { x: 0, y: stepY },
+    { x: stepX, y: 0 },
     { x: -stepX, y: -stepY },
-    { x: stepX * 2, y: 0 },
+    { x: -stepX, y: stepY },
+    { x: stepX, y: -stepY },
+    { x: stepX, y: stepY },
     { x: -stepX * 2, y: 0 },
-    { x: 0, y: stepY * 2 },
     { x: 0, y: -stepY * 2 },
+    { x: 0, y: stepY * 2 },
+    { x: stepX * 2, y: 0 },
   ];
 
   for (const offset of preferredOffsets) {
@@ -301,12 +321,12 @@ function findNextNodePlacement<TData>(
       y: Math.min(maxY, Math.max(minY, baseY + offset.y)),
     };
 
-    if (!overlapsExistingNode(candidate)) {
+    if (!overlapsExistingNode(candidate) && !overlapsEditorChrome(candidate)) {
       return candidate;
     }
   }
 
-  for (let radius = 2; radius <= 5; radius += 1) {
+  for (let radius = 2; radius <= 6; radius += 1) {
     for (let row = -radius; row <= radius; row += 1) {
       for (let column = -radius; column <= radius; column += 1) {
         if (Math.max(Math.abs(column), Math.abs(row)) !== radius) continue;
@@ -316,7 +336,7 @@ function findNextNodePlacement<TData>(
           y: Math.min(maxY, Math.max(minY, baseY + row * stepY)),
         };
 
-        if (!overlapsExistingNode(candidate)) {
+        if (!overlapsExistingNode(candidate) && !overlapsEditorChrome(candidate)) {
           return candidate;
         }
       }
@@ -2353,29 +2373,27 @@ function buildSmoothMiniMapEdgePath({
   sourceY,
   targetX,
   targetY,
-  bendX,
-  bendY,
+  bendOffsetX,
+  bendOffsetY,
 }: {
   sourceX: number;
   sourceY: number;
   targetX: number;
   targetY: number;
-  bendX?: number | null;
-  bendY?: number | null;
+  bendOffsetX?: number | null;
+  bendOffsetY?: number | null;
 }) {
   const dx = targetX - sourceX;
   const sign = dx >= 0 ? 1 : -1;
   const absoluteDx = Math.abs(dx);
   const baseOffset = Math.max(12, absoluteDx * 0.35);
 
-  if (bendX == null || bendY == null) {
+  if (bendOffsetX == null || bendOffsetY == null) {
     return `M ${sourceX} ${sourceY} C ${sourceX + sign * baseOffset} ${sourceY}, ${targetX - sign * baseOffset} ${targetY}, ${targetX} ${targetY}`;
   }
 
-  const defaultMidX = (sourceX + targetX) / 2;
-  const defaultMidY = (sourceY + targetY) / 2;
-  const influenceX = (bendX - defaultMidX) * 0.18;
-  const influenceY = (bendY - defaultMidY) * 0.7;
+  const influenceX = bendOffsetX * 0.18;
+  const influenceY = bendOffsetY * 0.7;
   const minX = Math.min(sourceX, targetX) + 6;
   const maxX = Math.max(sourceX, targetX) - 6;
   const controlOneX = Math.min(maxX, Math.max(minX, sourceX + sign * baseOffset + influenceX));
@@ -2475,8 +2493,12 @@ function EditorMiniMap({
           const y1 = model.projectY(sourceNode.position.y + sourceNode.size.height / 2);
           const x2 = model.projectX(targetNode.position.x + targetNode.size.width / 2);
           const y2 = model.projectY(targetNode.position.y + targetNode.size.height / 2);
-          const bendX = edge.bend ? model.projectX(edge.bend.x) : null;
-          const bendY = edge.bend ? model.projectY(edge.bend.y) : null;
+          const defaultBendWorldX = (sourceNode.position.x + sourceNode.size.width / 2 + targetNode.position.x + targetNode.size.width / 2) / 2;
+          const defaultBendWorldY = (sourceNode.position.y + sourceNode.size.height / 2 + targetNode.position.y + targetNode.size.height / 2) / 2;
+          const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
+          const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
+          const bendOffsetX = edge.bend ? model.projectX(bendWorldX) - model.projectX(defaultBendWorldX) : null;
+          const bendOffsetY = edge.bend ? model.projectY(bendWorldY) - model.projectY(defaultBendWorldY) : null;
           return (
             <path
               key={edge.id}
@@ -2486,8 +2508,8 @@ function EditorMiniMap({
                 sourceY: y1,
                 targetX: x2,
                 targetY: y2,
-                bendX,
-                bendY,
+                bendOffsetX,
+                bendOffsetY,
               })}
             />
           );

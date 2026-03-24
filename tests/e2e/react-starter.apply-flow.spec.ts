@@ -56,9 +56,10 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
   await page.getByRole("button", { name: "노드 추가" }).click();
   await expect(page.locator("[data-node-card-id='5']")).toBeVisible();
   const canvasBox = await page.getByLabel("HyperFlow 메인 editor").boundingBox();
+  const minimapBox = await page.getByLabel("에디터 미니맵").boundingBox();
   const nodeFourBox = await page.locator("[data-node-card-id='4']").boundingBox();
   const nodeFiveBox = await page.locator("[data-node-card-id='5']").boundingBox();
-  if (!canvasBox || !nodeFourBox || !nodeFiveBox) throw new Error("new node boxes missing after add");
+  if (!canvasBox || !minimapBox || !nodeFourBox || !nodeFiveBox) throw new Error("new node boxes missing after add");
   const overlaps =
     nodeFourBox.x < nodeFiveBox.x + nodeFiveBox.width &&
     nodeFourBox.x + nodeFourBox.width > nodeFiveBox.x &&
@@ -73,6 +74,15 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
   expect(nodeFourBox.y + nodeFourBox.height).toBeLessThanOrEqual(canvasBox.y + canvasBox.height);
   expect(nodeFiveBox.x + nodeFiveBox.width).toBeLessThanOrEqual(canvasBox.x + canvasBox.width);
   expect(nodeFiveBox.y + nodeFiveBox.height).toBeLessThanOrEqual(canvasBox.y + canvasBox.height);
+
+  const intersectsMinimap = (box: { x: number; y: number; width: number; height: number }) =>
+    box.x < minimapBox.x + minimapBox.width &&
+    box.x + box.width > minimapBox.x &&
+    box.y < minimapBox.y + minimapBox.height &&
+    box.y + box.height > minimapBox.y;
+
+  expect(intersectsMinimap(nodeFourBox)).toBeFalsy();
+  expect(intersectsMinimap(nodeFiveBox)).toBeFalsy();
 
   const nodeOne = page.locator("[data-node-card-id='1']");
   const before = await nodeOne.boundingBox();

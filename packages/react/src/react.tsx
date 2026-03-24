@@ -61,29 +61,27 @@ function buildSmoothEdgePath({
   sourceY,
   targetX,
   targetY,
-  bendX,
-  bendY,
+  bendOffsetX,
+  bendOffsetY,
 }: {
   sourceX: number;
   sourceY: number;
   targetX: number;
   targetY: number;
-  bendX?: number | null;
-  bendY?: number | null;
+  bendOffsetX?: number | null;
+  bendOffsetY?: number | null;
 }) {
   const dx = targetX - sourceX;
   const sign = dx >= 0 ? 1 : -1;
   const absoluteDx = Math.abs(dx);
   const baseOffset = Math.max(48, absoluteDx * 0.35);
 
-  if (bendX == null || bendY == null) {
+  if (bendOffsetX == null || bendOffsetY == null) {
     return `M ${sourceX} ${sourceY} C ${sourceX + sign * baseOffset} ${sourceY}, ${targetX - sign * baseOffset} ${targetY}, ${targetX} ${targetY}`;
   }
 
-  const defaultMidX = (sourceX + targetX) / 2;
-  const defaultMidY = (sourceY + targetY) / 2;
-  const influenceX = (bendX - defaultMidX) * 0.18;
-  const influenceY = (bendY - defaultMidY) * 0.7;
+  const influenceX = bendOffsetX * 0.18;
+  const influenceY = bendOffsetY * 0.7;
   const minX = Math.min(sourceX, targetX) + 18;
   const maxX = Math.max(sourceX, targetX) - 18;
   const controlOneX = Math.min(maxX, Math.max(minX, sourceX + sign * baseOffset + influenceX));
@@ -886,41 +884,37 @@ export function HyperFlowPocCanvas({
         const sourceY = (sourceNode.position.y + sourceNode.size.height / 2 - viewport.y) * viewport.zoom;
         const targetX = (targetNode.position.x - viewport.x) * viewport.zoom;
         const targetY = (targetNode.position.y + targetNode.size.height / 2 - viewport.y) * viewport.zoom;
-        const defaultBendX = (sourceNode.position.x + sourceNode.size.width + targetNode.position.x) / 2;
-        const defaultBendY =
+        const defaultBendWorldX = (sourceNode.position.x + sourceNode.size.width + targetNode.position.x) / 2;
+        const defaultBendWorldY =
           (sourceNode.position.y + sourceNode.size.height / 2 + targetNode.position.y + targetNode.size.height / 2) / 2;
-        const bendWorldX = edge.bend?.x ?? defaultBendX;
-        const bendWorldY = edge.bend?.y ?? defaultBendY;
-        const bendX = (bendWorldX - viewport.x) * viewport.zoom;
-        const bendY = (bendWorldY - viewport.y) * viewport.zoom;
+        const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
+        const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
+        const bendOffsetX = edge.bend ? edge.bend.x * viewport.zoom : null;
+        const bendOffsetY = edge.bend ? edge.bend.y * viewport.zoom : null;
         const path = buildSmoothEdgePath({
           sourceX,
           sourceY,
           targetX,
           targetY,
-          bendX: edge.bend ? bendX : null,
-          bendY: edge.bend ? bendY : null,
+          bendOffsetX,
+          bendOffsetY,
         });
 
         return {
           id: edge.id,
           path,
-          bendX,
-          bendY,
+          bendOffsetWorldX: edge.bend?.x ?? 0,
+          bendOffsetWorldY: edge.bend?.y ?? 0,
           bendWorldX,
           bendWorldY,
           hasBend: Boolean(edge.bend),
-          midX: edge.bend ? bendX : (sourceX + targetX) / 2,
-          midY: edge.bend ? bendY : (sourceY + targetY) / 2,
         };
       })
       .filter(Boolean) as Array<{
       id: string;
       path: string;
-      midX: number;
-      midY: number;
-      bendX: number;
-      bendY: number;
+      bendOffsetWorldX: number;
+      bendOffsetWorldY: number;
       bendWorldX: number;
       bendWorldY: number;
       hasBend: boolean;
@@ -1008,7 +1002,7 @@ export function HyperFlowPocCanvas({
                   selectNode(null);
                   selectEdge(edge.id, { additive: event.shiftKey });
                   if (!isInteractive || !onEdgeBendChange) return;
-                  startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendWorldX, y: edge.bendWorldY }, event.pointerId);
+                  startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendOffsetWorldX, y: edge.bendOffsetWorldY }, event.pointerId);
                 }}
                 onMouseDown={(event) => {
                   event.preventDefault();
@@ -1016,7 +1010,7 @@ export function HyperFlowPocCanvas({
                   selectNode(null);
                   selectEdge(edge.id, { additive: event.shiftKey });
                   if (!isInteractive || !onEdgeBendChange || event.button !== 0) return;
-                  startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendWorldX, y: edge.bendWorldY });
+                  startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendOffsetWorldX, y: edge.bendOffsetWorldY });
                 }}
                 onClick={(event) => {
                   event.stopPropagation();
