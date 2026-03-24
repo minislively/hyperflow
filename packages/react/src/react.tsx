@@ -45,6 +45,7 @@ export type HyperFlowPocCanvasProps = {
   onNodeSelectionBoxChange?: (nodeIds: number[], options?: { additive?: boolean }) => void;
   onEdgeSelect?: (edgeId: string | null, options?: { additive?: boolean }) => void;
   onNodePositionChange?: (nodeId: number, nextPosition: PocNode["position"]) => void;
+  onNodesPositionChange?: (updates: Array<{ nodeId: number; nextPosition: PocNode["position"] }>) => void;
   onViewportChange?: (viewport: PocViewport) => void;
   onEdgeConnect?: (sourceNodeId: number, targetNodeId: number) => void;
   onEdgeBendChange?: (edgeId: string, nextBend: PocEdge["bend"]) => void;
@@ -109,6 +110,7 @@ export function HyperFlowPocCanvas({
   onNodeSelectionBoxChange,
   onEdgeSelect,
   onNodePositionChange,
+  onNodesPositionChange,
   onViewportChange,
   onEdgeConnect,
   onEdgeBendChange,
@@ -137,12 +139,13 @@ export function HyperFlowPocCanvas({
   const isInteractive = interactive ?? isInteractiveCanvasMode(mode);
   const viewportRef = useRef(viewport);
   const onNodePositionChangeRef = useRef(onNodePositionChange);
+  const onNodesPositionChangeRef = useRef(onNodesPositionChange);
   const onViewportChangeRef = useRef(onViewportChange);
   const onEdgeBendChangeRef = useRef(onEdgeBendChange);
   const ignoreCanvasClickUntilRef = useRef(0);
   const scheduledFrameRef = useRef<number | null>(null);
   const connectionPreviewFrameRef = useRef<number | null>(null);
-  const pendingNodePositionRef = useRef<{ nodeId: number; nextPosition: PocNode["position"] } | null>(null);
+  const pendingNodePositionsRef = useRef<Array<{ nodeId: number; nextPosition: PocNode["position"] }> | null>(null);
   const pendingViewportRef = useRef<PocViewport | null>(null);
   const pendingEdgeBendRef = useRef<{ edgeId: string; nextBend: PocEdge["bend"] } | null>(null);
   const pendingConnectionPreviewRef = useRef<{
@@ -177,6 +180,15 @@ export function HyperFlowPocCanvas({
         startClientX: number;
         startClientY: number;
         startPosition: PocNode["position"];
+      }
+    | {
+        kind: "nodes";
+        pointerId: number | null;
+        moved: boolean;
+        nodeIds: number[];
+        startClientX: number;
+        startClientY: number;
+        startPositions: Array<{ nodeId: number; position: PocNode["position"] }>;
       }
     | {
         kind: "pan";
@@ -222,18 +234,25 @@ export function HyperFlowPocCanvas({
   useEffect(() => {
     viewportRef.current = viewport;
     onNodePositionChangeRef.current = onNodePositionChange;
+    onNodesPositionChangeRef.current = onNodesPositionChange;
     onViewportChangeRef.current = onViewportChange;
     onEdgeBendChangeRef.current = onEdgeBendChange;
-  }, [onEdgeBendChange, onNodePositionChange, onViewportChange, viewport]);
+  }, [onEdgeBendChange, onNodePositionChange, onNodesPositionChange, onViewportChange, viewport]);
 
   function flushPendingUpdates() {
     scheduledFrameRef.current = null;
 
-    const pendingNodePosition = pendingNodePositionRef.current;
-    if (pendingNodePosition && onNodePositionChangeRef.current) {
-      onNodePositionChangeRef.current(pendingNodePosition.nodeId, pendingNodePosition.nextPosition);
+    const pendingNodePositions = pendingNodePositionsRef.current;
+    if (pendingNodePositions?.length) {
+      if (onNodesPositionChangeRef.current) {
+        onNodesPositionChangeRef.current(pendingNodePositions);
+      } else if (onNodePositionChangeRef.current) {
+        pendingNodePositions.forEach((update) => {
+          onNodePositionChangeRef.current?.(update.nodeId, update.nextPosition);
+        });
+      }
     }
-    pendingNodePositionRef.current = null;
+    pendingNodePositionsRef.current = null;
 
     const pendingEdgeBend = pendingEdgeBendRef.current;
     if (pendingEdgeBend && onEdgeBendChangeRef.current) {
@@ -374,10 +393,39 @@ export function HyperFlowPocCanvas({
     pointerId: number | null = null,
     additive = false,
   ) {
-    selectNode(node.id, { additive });
-    if (!additive) {
+    const resolvedSelectedIds = selectedNodeIds?.length
+      ? selectedNodeIds.map((id) => Number(id))
+      : selectedNodeId !== null
+        ? [Number(selectedNodeId)]
+        : [];
+    const numericNodeId = Number(node.id);
+    const canGroupDrag = !additive && resolvedSelectedIds.length > 1 && resolvedSelectedIds.includes(numericNodeId);
+
+    if (!canGroupDrag) {
+      selectNode(node.id, { additive });
+    }
+    if (!additive && !canGroupDrag) {
       selectEdge(null);
     }
+    if (canGroupDrag) {
+      dragStateRef.current = {
+        kind: "nodes",
+        pointerId,
+        moved: false,
+        nodeIds: resolvedSelectedIds,
+        startClientX: clientX,
+        startClientY: clientY,
+        startPositions: resolvedSelectedIds
+          .map((nodeId) => nodeById.get(Number(nodeId)))
+          .filter(Boolean)
+          .map((selectedNode) => ({
+            nodeId: Number(selectedNode!.id),
+            position: { ...selectedNode!.position },
+          })),
+      };
+      return;
+    }
+
     dragStateRef.current = {
       kind: "node",
       pointerId,
@@ -655,14 +703,28 @@ export function HyperFlowPocCanvas({
       return;
     }
 
-    if (dragState.kind === "node" && onNodePositionChangeRef.current) {
-      pendingNodePositionRef.current = {
-        nodeId: dragState.nodeId,
-        nextPosition: {
-          x: Math.max(0, dragState.startPosition.x + deltaWorldX),
-          y: Math.max(0, dragState.startPosition.y + deltaWorldY),
+    if (dragState.kind === "node" && (onNodesPositionChangeRef.current || onNodePositionChangeRef.current)) {
+      pendingNodePositionsRef.current = [
+        {
+          nodeId: dragState.nodeId,
+          nextPosition: {
+            x: Math.max(0, dragState.startPosition.x + deltaWorldX),
+            y: Math.max(0, dragState.startPosition.y + deltaWorldY),
+          },
         },
-      };
+      ];
+      schedulePendingUpdates();
+      return;
+    }
+
+    if (dragState.kind === "nodes" && (onNodesPositionChangeRef.current || onNodePositionChangeRef.current)) {
+      pendingNodePositionsRef.current = dragState.startPositions.map(({ nodeId, position }) => ({
+        nodeId,
+        nextPosition: {
+          x: Math.max(0, position.x + deltaWorldX),
+          y: Math.max(0, position.y + deltaWorldY),
+        },
+      }));
       schedulePendingUpdates();
       return;
     }

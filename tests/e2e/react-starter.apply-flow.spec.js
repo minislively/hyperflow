@@ -247,6 +247,38 @@ test("main editor supports additive multi-select with shift-click", async ({ pag
     await expect(nodeOne).toHaveCount(0);
     await expect(nodeTwo).toHaveCount(0);
 });
+test("dragging one selected node moves the rest of the selection with it", async ({ page })=>{
+    await page.goto("/ko");
+    const nodeOne = page.locator("[data-node-card-id='1']");
+    const nodeTwo = page.locator("[data-node-card-id='2']");
+    await nodeOne.click();
+    await page.keyboard.down("Shift");
+    await nodeTwo.click();
+    await page.keyboard.up("Shift");
+    await expect(page.getByRole("heading", {
+        name: "2 개 노드 선택됨"
+    })).toBeVisible();
+    const beforeOne = await nodeOne.boundingBox();
+    const beforeTwo = await nodeTwo.boundingBox();
+    if (!beforeOne || !beforeTwo) throw new Error("node boxes missing before group drag");
+    await page.mouse.move(beforeOne.x + beforeOne.width / 2, beforeOne.y + beforeOne.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(beforeOne.x + beforeOne.width / 2 + 120, beforeOne.y + beforeOne.height / 2 + 48, {
+        steps: 10
+    });
+    await page.mouse.up();
+    const afterOne = await nodeOne.boundingBox();
+    const afterTwo = await nodeTwo.boundingBox();
+    if (!afterOne || !afterTwo) throw new Error("node boxes missing after group drag");
+    const deltaOneX = afterOne.x - beforeOne.x;
+    const deltaOneY = afterOne.y - beforeOne.y;
+    const deltaTwoX = afterTwo.x - beforeTwo.x;
+    const deltaTwoY = afterTwo.y - beforeTwo.y;
+    expect(deltaOneX).toBeGreaterThan(80);
+    expect(deltaTwoX).toBeGreaterThan(80);
+    expect(Math.abs(deltaOneX - deltaTwoX)).toBeLessThan(16);
+    expect(Math.abs(deltaOneY - deltaTwoY)).toBeLessThan(16);
+});
 test("learn stays available as supporting docs and links back to the editor", async ({ page })=>{
     await page.goto("/ko/learn");
     await expect(page).toHaveURL(/\/ko\/learn$/);

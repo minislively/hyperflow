@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   HyperFlowPocCanvas,
   type HyperFlowPocNodeRendererProps,
@@ -324,6 +324,24 @@ function findNextNodePlacement<TData>(
   }
 
   return { x: baseX, y: baseY };
+}
+
+function applyNodePositionUpdates<TData>(
+  setNodes: Dispatch<SetStateAction<Array<PocNode<TData>>>>,
+  updates: Array<{ nodeId: number; nextPosition: PocNode<TData>["position"] }>,
+) {
+  if (updates.length === 0) return;
+  const updatesById = new Map(updates.map((update) => [Number(update.nodeId), update.nextPosition]));
+  setNodes((current) =>
+    current.map((node) => {
+      const nextPosition = updatesById.get(Number(node.id));
+      if (!nextPosition) return node;
+      return {
+        ...node,
+        position: nextPosition,
+      };
+    }),
+  );
 }
 
 function getEditorRouteLabel(locale: Locale) {
@@ -3021,6 +3039,9 @@ function MainEditorSurface({
                     position: nextPosition,
                   }));
                 }}
+                onNodesPositionChange={(updates) => {
+                  applyNodePositionUpdates(setNodes, updates);
+                }}
                 onEdgeConnect={(sourceNodeId, targetNodeId) => {
                   setEdges((current) => {
                     const existingIndex = current.findIndex(
@@ -3476,6 +3497,9 @@ function LearnInteractiveDemo({
               updateNodeData(setNodes, nodeId, () => ({
                 position: nextPosition,
               }));
+            }}
+            onNodesPositionChange={(updates) => {
+              applyNodePositionUpdates(setNodes, updates);
             }}
             onEdgeConnect={(sourceNodeId, targetNodeId) => {
               setEdges((current) => {
