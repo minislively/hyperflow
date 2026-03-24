@@ -147,6 +147,25 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
     }).click();
     await expect(nodeOne).toHaveCount(0);
 });
+test("dragging a node updates connected edges immediately", async ({ page })=>{
+    await page.goto("/ko");
+    const nodeTwo = page.locator("[data-node-card-id='2']");
+    const edge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-b-c"]');
+    const nodeBox = await nodeTwo.boundingBox();
+    if (!nodeBox) throw new Error("node 2 missing for live edge drag test");
+    const beforePath = await edge.getAttribute("d");
+    if (!beforePath) throw new Error("edge path missing before drag");
+    await page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(nodeBox.x + nodeBox.width / 2 + 120, nodeBox.y + nodeBox.height / 2 + 80, {
+        steps: 8
+    });
+    const duringPath = await edge.getAttribute("d");
+    expect(duringPath).not.toBe(beforePath);
+    await page.mouse.up();
+    const afterPath = await edge.getAttribute("d");
+    expect(afterPath).not.toBe(beforePath);
+});
 test("editor save and restore keeps authoring state together", async ({ page })=>{
     await page.goto("/ko");
     await page.getByRole("button", {
