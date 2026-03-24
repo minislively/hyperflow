@@ -81,6 +81,24 @@ function getNodeAnchorPoint(node: PocNode, toward: { x: number; y: number }) {
     : { x: center.x, y: node.position.y, side: "top" as const };
 }
 
+function getOrthogonalAnchorPoint(
+  node: PocNode,
+  side: AnchorSide,
+  toward: { x: number; y: number },
+) {
+  const center = getNodeCenter(node);
+
+  if (side === "left" || side === "right") {
+    return toward.y >= center.y
+      ? { x: center.x, y: node.position.y + node.size.height, side: "bottom" as const }
+      : { x: center.x, y: node.position.y, side: "top" as const };
+  }
+
+  return toward.x >= center.x
+    ? { x: node.position.x + node.size.width, y: center.y, side: "right" as const }
+    : { x: node.position.x, y: center.y, side: "left" as const };
+}
+
 function offsetAnchorWithinSide(
   anchor: { x: number; y: number; side: AnchorSide },
   node: PocNode,
@@ -1045,7 +1063,7 @@ export function HyperFlowPocCanvas({
     let inputAnchor = getNodeAnchorPoint(node, inputToward);
     let outputAnchor = getNodeAnchorPoint(node, outputToward);
     if (inputAnchor.side === outputAnchor.side) {
-      inputAnchor = offsetAnchorWithinSide(inputAnchor, node, -18);
+      inputAnchor = getOrthogonalAnchorPoint(node, inputAnchor.side, inputToward);
       outputAnchor = offsetAnchorWithinSide(outputAnchor, node, 18);
     }
 
