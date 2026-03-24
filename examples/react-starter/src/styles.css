@@ -936,6 +936,13 @@ button {
 
 .hf-handle-overlay {
   pointer-events: none;
+}
+
+.hf-handle-overlay-under {
+  z-index: 4;
+}
+
+.hf-handle-overlay-over {
   z-index: 6;
 }
 
