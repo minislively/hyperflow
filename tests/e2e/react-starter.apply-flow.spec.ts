@@ -102,8 +102,22 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
   await page.getByRole("button", { name: "저장" }).click();
   await expect(page.locator(".editor-snapshot")).toContainText('"bend"');
 
-  await page.getByRole("button", { name: "Connect from node 4" }).click();
-  await page.getByRole("button", { name: "Connect into node 5" }).click();
+  const sourceFourHandle = page.getByRole("button", { name: "Connect from node 4" });
+  const targetFiveHandle = page.getByRole("button", { name: "Connect into node 5" });
+  const sourceFourHandleBox = await sourceFourHandle.boundingBox();
+  const targetFiveHandleBox = await targetFiveHandle.boundingBox();
+  if (!sourceFourHandleBox || !targetFiveHandleBox) throw new Error("new node handles missing for drag connect");
+  await page.mouse.move(
+    sourceFourHandleBox.x + sourceFourHandleBox.width / 2,
+    sourceFourHandleBox.y + sourceFourHandleBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    targetFiveHandleBox.x + targetFiveHandleBox.width / 2,
+    targetFiveHandleBox.y + targetFiveHandleBox.height / 2,
+    { steps: 10 },
+  );
+  await page.mouse.up();
   const newEdge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-4-5-3"]');
   await expect(newEdge).toHaveCount(1);
   await expect(page.getByText("엣지: 3")).toBeVisible();

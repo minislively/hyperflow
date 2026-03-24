@@ -120,6 +120,14 @@ export function HyperFlowPocCanvas({
   const [error, setError] = useState<string | null>(null);
   const [visibleBoxes, setVisibleBoxes] = useState<VisibleBox[]>([]);
   const [pendingConnectionSourceId, setPendingConnectionSourceId] = useState<number | null>(null);
+  const [connectionPreview, setConnectionPreview] = useState<{
+    sourceNodeId: number;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    hoveredTargetId: number | null;
+  } | null>(null);
   const [selectionBox, setSelectionBox] = useState<{
     left: number;
     top: number;
@@ -133,9 +141,32 @@ export function HyperFlowPocCanvas({
   const onEdgeBendChangeRef = useRef(onEdgeBendChange);
   const ignoreCanvasClickUntilRef = useRef(0);
   const scheduledFrameRef = useRef<number | null>(null);
+  const connectionPreviewFrameRef = useRef<number | null>(null);
   const pendingNodePositionRef = useRef<{ nodeId: number; nextPosition: PocNode["position"] } | null>(null);
   const pendingViewportRef = useRef<PocViewport | null>(null);
   const pendingEdgeBendRef = useRef<{ edgeId: string; nextBend: PocEdge["bend"] } | null>(null);
+  const pendingConnectionPreviewRef = useRef<{
+    sourceNodeId: number;
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    hoveredTargetId: number | null;
+  } | null>(null);
+  const suppressNextHandleClickRef = useRef(false);
+  const connectionDragRef = useRef<
+    | null
+    | {
+        pointerId: number | null;
+        sourceNodeId: number;
+        startX: number;
+        startY: number;
+        currentX: number;
+        currentY: number;
+        hoveredTargetId: number | null;
+        moved: boolean;
+      }
+  >(null);
   const dragStateRef = useRef<
     | null
     | {
@@ -222,6 +253,27 @@ export function HyperFlowPocCanvas({
     scheduledFrameRef.current = window.requestAnimationFrame(() => {
       flushPendingUpdates();
     });
+  }
+
+  function flushConnectionPreview() {
+    connectionPreviewFrameRef.current = null;
+    setConnectionPreview(pendingConnectionPreviewRef.current);
+  }
+
+  function scheduleConnectionPreview() {
+    if (connectionPreviewFrameRef.current !== null || typeof window === "undefined") return;
+    connectionPreviewFrameRef.current = window.requestAnimationFrame(() => {
+      flushConnectionPreview();
+    });
+  }
+
+  function clearConnectionPreview() {
+    pendingConnectionPreviewRef.current = null;
+    if (connectionPreviewFrameRef.current !== null && typeof window !== "undefined") {
+      window.cancelAnimationFrame(connectionPreviewFrameRef.current);
+      connectionPreviewFrameRef.current = null;
+    }
+    setConnectionPreview(null);
   }
 
   function getCanvasPoint(event: Pick<React.PointerEvent<HTMLCanvasElement>, "clientX" | "clientY">) {
@@ -417,6 +469,81 @@ export function HyperFlowPocCanvas({
     return dragStateRef.current.pointerId === pointerId;
   }
 
+  function matchesConnectionPointer(pointerId: number | null) {
+    if (!connectionDragRef.current) return false;
+    if (connectionDragRef.current.pointerId === null) return pointerId === null;
+    return connectionDragRef.current.pointerId === pointerId;
+  }
+
+  function startConnectionDrag(
+    sourceNodeId: number,
+    startX: number,
+    startY: number,
+    clientX: number,
+    clientY: number,
+    pointerId: number | null,
+  ) {
+    setPendingConnectionSourceId(sourceNodeId);
+    connectionDragRef.current = {
+      pointerId,
+      sourceNodeId,
+      startX,
+      startY,
+      currentX: clientX,
+      currentY: clientY,
+      hoveredTargetId: null,
+      moved: false,
+    };
+    pendingConnectionPreviewRef.current = {
+      sourceNodeId,
+      startX,
+      startY,
+      currentX: clientX,
+      currentY: clientY,
+      hoveredTargetId: null,
+    };
+    scheduleConnectionPreview();
+  }
+
+  function updateHoveredConnectionTarget(targetNodeId: number | null) {
+    if (!connectionDragRef.current) return;
+    connectionDragRef.current.hoveredTargetId = targetNodeId;
+    pendingConnectionPreviewRef.current = {
+      sourceNodeId: connectionDragRef.current.sourceNodeId,
+      startX: connectionDragRef.current.startX,
+      startY: connectionDragRef.current.startY,
+      currentX: connectionDragRef.current.currentX,
+      currentY: connectionDragRef.current.currentY,
+      hoveredTargetId: targetNodeId,
+    };
+    scheduleConnectionPreview();
+  }
+
+  function finalizeConnectionDrag(pointerId: number | null) {
+    if (!connectionDragRef.current || !matchesConnectionPointer(pointerId)) return false;
+
+    const connectionDrag = connectionDragRef.current;
+    const targetNodeId = connectionDrag.hoveredTargetId;
+    if (
+      connectionDrag.moved &&
+      targetNodeId !== null &&
+      Number(targetNodeId) !== Number(connectionDrag.sourceNodeId)
+    ) {
+      onEdgeConnect?.(connectionDrag.sourceNodeId, targetNodeId);
+      selectNode(targetNodeId);
+      selectEdge(null);
+      suppressNextHandleClickRef.current = true;
+      ignoreCanvasClickUntilRef.current = Date.now() + 180;
+      setPendingConnectionSourceId(null);
+    } else if (connectionDrag.moved) {
+      setPendingConnectionSourceId(null);
+    }
+
+    connectionDragRef.current = null;
+    clearConnectionPreview();
+    return true;
+  }
+
   function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
     if (!isInteractive || !engine || !canvasRef.current) return;
     if (event.pointerType === "mouse") return;
@@ -477,6 +604,27 @@ export function HyperFlowPocCanvas({
       | { pointerId: number | null; clientX: number; clientY: number }
       | React.PointerEvent<HTMLCanvasElement>,
   ) {
+    if (connectionDragRef.current && matchesConnectionPointer(event.pointerId)) {
+      const connectionDrag = connectionDragRef.current;
+      connectionDrag.currentX = event.clientX;
+      connectionDrag.currentY = event.clientY;
+      if (
+        Math.abs(connectionDrag.currentX - connectionDrag.startX) > 4 ||
+        Math.abs(connectionDrag.currentY - connectionDrag.startY) > 4
+      ) {
+        connectionDrag.moved = true;
+      }
+      pendingConnectionPreviewRef.current = {
+        sourceNodeId: connectionDrag.sourceNodeId,
+        startX: connectionDrag.startX,
+        startY: connectionDrag.startY,
+        currentX: connectionDrag.currentX,
+        currentY: connectionDrag.currentY,
+        hoveredTargetId: connectionDrag.hoveredTargetId,
+      };
+      scheduleConnectionPreview();
+    }
+
     if (!canvasRef.current || !dragStateRef.current) return;
 
     const dragState = dragStateRef.current;
@@ -542,6 +690,9 @@ export function HyperFlowPocCanvas({
   }
 
   function handlePointerEnd(event: { pointerId: number | null } | React.PointerEvent<HTMLCanvasElement>) {
+    if (finalizeConnectionDrag(event.pointerId)) {
+      return;
+    }
     if (!dragStateRef.current) return;
     if (!matchesDragPointer(event.pointerId)) return;
     if (dragStateRef.current.kind === "selection" && dragStateRef.current.moved && canvasRef.current && onNodeSelectionBoxChange) {
@@ -616,6 +767,9 @@ export function HyperFlowPocCanvas({
     () => () => {
       if (scheduledFrameRef.current !== null && typeof window !== "undefined") {
         window.cancelAnimationFrame(scheduledFrameRef.current);
+      }
+      if (connectionPreviewFrameRef.current !== null && typeof window !== "undefined") {
+        window.cancelAnimationFrame(connectionPreviewFrameRef.current);
       }
     },
     [],
@@ -765,7 +919,7 @@ export function HyperFlowPocCanvas({
         }}
       />
 
-      {renderedEdges.length > 0 ? (
+      {renderedEdges.length > 0 || connectionPreview ? (
         <svg className="hf-edge-overlay" width={width} height={height}>
           {renderedEdges.map((edge) => (
             <g
@@ -823,6 +977,18 @@ export function HyperFlowPocCanvas({
               />
             </g>
           ))}
+          {connectionPreview ? (
+            <path
+              d={buildSmoothEdgePath({
+                sourceX: connectionPreview.startX,
+                sourceY: connectionPreview.startY,
+                targetX: connectionPreview.currentX,
+                targetY: connectionPreview.currentY,
+              })}
+              className="hf-edge-overlay-path hf-edge-overlay-path-preview"
+              aria-hidden="true"
+            />
+          ) : null}
         </svg>
       ) : null}
 
@@ -835,7 +1001,34 @@ export function HyperFlowPocCanvas({
                 className="hf-node-handle hf-node-handle-input"
                 style={{ left: `${handle.inputX}px`, top: `${handle.y}px` }}
                 aria-label={`Connect into node ${handle.id}`}
+                onPointerEnter={() => {
+                  if (!connectionDragRef.current) return;
+                  if (Number(connectionDragRef.current.sourceNodeId) === Number(handle.id)) return;
+                  updateHoveredConnectionTarget(handle.id);
+                }}
+                onPointerLeave={() => {
+                  if (!connectionDragRef.current) return;
+                  if (Number(connectionDragRef.current.hoveredTargetId) !== Number(handle.id)) return;
+                  updateHoveredConnectionTarget(null);
+                }}
+                onPointerUp={(event) => {
+                  if (!connectionDragRef.current) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (Number(connectionDragRef.current.sourceNodeId) === Number(handle.id)) {
+                    finalizeConnectionDrag(event.pointerId);
+                    return;
+                  }
+                  updateHoveredConnectionTarget(handle.id);
+                  finalizeConnectionDrag(event.pointerId);
+                }}
                 onClick={(event) => {
+                  if (suppressNextHandleClickRef.current) {
+                    suppressNextHandleClickRef.current = false;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                  }
                   event.stopPropagation();
                   handleHandleClick("target", handle.id);
                 }}
@@ -849,7 +1042,26 @@ export function HyperFlowPocCanvas({
                 }
                 style={{ left: `${handle.outputX}px`, top: `${handle.y}px` }}
                 aria-label={`Connect from node ${handle.id}`}
+                onPointerDown={(event) => {
+                  if (!isInteractive || !onEdgeConnect) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  startConnectionDrag(
+                    handle.id,
+                    handle.outputX + 7,
+                    handle.y + 7,
+                    event.clientX,
+                    event.clientY,
+                    event.pointerId,
+                  );
+                }}
                 onClick={(event) => {
+                  if (suppressNextHandleClickRef.current) {
+                    suppressNextHandleClickRef.current = false;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                  }
                   event.stopPropagation();
                   handleHandleClick("source", handle.id);
                 }}

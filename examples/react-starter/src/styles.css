@@ -927,6 +927,12 @@ button {
   filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.18));
 }
 
+.hf-edge-overlay-path-preview {
+  stroke: rgba(37, 99, 235, 0.8);
+  stroke-width: 2.5;
+  stroke-dasharray: 8 6;
+}
+
 
 .hf-handle-overlay {
   pointer-events: none;
