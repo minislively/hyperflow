@@ -160,6 +160,24 @@ test("main editor supports box selection and keyboard delete", async ({ page }) 
   await expect(nodeTwo).toHaveCount(0);
 });
 
+test("main editor supports additive multi-select with shift-click", async ({ page }) => {
+  await page.goto("/ko");
+
+  const nodeOne = page.locator("[data-node-card-id='1']");
+  const nodeTwo = page.locator("[data-node-card-id='2']");
+
+  await nodeOne.click();
+  await page.keyboard.down("Shift");
+  await nodeTwo.click();
+  await page.keyboard.up("Shift");
+
+  await expect(page.getByRole("heading", { name: "2 개 노드 선택됨" })).toBeVisible();
+
+  await page.keyboard.press("Delete");
+  await expect(nodeOne).toHaveCount(0);
+  await expect(nodeTwo).toHaveCount(0);
+});
+
 test("learn stays available as supporting docs and links back to the editor", async ({ page }) => {
   await page.goto("/ko/learn");
 

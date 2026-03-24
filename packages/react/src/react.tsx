@@ -41,9 +41,9 @@ export type HyperFlowPocCanvasProps = {
   nodeRenderers?: HyperFlowPocNodeRenderers;
   getNodeRendererKey?: (node: PocNode) => string | null;
   getNodeRendererData?: (node: PocNode) => unknown;
-  onNodeSelect?: (nodeId: number | null) => void;
-  onNodeSelectionBoxChange?: (nodeIds: number[]) => void;
-  onEdgeSelect?: (edgeId: string | null) => void;
+  onNodeSelect?: (nodeId: number | null, options?: { additive?: boolean }) => void;
+  onNodeSelectionBoxChange?: (nodeIds: number[], options?: { additive?: boolean }) => void;
+  onEdgeSelect?: (edgeId: string | null, options?: { additive?: boolean }) => void;
   onNodePositionChange?: (nodeId: number, nextPosition: PocNode["position"]) => void;
   onViewportChange?: (viewport: PocViewport) => void;
   onEdgeConnect?: (sourceNodeId: number, targetNodeId: number) => void;
@@ -155,6 +155,7 @@ export function HyperFlowPocCanvas({
         kind: "selection";
         pointerId: number | null;
         moved: boolean;
+        additive: boolean;
         startClientX: number;
         startClientY: number;
         currentClientX: number;
@@ -257,12 +258,12 @@ export function HyperFlowPocCanvas({
     onMetricsChange?.(metrics);
   }, [engine, hasCustomNodeRendering, height, nodes, onMetricsChange, selectedNodeId, viewport, width]);
 
-  function selectNode(nodeId: number | null) {
-    onNodeSelect?.(nodeId);
+  function selectNode(nodeId: number | null, options?: { additive?: boolean }) {
+    onNodeSelect?.(nodeId, options);
   }
 
-  function selectEdge(edgeId: string | null) {
-    onEdgeSelect?.(edgeId);
+  function selectEdge(edgeId: string | null, options?: { additive?: boolean }) {
+    onEdgeSelect?.(edgeId, options);
   }
 
   function handleClick(event: React.MouseEvent<HTMLCanvasElement>) {
@@ -276,13 +277,21 @@ export function HyperFlowPocCanvas({
       y: viewport.y + canvasPoint.screenY / viewport.zoom,
     };
 
-    selectNode(engine.hitTest(worldPoint));
+    selectNode(engine.hitTest(worldPoint), { additive: event.shiftKey });
     selectEdge(null);
   }
 
-  function startNodeDrag(node: PocNode, clientX: number, clientY: number, pointerId: number | null = null) {
-    selectNode(node.id);
-    selectEdge(null);
+  function startNodeDrag(
+    node: PocNode,
+    clientX: number,
+    clientY: number,
+    pointerId: number | null = null,
+    additive = false,
+  ) {
+    selectNode(node.id, { additive });
+    if (!additive) {
+      selectEdge(null);
+    }
     dragStateRef.current = {
       kind: "node",
       pointerId,
@@ -298,13 +307,13 @@ export function HyperFlowPocCanvas({
     if (!isInteractive || !onNodePositionChange) return;
     if (event.pointerType === "mouse") return;
     event.stopPropagation();
-    startNodeDrag(node, event.clientX, event.clientY, event.pointerId);
+    startNodeDrag(node, event.clientX, event.clientY, event.pointerId, event.shiftKey);
   }
 
   function handleNodeOverlayMouseDown(event: React.MouseEvent<HTMLDivElement>, node: PocNode) {
     if (!isInteractive || !onNodePositionChange || event.button !== 0) return;
     event.stopPropagation();
-    startNodeDrag(node, event.clientX, event.clientY);
+    startNodeDrag(node, event.clientX, event.clientY, null, event.shiftKey);
   }
 
   function startPanDrag(clientX: number, clientY: number, pointerId: number | null = null) {
@@ -320,9 +329,11 @@ export function HyperFlowPocCanvas({
     };
   }
 
-  function startSelectionDrag(clientX: number, clientY: number, pointerId: number | null = null) {
-    selectNode(null);
-    selectEdge(null);
+  function startSelectionDrag(clientX: number, clientY: number, additive = false, pointerId: number | null = null) {
+    if (!additive) {
+      selectNode(null);
+      selectEdge(null);
+    }
     const rect = canvasRef.current?.getBoundingClientRect();
     setSelectionBox(
       rect
@@ -338,6 +349,7 @@ export function HyperFlowPocCanvas({
       kind: "selection",
       pointerId,
       moved: false,
+      additive,
       startClientX: clientX,
       startClientY: clientY,
       currentClientX: clientX,
@@ -385,12 +397,12 @@ export function HyperFlowPocCanvas({
     const node = hitNodeId === null ? null : nodes.find((candidate) => Number(candidate.id) === Number(hitNodeId)) ?? null;
 
     if (node && onNodePositionChange) {
-      startNodeDrag(node, event.clientX, event.clientY, event.pointerId);
+      startNodeDrag(node, event.clientX, event.clientY, event.pointerId, event.shiftKey);
       return;
     }
 
     if (event.shiftKey && onNodeSelectionBoxChange) {
-      startSelectionDrag(event.clientX, event.clientY, event.pointerId);
+      startSelectionDrag(event.clientX, event.clientY, event.shiftKey, event.pointerId);
       return;
     }
 
@@ -412,12 +424,12 @@ export function HyperFlowPocCanvas({
     const node = hitNodeId === null ? null : nodes.find((candidate) => Number(candidate.id) === Number(hitNodeId)) ?? null;
 
     if (node && onNodePositionChange) {
-      startNodeDrag(node, event.clientX, event.clientY);
+      startNodeDrag(node, event.clientX, event.clientY, null, event.shiftKey);
       return;
     }
 
     if (onNodeSelectionBoxChange && !event.altKey) {
-      startSelectionDrag(event.clientX, event.clientY);
+      startSelectionDrag(event.clientX, event.clientY, event.shiftKey);
       return;
     }
 
@@ -506,7 +518,9 @@ export function HyperFlowPocCanvas({
         })
         .map((node) => Number(node.id));
 
-      onNodeSelectionBoxChange(selectedIds);
+      onNodeSelectionBoxChange(selectedIds, {
+        additive: dragStateRef.current.additive,
+      });
     }
     if (dragStateRef.current.moved) {
       ignoreCanvasClickUntilRef.current = Date.now() + 180;
@@ -720,7 +734,7 @@ export function HyperFlowPocCanvas({
                   event.preventDefault();
                   event.stopPropagation();
                   selectNode(null);
-                  selectEdge(edge.id);
+                  selectEdge(edge.id, { additive: event.shiftKey });
                   if (!isInteractive || !onEdgeBendChange) return;
                   startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendWorldX, y: edge.bendWorldY }, event.pointerId);
                 }}
@@ -728,20 +742,20 @@ export function HyperFlowPocCanvas({
                   event.preventDefault();
                   event.stopPropagation();
                   selectNode(null);
-                  selectEdge(edge.id);
+                  selectEdge(edge.id, { additive: event.shiftKey });
                   if (!isInteractive || !onEdgeBendChange || event.button !== 0) return;
                   startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendWorldX, y: edge.bendWorldY });
                 }}
                 onClick={(event) => {
                   event.stopPropagation();
                   selectNode(null);
-                  selectEdge(edge.id);
+                  selectEdge(edge.id, { additive: event.shiftKey });
                 }}
                 onDoubleClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
                   selectNode(null);
-                  selectEdge(edge.id);
+                  selectEdge(edge.id, { additive: event.shiftKey });
                   if (edge.hasBend) onEdgeBendChange?.(edge.id, null);
                 }}
               />
@@ -806,7 +820,8 @@ export function HyperFlowPocCanvas({
               }}
               onClick={(event) => {
                 event.stopPropagation();
-                selectNode(node.id);
+                if (isInteractive && onNodePositionChange) return;
+                selectNode(node.id, { additive: event.shiftKey });
                 selectEdge(null);
               }}
               onPointerDown={(event) => handleNodeOverlayPointerDown(event, node)}

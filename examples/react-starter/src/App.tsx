@@ -2590,7 +2590,7 @@ function MainEditorSurface({
             nodes: "노드",
             edges: "엣지",
             zoom: "줌",
-            shortcuts: "N 노드 추가 · Delete 삭제 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
+            shortcuts: "N 노드 추가 · Shift+클릭 다중 선택 · Delete 삭제 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
           },
           inspector: {
             eyebrow: "선택된 항목",
@@ -2604,7 +2604,7 @@ function MainEditorSurface({
             saved: "저장된 스냅샷",
             notSaved: "아직 저장된 스냅샷이 없다.",
             multiSelectedSuffix: "개 노드 선택됨",
-            multiHint: "빈 캔버스를 드래그하면 여러 노드를 한 번에 선택할 수 있다. Alt를 누른 채 드래그하면 화면을 이동한다.",
+            multiHint: "Shift+클릭으로 선택을 더하고 빼거나, Shift를 누른 채 빈 캔버스를 드래그해 여러 노드를 한 번에 더할 수 있다. Alt를 누른 채 드래그하면 화면을 이동한다.",
           },
           topNav: {
             editor: "에디터",
@@ -2629,7 +2629,7 @@ function MainEditorSurface({
             nodes: "Nodes",
             edges: "Edges",
             zoom: "Zoom",
-            shortcuts: "N adds nodes · Delete removes · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
+            shortcuts: "N adds nodes · Shift+click multi-select · Delete removes · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
           },
           inspector: {
             eyebrow: "Selected item",
@@ -2643,7 +2643,7 @@ function MainEditorSurface({
             saved: "Saved snapshot",
             notSaved: "No saved snapshot yet.",
             multiSelectedSuffix: "nodes selected",
-            multiHint: "Drag across empty canvas to select multiple nodes at once. Hold Alt while dragging to pan the viewport.",
+            multiHint: "Use Shift+click to add or remove nodes from the current selection, or Shift-drag across empty canvas to add multiple nodes at once. Hold Alt while dragging to pan the viewport.",
           },
           topNav: {
             editor: "Editor",
@@ -2680,6 +2680,42 @@ function MainEditorSurface({
     setSelectedNodeIds([nextId]);
     onSelectionChange({ nodeId: nextId });
     setSelectedEdgeId(null);
+  }
+
+  function getResolvedSelectedNodeIds() {
+    if (selectedNodeIds.length > 0) return selectedNodeIds.map((id) => Number(id));
+    return selection.nodeId !== null ? [Number(selection.nodeId)] : [];
+  }
+
+  function applyNodeSelection(nodeIds: number[]) {
+    const uniqueIds = Array.from(new Set(nodeIds.map((id) => Number(id))));
+    setSelectedNodeIds(uniqueIds);
+    onSelectionChange({ nodeId: uniqueIds[0] ?? null });
+    if (uniqueIds.length > 0) setSelectedEdgeId(null);
+  }
+
+  function handleNodeSelect(nodeId: number | null, options?: { additive?: boolean }) {
+    if (!options?.additive) {
+      applyNodeSelection(nodeId !== null ? [nodeId] : []);
+      return;
+    }
+
+    if (nodeId === null) return;
+    const currentIds = getResolvedSelectedNodeIds();
+    const nextIds = currentIds.includes(Number(nodeId))
+      ? currentIds.filter((id) => Number(id) !== Number(nodeId))
+      : [...currentIds, Number(nodeId)];
+    applyNodeSelection(nextIds);
+  }
+
+  function handleNodeSelectionBoxChange(nodeIds: number[], options?: { additive?: boolean }) {
+    if (!options?.additive) {
+      applyNodeSelection(nodeIds);
+      return;
+    }
+
+    const currentIds = getResolvedSelectedNodeIds();
+    applyNodeSelection([...currentIds, ...nodeIds]);
   }
 
   function deleteSelected() {
@@ -2878,16 +2914,8 @@ function MainEditorSurface({
                 nodeRenderers={{ card: EditorNodeCard }}
                 getNodeRendererKey={() => "card"}
                 getNodeRendererData={(node) => node.data}
-                onNodeSelect={(nodeId) => {
-                  setSelectedNodeIds(nodeId !== null ? [nodeId] : []);
-                  onSelectionChange({ nodeId });
-                  if (nodeId !== null) setSelectedEdgeId(null);
-                }}
-                onNodeSelectionBoxChange={(nodeIds) => {
-                  setSelectedNodeIds(nodeIds);
-                  onSelectionChange({ nodeId: nodeIds[0] ?? null });
-                  setSelectedEdgeId(null);
-                }}
+                onNodeSelect={handleNodeSelect}
+                onNodeSelectionBoxChange={handleNodeSelectionBoxChange}
                 onEdgeSelect={(edgeId) => {
                   setSelectedEdgeId(edgeId);
                   if (edgeId !== null) {
