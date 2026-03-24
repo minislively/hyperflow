@@ -2427,6 +2427,29 @@ function getMiniMapNodeAnchorPoint(node: PocNode, toward: { x: number; y: number
     : { x: center.x, y: node.position.y };
 }
 
+function offsetMiniMapAnchorWithinSide(
+  anchor: { x: number; y: number; side: "left" | "right" | "top" | "bottom" },
+  node: PocNode,
+  offset: number,
+) {
+  const inset = 14;
+  if (anchor.side === "left" || anchor.side === "right") {
+    const minY = node.position.y + inset;
+    const maxY = node.position.y + node.size.height - inset;
+    return {
+      ...anchor,
+      y: Math.min(maxY, Math.max(minY, anchor.y + offset)),
+    };
+  }
+
+  const minX = node.position.x + inset;
+  const maxX = node.position.x + node.size.width - inset;
+  return {
+    ...anchor,
+    x: Math.min(maxX, Math.max(minX, anchor.x + offset)),
+  };
+}
+
 function EditorMiniMap({
   locale,
   nodes,
@@ -2485,6 +2508,63 @@ function EditorMiniMap({
     };
   }, [edges, nodes, viewport]);
 
+  const anchorMaps = useMemo(() => {
+    const incomingByNodeId = new Map<number, PocNode[]>();
+    const outgoingByNodeId = new Map<number, PocNode[]>();
+
+    edges.forEach((edge) => {
+      const sourceNode = nodes.find((node) => Number(node.id) === Number(edge.source));
+      const targetNode = nodes.find((node) => Number(node.id) === Number(edge.target));
+      if (!sourceNode || !targetNode) return;
+      outgoingByNodeId.set(Number(sourceNode.id), [...(outgoingByNodeId.get(Number(sourceNode.id)) ?? []), targetNode]);
+      incomingByNodeId.set(Number(targetNode.id), [...(incomingByNodeId.get(Number(targetNode.id)) ?? []), sourceNode]);
+    });
+
+    const averageCenter = (connectedNodes: PocNode[]) => {
+      if (connectedNodes.length === 0) return null;
+      const totals = connectedNodes.reduce(
+        (sum, connectedNode) => {
+          const center = getMiniMapNodeCenter(connectedNode);
+          return { x: sum.x + center.x, y: sum.y + center.y };
+        },
+        { x: 0, y: 0 },
+      );
+      return {
+        x: totals.x / connectedNodes.length,
+        y: totals.y / connectedNodes.length,
+      };
+    };
+
+    const anchorsByNodeId = new Map<
+      number,
+      {
+        inputAnchor: { x: number; y: number; side: "left" | "right" | "top" | "bottom" };
+        outputAnchor: { x: number; y: number; side: "left" | "right" | "top" | "bottom" };
+      }
+    >();
+
+    nodes.forEach((node) => {
+      const center = getMiniMapNodeCenter(node);
+      const outputToward = averageCenter(outgoingByNodeId.get(Number(node.id)) ?? []) ?? {
+        x: center.x + 1,
+        y: center.y,
+      };
+      const inputToward = averageCenter(incomingByNodeId.get(Number(node.id)) ?? []) ?? {
+        x: center.x - 1,
+        y: center.y,
+      };
+      let inputAnchor = getMiniMapNodeAnchorPoint(node, inputToward);
+      let outputAnchor = getMiniMapNodeAnchorPoint(node, outputToward);
+      if (inputAnchor.side === outputAnchor.side) {
+        inputAnchor = offsetMiniMapAnchorWithinSide(inputAnchor, node, -18);
+        outputAnchor = offsetMiniMapAnchorWithinSide(outputAnchor, node, 18);
+      }
+      anchorsByNodeId.set(Number(node.id), { inputAnchor, outputAnchor });
+    });
+
+    return anchorsByNodeId;
+  }, [edges, nodes]);
+
   function recenterViewport(clientX: number, clientY: number, rect: DOMRect) {
     const localX = clientX - rect.left;
     const localY = clientY - rect.top;
@@ -2518,9 +2598,9 @@ function EditorMiniMap({
           const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
           const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
           const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
-          const anchorInfluence = edge.bend ? { x: bendWorldX, y: bendWorldY } : null;
-          const sourceAnchor = getMiniMapNodeAnchorPoint(sourceNode, anchorInfluence ?? targetCenter);
-          const targetAnchor = getMiniMapNodeAnchorPoint(targetNode, anchorInfluence ?? sourceCenter);
+          const sourceAnchor = anchorMaps.get(Number(sourceNode.id))?.outputAnchor;
+          const targetAnchor = anchorMaps.get(Number(targetNode.id))?.inputAnchor;
+          if (!sourceAnchor || !targetAnchor) return null;
           const x1 = model.projectX(sourceAnchor.x);
           const y1 = model.projectY(sourceAnchor.y);
           const x2 = model.projectX(targetAnchor.x);

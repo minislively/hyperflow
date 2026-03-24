@@ -959,6 +959,66 @@ export function HyperFlowPocCanvas({
     visibleBoxes,
   ]);
 
+  const connectedNodeMaps = useMemo(() => {
+    const incomingByNodeId = new Map<number, PocNode[]>();
+    const outgoingByNodeId = new Map<number, PocNode[]>();
+
+    edges.forEach((edge) => {
+      const sourceNode = nodeById.get(Number(edge.source));
+      const targetNode = nodeById.get(Number(edge.target));
+      if (!sourceNode || !targetNode) return;
+
+      const sourceId = Number(sourceNode.id);
+      const targetId = Number(targetNode.id);
+      outgoingByNodeId.set(sourceId, [...(outgoingByNodeId.get(sourceId) ?? []), targetNode]);
+      incomingByNodeId.set(targetId, [...(incomingByNodeId.get(targetId) ?? []), sourceNode]);
+    });
+
+    return { incomingByNodeId, outgoingByNodeId };
+  }, [edges, nodeById]);
+
+  function averageConnectedCenter(connectedNodes: PocNode[]) {
+    if (connectedNodes.length === 0) return null;
+    const totals = connectedNodes.reduce(
+      (sum, connectedNode) => {
+        const center = getNodeCenter(connectedNode);
+        return { x: sum.x + center.x, y: sum.y + center.y };
+      },
+      { x: 0, y: 0 },
+    );
+    return {
+      x: totals.x / connectedNodes.length,
+      y: totals.y / connectedNodes.length,
+    };
+  }
+
+  function getResolvedNodeAnchors(node: PocNode) {
+    const center = getNodeCenter(node);
+    const outputToward =
+      pendingConnectionSourceId === Number(node.id) && connectionPreview
+        ? {
+            x: viewport.x + connectionPreview.currentX / viewport.zoom,
+            y: viewport.y + connectionPreview.currentY / viewport.zoom,
+          }
+        : averageConnectedCenter(connectedNodeMaps.outgoingByNodeId.get(Number(node.id)) ?? []) ?? {
+            x: center.x + 1,
+            y: center.y,
+          };
+    const inputToward = averageConnectedCenter(connectedNodeMaps.incomingByNodeId.get(Number(node.id)) ?? []) ?? {
+      x: center.x - 1,
+      y: center.y,
+    };
+
+    let inputAnchor = getNodeAnchorPoint(node, inputToward);
+    let outputAnchor = getNodeAnchorPoint(node, outputToward);
+    if (inputAnchor.side === outputAnchor.side) {
+      inputAnchor = offsetAnchorWithinSide(inputAnchor, node, -18);
+      outputAnchor = offsetAnchorWithinSide(outputAnchor, node, 18);
+    }
+
+    return { inputAnchor, outputAnchor };
+  }
+
   const renderedEdges = useMemo(() => {
     return edges
       .map((edge) => {
@@ -972,9 +1032,8 @@ export function HyperFlowPocCanvas({
         const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
         const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
         const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
-        const anchorInfluence = edge.bend ? { x: bendWorldX, y: bendWorldY } : null;
-        const sourceAnchor = getNodeAnchorPoint(sourceNode, anchorInfluence ?? targetCenter);
-        const targetAnchor = getNodeAnchorPoint(targetNode, anchorInfluence ?? sourceCenter);
+        const { outputAnchor: sourceAnchor } = getResolvedNodeAnchors(sourceNode);
+        const { inputAnchor: targetAnchor } = getResolvedNodeAnchors(targetNode);
         const sourceX = (sourceAnchor.x - viewport.x) * viewport.zoom;
         const sourceY = (sourceAnchor.y - viewport.y) * viewport.zoom;
         const targetX = (targetAnchor.x - viewport.x) * viewport.zoom;
@@ -1009,58 +1068,13 @@ export function HyperFlowPocCanvas({
       bendWorldY: number;
       hasBend: boolean;
     }>;
-  }, [edges, nodeById, viewport.x, viewport.y, viewport.zoom]);
+  }, [edges, nodeById, viewport.x, viewport.y, viewport.zoom, connectedNodeMaps, connectionPreview, pendingConnectionSourceId]);
 
   const renderedHandles = useMemo(() => {
     if (!onEdgeConnect) return [];
 
-    const incomingByNodeId = new Map<number, PocNode[]>();
-    const outgoingByNodeId = new Map<number, PocNode[]>();
-
-    edges.forEach((edge) => {
-      const sourceNode = nodeById.get(Number(edge.source));
-      const targetNode = nodeById.get(Number(edge.target));
-      if (!sourceNode || !targetNode) return;
-
-      const sourceId = Number(sourceNode.id);
-      const targetId = Number(targetNode.id);
-      outgoingByNodeId.set(sourceId, [...(outgoingByNodeId.get(sourceId) ?? []), targetNode]);
-      incomingByNodeId.set(targetId, [...(incomingByNodeId.get(targetId) ?? []), sourceNode]);
-    });
-
-    const averageCenter = (connectedNodes: PocNode[]) => {
-      if (connectedNodes.length === 0) return null;
-      const totals = connectedNodes.reduce(
-        (sum, connectedNode) => {
-          const center = getNodeCenter(connectedNode);
-          return { x: sum.x + center.x, y: sum.y + center.y };
-        },
-        { x: 0, y: 0 },
-      );
-      return {
-        x: totals.x / connectedNodes.length,
-        y: totals.y / connectedNodes.length,
-      };
-    };
-
     return nodes.map((node) => {
-      const center = getNodeCenter(node);
-      const outputToward =
-        pendingConnectionSourceId === Number(node.id) && connectionPreview
-          ? {
-              x: viewport.x + connectionPreview.currentX / viewport.zoom,
-              y: viewport.y + connectionPreview.currentY / viewport.zoom,
-            }
-          : averageCenter(outgoingByNodeId.get(Number(node.id)) ?? []) ?? { x: center.x + 1, y: center.y };
-      const inputToward =
-        averageCenter(incomingByNodeId.get(Number(node.id)) ?? []) ?? { x: center.x - 1, y: center.y };
-
-      let inputAnchor = getNodeAnchorPoint(node, inputToward);
-      let outputAnchor = getNodeAnchorPoint(node, outputToward);
-      if (inputAnchor.side === outputAnchor.side) {
-        inputAnchor = offsetAnchorWithinSide(inputAnchor, node, -18);
-        outputAnchor = offsetAnchorWithinSide(outputAnchor, node, 18);
-      }
+      const { inputAnchor, outputAnchor } = getResolvedNodeAnchors(node);
 
       return {
         id: node.id,
@@ -1079,8 +1093,6 @@ export function HyperFlowPocCanvas({
   }, [
     activeDragNodeIdsSet,
     connectionPreview,
-    edges,
-    nodeById,
     nodes,
     onEdgeConnect,
     pendingConnectionSourceId,
