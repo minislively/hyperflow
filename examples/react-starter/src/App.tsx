@@ -2404,6 +2404,29 @@ function buildSmoothMiniMapEdgePath({
   return `M ${sourceX} ${sourceY} C ${controlOneX} ${controlOneY}, ${controlTwoX} ${controlTwoY}, ${targetX} ${targetY}`;
 }
 
+function getMiniMapNodeCenter(node: PocNode) {
+  return {
+    x: node.position.x + node.size.width / 2,
+    y: node.position.y + node.size.height / 2,
+  };
+}
+
+function getMiniMapNodeAnchorPoint(node: PocNode, toward: { x: number; y: number }) {
+  const center = getMiniMapNodeCenter(node);
+  const dx = toward.x - center.x;
+  const dy = toward.y - center.y;
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0
+      ? { x: node.position.x + node.size.width, y: center.y }
+      : { x: node.position.x, y: center.y };
+  }
+
+  return dy >= 0
+    ? { x: center.x, y: node.position.y + node.size.height }
+    : { x: center.x, y: node.position.y };
+}
+
 function EditorMiniMap({
   locale,
   nodes,
@@ -2489,14 +2512,19 @@ function EditorMiniMap({
           const targetNode = nodes.find((node) => Number(node.id) === Number(edge.target));
           if (!sourceNode || !targetNode) return null;
 
-          const x1 = model.projectX(sourceNode.position.x + sourceNode.size.width / 2);
-          const y1 = model.projectY(sourceNode.position.y + sourceNode.size.height / 2);
-          const x2 = model.projectX(targetNode.position.x + targetNode.size.width / 2);
-          const y2 = model.projectY(targetNode.position.y + targetNode.size.height / 2);
-          const defaultBendWorldX = (sourceNode.position.x + sourceNode.size.width / 2 + targetNode.position.x + targetNode.size.width / 2) / 2;
-          const defaultBendWorldY = (sourceNode.position.y + sourceNode.size.height / 2 + targetNode.position.y + targetNode.size.height / 2) / 2;
+          const sourceCenter = getMiniMapNodeCenter(sourceNode);
+          const targetCenter = getMiniMapNodeCenter(targetNode);
+          const defaultBendWorldX = (sourceCenter.x + targetCenter.x) / 2;
+          const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
           const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
           const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
+          const anchorInfluence = edge.bend ? { x: bendWorldX, y: bendWorldY } : null;
+          const sourceAnchor = getMiniMapNodeAnchorPoint(sourceNode, anchorInfluence ?? targetCenter);
+          const targetAnchor = getMiniMapNodeAnchorPoint(targetNode, anchorInfluence ?? sourceCenter);
+          const x1 = model.projectX(sourceAnchor.x);
+          const y1 = model.projectY(sourceAnchor.y);
+          const x2 = model.projectX(targetAnchor.x);
+          const y2 = model.projectY(targetAnchor.y);
           const bendOffsetX = edge.bend ? model.projectX(bendWorldX) - model.projectX(defaultBendWorldX) : null;
           const bendOffsetY = edge.bend ? model.projectY(bendWorldY) - model.projectY(defaultBendWorldY) : null;
           return (

@@ -56,6 +56,54 @@ export type HyperFlowPocCanvasProps = {
 const HANDLE_SIZE = 18;
 const HANDLE_HALF = HANDLE_SIZE / 2;
 
+type AnchorSide = "left" | "right" | "top" | "bottom";
+
+function getNodeCenter(node: PocNode) {
+  return {
+    x: node.position.x + node.size.width / 2,
+    y: node.position.y + node.size.height / 2,
+  };
+}
+
+function getNodeAnchorPoint(node: PocNode, toward: { x: number; y: number }) {
+  const center = getNodeCenter(node);
+  const dx = toward.x - center.x;
+  const dy = toward.y - center.y;
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0
+      ? { x: node.position.x + node.size.width, y: center.y, side: "right" as const }
+      : { x: node.position.x, y: center.y, side: "left" as const };
+  }
+
+  return dy >= 0
+    ? { x: center.x, y: node.position.y + node.size.height, side: "bottom" as const }
+    : { x: center.x, y: node.position.y, side: "top" as const };
+}
+
+function offsetAnchorWithinSide(
+  anchor: { x: number; y: number; side: AnchorSide },
+  node: PocNode,
+  offset: number,
+) {
+  const inset = 14;
+  if (anchor.side === "left" || anchor.side === "right") {
+    const minY = node.position.y + inset;
+    const maxY = node.position.y + node.size.height - inset;
+    return {
+      ...anchor,
+      y: Math.min(maxY, Math.max(minY, anchor.y + offset)),
+    };
+  }
+
+  const minX = node.position.x + inset;
+  const maxX = node.position.x + node.size.width - inset;
+  return {
+    ...anchor,
+    x: Math.min(maxX, Math.max(minX, anchor.x + offset)),
+  };
+}
+
 function buildSmoothEdgePath({
   sourceX,
   sourceY,
@@ -880,15 +928,19 @@ export function HyperFlowPocCanvas({
         const targetNode = nodeById.get(Number(edge.target));
         if (!sourceNode || !targetNode) return null;
 
-        const sourceX = (sourceNode.position.x + sourceNode.size.width - viewport.x) * viewport.zoom;
-        const sourceY = (sourceNode.position.y + sourceNode.size.height / 2 - viewport.y) * viewport.zoom;
-        const targetX = (targetNode.position.x - viewport.x) * viewport.zoom;
-        const targetY = (targetNode.position.y + targetNode.size.height / 2 - viewport.y) * viewport.zoom;
-        const defaultBendWorldX = (sourceNode.position.x + sourceNode.size.width + targetNode.position.x) / 2;
-        const defaultBendWorldY =
-          (sourceNode.position.y + sourceNode.size.height / 2 + targetNode.position.y + targetNode.size.height / 2) / 2;
+        const sourceCenter = getNodeCenter(sourceNode);
+        const targetCenter = getNodeCenter(targetNode);
+        const defaultBendWorldX = (sourceCenter.x + targetCenter.x) / 2;
+        const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
         const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
         const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
+        const anchorInfluence = edge.bend ? { x: bendWorldX, y: bendWorldY } : null;
+        const sourceAnchor = getNodeAnchorPoint(sourceNode, anchorInfluence ?? targetCenter);
+        const targetAnchor = getNodeAnchorPoint(targetNode, anchorInfluence ?? sourceCenter);
+        const sourceX = (sourceAnchor.x - viewport.x) * viewport.zoom;
+        const sourceY = (sourceAnchor.y - viewport.y) * viewport.zoom;
+        const targetX = (targetAnchor.x - viewport.x) * viewport.zoom;
+        const targetY = (targetAnchor.y - viewport.y) * viewport.zoom;
         const bendOffsetX = edge.bend ? edge.bend.x * viewport.zoom : null;
         const bendOffsetY = edge.bend ? edge.bend.y * viewport.zoom : null;
         const path = buildSmoothEdgePath({
@@ -924,19 +976,63 @@ export function HyperFlowPocCanvas({
   const renderedHandles = useMemo(() => {
     if (!onEdgeConnect) return [];
 
+    const incomingByNodeId = new Map<number, PocNode[]>();
+    const outgoingByNodeId = new Map<number, PocNode[]>();
+
+    edges.forEach((edge) => {
+      const sourceNode = nodeById.get(Number(edge.source));
+      const targetNode = nodeById.get(Number(edge.target));
+      if (!sourceNode || !targetNode) return;
+
+      const sourceId = Number(sourceNode.id);
+      const targetId = Number(targetNode.id);
+      outgoingByNodeId.set(sourceId, [...(outgoingByNodeId.get(sourceId) ?? []), targetNode]);
+      incomingByNodeId.set(targetId, [...(incomingByNodeId.get(targetId) ?? []), sourceNode]);
+    });
+
+    const averageCenter = (connectedNodes: PocNode[]) => {
+      if (connectedNodes.length === 0) return null;
+      const totals = connectedNodes.reduce(
+        (sum, connectedNode) => {
+          const center = getNodeCenter(connectedNode);
+          return { x: sum.x + center.x, y: sum.y + center.y };
+        },
+        { x: 0, y: 0 },
+      );
+      return {
+        x: totals.x / connectedNodes.length,
+        y: totals.y / connectedNodes.length,
+      };
+    };
+
     return nodes.map((node) => {
-      const screenLeft = (node.position.x - viewport.x) * viewport.zoom;
-      const screenTop = (node.position.y - viewport.y) * viewport.zoom;
-      const screenWidth = node.size.width * viewport.zoom;
-      const screenHeight = node.size.height * viewport.zoom;
+      const center = getNodeCenter(node);
+      const outputToward =
+        pendingConnectionSourceId === Number(node.id) && connectionPreview
+          ? {
+              x: viewport.x + connectionPreview.currentX / viewport.zoom,
+              y: viewport.y + connectionPreview.currentY / viewport.zoom,
+            }
+          : averageCenter(outgoingByNodeId.get(Number(node.id)) ?? []) ?? { x: center.x + 1, y: center.y };
+      const inputToward =
+        averageCenter(incomingByNodeId.get(Number(node.id)) ?? []) ?? { x: center.x - 1, y: center.y };
+
+      let inputAnchor = getNodeAnchorPoint(node, inputToward);
+      let outputAnchor = getNodeAnchorPoint(node, outputToward);
+      if (inputAnchor.side === outputAnchor.side) {
+        inputAnchor = offsetAnchorWithinSide(inputAnchor, node, -18);
+        outputAnchor = offsetAnchorWithinSide(outputAnchor, node, 18);
+      }
+
       return {
         id: node.id,
-        inputX: screenLeft - HANDLE_HALF,
-        outputX: screenLeft + screenWidth - HANDLE_HALF,
-        y: screenTop + screenHeight / 2 - HANDLE_HALF,
+        inputX: (inputAnchor.x - viewport.x) * viewport.zoom - HANDLE_HALF,
+        inputY: (inputAnchor.y - viewport.y) * viewport.zoom - HANDLE_HALF,
+        outputX: (outputAnchor.x - viewport.x) * viewport.zoom - HANDLE_HALF,
+        outputY: (outputAnchor.y - viewport.y) * viewport.zoom - HANDLE_HALF,
       };
     });
-  }, [nodes, onEdgeConnect, viewport.x, viewport.y, viewport.zoom]);
+  }, [connectionPreview, edges, nodeById, nodes, onEdgeConnect, pendingConnectionSourceId, viewport.x, viewport.y, viewport.zoom]);
 
   function handleHandleClick(role: "source" | "target", nodeId: number) {
     if (!onEdgeConnect) return;
@@ -1058,7 +1154,7 @@ export function HyperFlowPocCanvas({
               <button
                 type="button"
                 className="hf-node-handle hf-node-handle-input"
-                style={{ left: `${handle.inputX}px`, top: `${handle.y}px` }}
+                style={{ left: `${handle.inputX}px`, top: `${handle.inputY}px` }}
                 aria-label={`Connect into node ${handle.id}`}
                 onPointerEnter={() => {
                   if (!connectionDragRef.current) return;
@@ -1099,7 +1195,7 @@ export function HyperFlowPocCanvas({
                     ? "hf-node-handle hf-node-handle-output hf-node-handle-active"
                     : "hf-node-handle hf-node-handle-output"
                 }
-                style={{ left: `${handle.outputX}px`, top: `${handle.y}px` }}
+                style={{ left: `${handle.outputX}px`, top: `${handle.outputY}px` }}
                 aria-label={`Connect from node ${handle.id}`}
                 onPointerDown={(event) => {
                   if (!isInteractive || !onEdgeConnect) return;
@@ -1108,7 +1204,7 @@ export function HyperFlowPocCanvas({
                   startConnectionDrag(
                     handle.id,
                     handle.outputX + HANDLE_HALF,
-                    handle.y + HANDLE_HALF,
+                    handle.outputY + HANDLE_HALF,
                     event.clientX,
                     event.clientY,
                     event.pointerId,
