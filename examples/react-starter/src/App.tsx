@@ -2373,6 +2373,10 @@ function buildSmoothMiniMapEdgePath({
   sourceY,
   targetX,
   targetY,
+  sourceSide,
+  targetSide,
+  sourceSpread = 0,
+  targetSpread = 0,
   bendOffsetX,
   bendOffsetY,
 }: {
@@ -2380,28 +2384,57 @@ function buildSmoothMiniMapEdgePath({
   sourceY: number;
   targetX: number;
   targetY: number;
+  sourceSide: "left" | "right" | "top" | "bottom";
+  targetSide: "left" | "right" | "top" | "bottom";
+  sourceSpread?: number;
+  targetSpread?: number;
   bendOffsetX?: number | null;
   bendOffsetY?: number | null;
 }) {
   const dx = targetX - sourceX;
-  const sign = dx >= 0 ? 1 : -1;
-  const absoluteDx = Math.abs(dx);
-  const baseOffset = Math.max(12, absoluteDx * 0.35);
+  const dy = targetY - sourceY;
+  const baseOffset = Math.max(10, Math.max(Math.abs(dx), Math.abs(dy)) * 0.28);
 
-  if (bendOffsetX == null || bendOffsetY == null) {
-    return `M ${sourceX} ${sourceY} C ${sourceX + sign * baseOffset} ${sourceY}, ${targetX - sign * baseOffset} ${targetY}, ${targetX} ${targetY}`;
+  function buildDirectionalControlPoint(
+    x: number,
+    y: number,
+    side: "left" | "right" | "top" | "bottom",
+    spread: number,
+    bendX = 0,
+    bendY = 0,
+  ) {
+    switch (side) {
+      case "left":
+        return { x: x - baseOffset + bendX, y: y + spread + bendY };
+      case "right":
+        return { x: x + baseOffset + bendX, y: y + spread + bendY };
+      case "top":
+        return { x: x + spread + bendX, y: y - baseOffset + bendY };
+      case "bottom":
+        return { x: x + spread + bendX, y: y + baseOffset + bendY };
+    }
   }
 
-  const influenceX = bendOffsetX * 0.18;
-  const influenceY = bendOffsetY * 0.7;
-  const minX = Math.min(sourceX, targetX) + 6;
-  const maxX = Math.max(sourceX, targetX) - 6;
-  const controlOneX = Math.min(maxX, Math.max(minX, sourceX + sign * baseOffset + influenceX));
-  const controlTwoX = Math.min(maxX, Math.max(minX, targetX - sign * baseOffset + influenceX));
-  const controlOneY = sourceY + influenceY;
-  const controlTwoY = targetY + influenceY;
+  const bendInfluenceX = bendOffsetX ?? 0;
+  const bendInfluenceY = bendOffsetY ?? 0;
+  const sourceControl = buildDirectionalControlPoint(
+    sourceX,
+    sourceY,
+    sourceSide,
+    sourceSpread,
+    bendInfluenceX * 0.16,
+    bendInfluenceY * 0.34,
+  );
+  const targetControl = buildDirectionalControlPoint(
+    targetX,
+    targetY,
+    targetSide,
+    targetSpread,
+    bendInfluenceX * 0.16,
+    bendInfluenceY * 0.34,
+  );
 
-  return `M ${sourceX} ${sourceY} C ${controlOneX} ${controlOneY}, ${controlTwoX} ${controlTwoY}, ${targetX} ${targetY}`;
+  return `M ${sourceX} ${sourceY} C ${sourceControl.x} ${sourceControl.y}, ${targetControl.x} ${targetControl.y}, ${targetX} ${targetY}`;
 }
 
 function getMiniMapNodeCenter(node: PocNode) {
@@ -2418,13 +2451,13 @@ function getMiniMapNodeAnchorPoint(node: PocNode, toward: { x: number; y: number
 
   if (Math.abs(dx) >= Math.abs(dy)) {
     return dx >= 0
-      ? { x: node.position.x + node.size.width, y: center.y }
-      : { x: node.position.x, y: center.y };
+      ? { x: node.position.x + node.size.width, y: center.y, side: "right" as const }
+      : { x: node.position.x, y: center.y, side: "left" as const };
   }
 
   return dy >= 0
-    ? { x: center.x, y: node.position.y + node.size.height }
-    : { x: center.x, y: node.position.y };
+    ? { x: center.x, y: node.position.y + node.size.height, side: "bottom" as const }
+    : { x: center.x, y: node.position.y, side: "top" as const };
 }
 
 function offsetMiniMapAnchorWithinSide(
@@ -2565,6 +2598,61 @@ function EditorMiniMap({
     return anchorsByNodeId;
   }, [edges, nodes]);
 
+  const edgeSpreadMaps = useMemo(() => {
+    const sourceSpreadByEdgeId = new Map<string, number>();
+    const targetSpreadByEdgeId = new Map<string, number>();
+    const spreadStep = 18;
+
+    const edgePositionMetric = (node: PocNode, side: "left" | "right" | "top" | "bottom") => {
+      const center = getMiniMapNodeCenter(node);
+      return side === "left" || side === "right" ? center.y : center.x;
+    };
+
+    const centeredSpread = (index: number, count: number) => (index - (count - 1) / 2) * spreadStep;
+
+    const outgoingBySource = new Map<number, LearnDemoEdge[]>();
+    const incomingByTarget = new Map<number, LearnDemoEdge[]>();
+
+    edges.forEach((edge) => {
+      outgoingBySource.set(Number(edge.source), [...(outgoingBySource.get(Number(edge.source)) ?? []), edge]);
+      incomingByTarget.set(Number(edge.target), [...(incomingByTarget.get(Number(edge.target)) ?? []), edge]);
+    });
+
+    outgoingBySource.forEach((group, sourceId) => {
+      const sourceAnchor = anchorMaps.get(sourceId)?.outputAnchor;
+      if (!sourceAnchor || group.length <= 1) return;
+      group
+        .slice()
+        .sort((left, right) => {
+          const leftTarget = nodes.find((node) => Number(node.id) === Number(left.target));
+          const rightTarget = nodes.find((node) => Number(node.id) === Number(right.target));
+          if (!leftTarget || !rightTarget) return 0;
+          return edgePositionMetric(leftTarget, sourceAnchor.side) - edgePositionMetric(rightTarget, sourceAnchor.side);
+        })
+        .forEach((edge, index, ordered) => {
+          sourceSpreadByEdgeId.set(edge.id, centeredSpread(index, ordered.length));
+        });
+    });
+
+    incomingByTarget.forEach((group, targetId) => {
+      const targetAnchor = anchorMaps.get(targetId)?.inputAnchor;
+      if (!targetAnchor || group.length <= 1) return;
+      group
+        .slice()
+        .sort((left, right) => {
+          const leftSource = nodes.find((node) => Number(node.id) === Number(left.source));
+          const rightSource = nodes.find((node) => Number(node.id) === Number(right.source));
+          if (!leftSource || !rightSource) return 0;
+          return edgePositionMetric(leftSource, targetAnchor.side) - edgePositionMetric(rightSource, targetAnchor.side);
+        })
+        .forEach((edge, index, ordered) => {
+          targetSpreadByEdgeId.set(edge.id, centeredSpread(index, ordered.length));
+        });
+    });
+
+    return { sourceSpreadByEdgeId, targetSpreadByEdgeId };
+  }, [anchorMaps, edges, nodes]);
+
   function recenterViewport(clientX: number, clientY: number, rect: DOMRect) {
     const localX = clientX - rect.left;
     const localY = clientY - rect.top;
@@ -2616,6 +2704,10 @@ function EditorMiniMap({
                 sourceY: y1,
                 targetX: x2,
                 targetY: y2,
+                sourceSide: sourceAnchor.side,
+                targetSide: targetAnchor.side,
+                sourceSpread: (edgeSpreadMaps.sourceSpreadByEdgeId.get(edge.id) ?? 0) * model.scale,
+                targetSpread: (edgeSpreadMaps.targetSpreadByEdgeId.get(edge.id) ?? 0) * model.scale,
                 bendOffsetX,
                 bendOffsetY,
               })}

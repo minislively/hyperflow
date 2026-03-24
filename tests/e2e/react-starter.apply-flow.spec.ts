@@ -1,5 +1,17 @@
 import { expect, test } from "@playwright/test";
 
+function parseMoveTo(path: string) {
+  const match = path.match(/^M\s*(-?\d+(?:\.\d+)?)\s*(-?\d+(?:\.\d+)?)/);
+  if (!match) throw new Error(`missing move-to segment in path: ${path}`);
+  return { x: Number(match[1]), y: Number(match[2]) };
+}
+
+function parseFirstCurveControl(path: string) {
+  const match = path.match(/C\s*(-?\d+(?:\.\d+)?)\s*(-?\d+(?:\.\d+)?)/);
+  if (!match) throw new Error(`missing first curve control point in path: ${path}`);
+  return { x: Number(match[1]), y: Number(match[2]) };
+}
+
 test("react starter opens the editor-first surface at the locale root", async ({ page }) => {
   await page.goto("/ko");
 
@@ -167,6 +179,57 @@ test("dragging a node updates connected edges immediately", async ({ page }) => 
 
   const afterPath = await edge.getAttribute("d");
   expect(afterPath).not.toBe(beforePath);
+});
+
+test("same-side edges fan out from distinct visible anchors", async ({ page }) => {
+  await page.goto("/ko");
+
+  await page.getByRole("button", { name: "노드 추가" }).click();
+  const nodeFour = page.locator("[data-node-card-id='4']");
+  await expect(nodeFour).toBeVisible();
+
+  const nodeFourBox = await nodeFour.boundingBox();
+  if (!nodeFourBox) throw new Error("node 4 missing before fan-out drag");
+
+  await page.mouse.move(nodeFourBox.x + nodeFourBox.width / 2, nodeFourBox.y + nodeFourBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(nodeFourBox.x + nodeFourBox.width / 2 + 260, nodeFourBox.y + nodeFourBox.height / 2 - 90, { steps: 10 });
+  await page.mouse.up();
+
+  const sourceTwoHandle = page.getByRole("button", { name: "Connect from node 2" });
+  const targetFourHandle = page.getByRole("button", { name: "Connect into node 4" });
+  const sourceTwoHandleBox = await sourceTwoHandle.boundingBox();
+  const targetFourHandleBox = await targetFourHandle.boundingBox();
+  if (!sourceTwoHandleBox || !targetFourHandleBox) throw new Error("node 2 or node 4 handle missing for fan-out test");
+
+  await page.mouse.move(
+    sourceTwoHandleBox.x + sourceTwoHandleBox.width / 2,
+    sourceTwoHandleBox.y + sourceTwoHandleBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    targetFourHandleBox.x + targetFourHandleBox.width / 2,
+    targetFourHandleBox.y + targetFourHandleBox.height / 2,
+    { steps: 10 },
+  );
+  await page.mouse.up();
+
+  const originalEdge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-b-c"]');
+  const fanOutEdge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-2-4-3"]');
+
+  await expect(fanOutEdge).toHaveCount(1);
+
+  const originalPath = await originalEdge.getAttribute("d");
+  const fanOutPath = await fanOutEdge.getAttribute("d");
+  if (!originalPath || !fanOutPath) throw new Error("missing fan-out edge paths");
+
+  const originalMove = parseMoveTo(originalPath);
+  const fanOutMove = parseMoveTo(fanOutPath);
+  const originalControl = parseFirstCurveControl(originalPath);
+  const fanOutControl = parseFirstCurveControl(fanOutPath);
+
+  expect(Math.abs(originalMove.y - fanOutMove.y)).toBeLessThanOrEqual(2);
+  expect(Math.abs(originalControl.y - fanOutControl.y)).toBeGreaterThan(6);
 });
 
 test("editor save and restore keeps authoring state together", async ({ page }) => {
