@@ -132,6 +132,10 @@ export function HyperFlowPocCanvas({
   const onViewportChangeRef = useRef(onViewportChange);
   const onEdgeBendChangeRef = useRef(onEdgeBendChange);
   const ignoreCanvasClickUntilRef = useRef(0);
+  const scheduledFrameRef = useRef<number | null>(null);
+  const pendingNodePositionRef = useRef<{ nodeId: number; nextPosition: PocNode["position"] } | null>(null);
+  const pendingViewportRef = useRef<PocViewport | null>(null);
+  const pendingEdgeBendRef = useRef<{ edgeId: string; nextBend: PocEdge["bend"] } | null>(null);
   const dragStateRef = useRef<
     | null
     | {
@@ -182,6 +186,7 @@ export function HyperFlowPocCanvas({
     const resolvedIds = selectedNodeIds?.length ? selectedNodeIds : selectedNodeId !== null ? [selectedNodeId] : [];
     return new Set(resolvedIds.map((id) => Number(id)));
   }, [selectedNodeId, selectedNodeIds]);
+  const nodeById = useMemo(() => new Map(nodes.map((node) => [Number(node.id), node])), [nodes]);
 
   useEffect(() => {
     viewportRef.current = viewport;
@@ -189,6 +194,35 @@ export function HyperFlowPocCanvas({
     onViewportChangeRef.current = onViewportChange;
     onEdgeBendChangeRef.current = onEdgeBendChange;
   }, [onEdgeBendChange, onNodePositionChange, onViewportChange, viewport]);
+
+  function flushPendingUpdates() {
+    scheduledFrameRef.current = null;
+
+    const pendingNodePosition = pendingNodePositionRef.current;
+    if (pendingNodePosition && onNodePositionChangeRef.current) {
+      onNodePositionChangeRef.current(pendingNodePosition.nodeId, pendingNodePosition.nextPosition);
+    }
+    pendingNodePositionRef.current = null;
+
+    const pendingEdgeBend = pendingEdgeBendRef.current;
+    if (pendingEdgeBend && onEdgeBendChangeRef.current) {
+      onEdgeBendChangeRef.current(pendingEdgeBend.edgeId, pendingEdgeBend.nextBend);
+    }
+    pendingEdgeBendRef.current = null;
+
+    const pendingViewport = pendingViewportRef.current;
+    if (pendingViewport && onViewportChangeRef.current) {
+      onViewportChangeRef.current(pendingViewport);
+    }
+    pendingViewportRef.current = null;
+  }
+
+  function schedulePendingUpdates() {
+    if (scheduledFrameRef.current !== null || typeof window === "undefined") return;
+    scheduledFrameRef.current = window.requestAnimationFrame(() => {
+      flushPendingUpdates();
+    });
+  }
 
   function getCanvasPoint(event: Pick<React.PointerEvent<HTMLCanvasElement>, "clientX" | "clientY">) {
     if (!canvasRef.current) return null;
@@ -394,7 +428,7 @@ export function HyperFlowPocCanvas({
       y: viewport.y + canvasPoint.screenY / viewport.zoom,
     };
     const hitNodeId = engine.hitTest(worldPoint);
-    const node = hitNodeId === null ? null : nodes.find((candidate) => Number(candidate.id) === Number(hitNodeId)) ?? null;
+    const node = hitNodeId === null ? null : (nodeById.get(Number(hitNodeId)) ?? null);
 
     if (node && onNodePositionChange) {
       startNodeDrag(node, event.clientX, event.clientY, event.pointerId, event.shiftKey);
@@ -421,7 +455,7 @@ export function HyperFlowPocCanvas({
       y: viewport.y + canvasPoint.screenY / viewport.zoom,
     };
     const hitNodeId = engine.hitTest(worldPoint);
-    const node = hitNodeId === null ? null : nodes.find((candidate) => Number(candidate.id) === Number(hitNodeId)) ?? null;
+    const node = hitNodeId === null ? null : (nodeById.get(Number(hitNodeId)) ?? null);
 
     if (node && onNodePositionChange) {
       startNodeDrag(node, event.clientX, event.clientY, null, event.shiftKey);
@@ -474,27 +508,36 @@ export function HyperFlowPocCanvas({
     }
 
     if (dragState.kind === "node" && onNodePositionChangeRef.current) {
-      onNodePositionChangeRef.current(dragState.nodeId, {
-        x: Math.max(0, dragState.startPosition.x + deltaWorldX),
-        y: Math.max(0, dragState.startPosition.y + deltaWorldY),
-      });
+      pendingNodePositionRef.current = {
+        nodeId: dragState.nodeId,
+        nextPosition: {
+          x: Math.max(0, dragState.startPosition.x + deltaWorldX),
+          y: Math.max(0, dragState.startPosition.y + deltaWorldY),
+        },
+      };
+      schedulePendingUpdates();
       return;
     }
 
     if (dragState.kind === "edge" && onEdgeBendChangeRef.current) {
-      onEdgeBendChangeRef.current(dragState.edgeId, {
-        x: Math.max(0, dragState.startBend.x + deltaWorldX),
-        y: Math.max(0, dragState.startBend.y + deltaWorldY),
-      });
+      pendingEdgeBendRef.current = {
+        edgeId: dragState.edgeId,
+        nextBend: {
+          x: Math.max(0, dragState.startBend.x + deltaWorldX),
+          y: Math.max(0, dragState.startBend.y + deltaWorldY),
+        },
+      };
+      schedulePendingUpdates();
       return;
     }
 
     if (dragState.kind === "pan" && onViewportChangeRef.current) {
-      onViewportChangeRef.current({
+      pendingViewportRef.current = {
         ...dragState.startViewport,
         x: Math.max(0, dragState.startViewport.x - deltaWorldX),
         y: Math.max(0, dragState.startViewport.y - deltaWorldY),
-      });
+      };
+      schedulePendingUpdates();
     }
   }
 
@@ -525,6 +568,7 @@ export function HyperFlowPocCanvas({
     if (dragStateRef.current.moved) {
       ignoreCanvasClickUntilRef.current = Date.now() + 180;
     }
+    flushPendingUpdates();
     setSelectionBox(null);
     dragStateRef.current = null;
   }
@@ -568,12 +612,21 @@ export function HyperFlowPocCanvas({
     };
   }, [isInteractive]);
 
+  useEffect(
+    () => () => {
+      if (scheduledFrameRef.current !== null && typeof window !== "undefined") {
+        window.cancelAnimationFrame(scheduledFrameRef.current);
+      }
+    },
+    [],
+  );
+
   const renderedCustomNodes = useMemo(() => {
     if (!nodeRenderers || !getNodeRendererKey) return [];
 
     return visibleBoxes
       .map((box) => {
-        const node = nodes.find((candidate) => Number(candidate.id) === Number(box.id));
+        const node = nodeById.get(Number(box.id));
         if (!node) return null;
         const rendererKey = getNodeRendererKey(node);
         if (!rendererKey) return null;
@@ -601,13 +654,13 @@ export function HyperFlowPocCanvas({
       screenWidth: number;
       screenHeight: number;
     }>;
-  }, [getNodeRendererData, getNodeRendererKey, nodeRenderers, nodes, viewport.x, viewport.y, viewport.zoom, visibleBoxes]);
+  }, [getNodeRendererData, getNodeRendererKey, nodeById, nodeRenderers, viewport.x, viewport.y, viewport.zoom, visibleBoxes]);
 
   const renderedEdges = useMemo(() => {
     return edges
       .map((edge) => {
-        const sourceNode = nodes.find((node) => Number(node.id) === Number(edge.source));
-        const targetNode = nodes.find((node) => Number(node.id) === Number(edge.target));
+        const sourceNode = nodeById.get(Number(edge.source));
+        const targetNode = nodeById.get(Number(edge.target));
         if (!sourceNode || !targetNode) return null;
 
         const sourceX = (sourceNode.position.x + sourceNode.size.width - viewport.x) * viewport.zoom;
@@ -653,7 +706,7 @@ export function HyperFlowPocCanvas({
       bendWorldY: number;
       hasBend: boolean;
     }>;
-  }, [edges, nodes, viewport.x, viewport.y, viewport.zoom]);
+  }, [edges, nodeById, viewport.x, viewport.y, viewport.zoom]);
 
   const renderedHandles = useMemo(() => {
     if (!onEdgeConnect) return [];

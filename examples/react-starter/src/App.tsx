@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   HyperFlowPocCanvas,
   type HyperFlowPocNodeRendererProps,
@@ -2245,7 +2245,7 @@ function MarkdownPage({ markdown, copy }: { markdown: string; copy: Copy["code"]
   );
 }
 
-function EditorNodeCard({
+const EditorNodeCard = memo(function EditorNodeCard({
   node,
   data,
   selected,
@@ -2266,7 +2266,7 @@ function EditorNodeCard({
       <span className="editor-node-card-note">{data.note}</span>
     </div>
   );
-}
+});
 
 function EditorControlButton({
   label,
