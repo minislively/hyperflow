@@ -33,6 +33,52 @@ impl Node {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AnchorSide {
+    Left = 0,
+    Right = 1,
+    Top = 2,
+    Bottom = 3,
+}
+
+const ALL_ANCHOR_SIDES: [AnchorSide; 4] = [
+    AnchorSide::Left,
+    AnchorSide::Right,
+    AnchorSide::Top,
+    AnchorSide::Bottom,
+];
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AnchorPoint {
+    pub x: f32,
+    pub y: f32,
+    pub side: AnchorSide,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Point {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ResolvedNodeAnchors {
+    pub input_anchor: AnchorPoint,
+    pub output_anchor: AnchorPoint,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ResolvedEdgeCurve {
+    pub source_x: f32,
+    pub source_y: f32,
+    pub source_control_x: f32,
+    pub source_control_y: f32,
+    pub target_control_x: f32,
+    pub target_control_y: f32,
+    pub target_x: f32,
+    pub target_y: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Viewport {
     pub x: f32,
     pub y: f32,
@@ -77,6 +123,8 @@ struct KernelState {
     viewport: Viewport,
     visible_ids: Vec<u32>,
     visible_boxes: Vec<f32>,
+    resolved_anchor_buffer: Vec<f32>,
+    resolved_edge_curve_buffer: Vec<f32>,
 }
 
 impl KernelState {
@@ -108,6 +156,82 @@ impl KernelState {
             &mut self.visible_ids,
             &mut self.visible_boxes,
         )
+    }
+
+    fn resolve_node_anchors_batch(&mut self, packed_requests: &[f32]) -> usize {
+        self.resolved_anchor_buffer.clear();
+
+        for chunk in packed_requests.chunks_exact(11) {
+            let node = Node {
+                id: 0,
+                x: chunk[0],
+                y: chunk[1],
+                width: chunk[2],
+                height: chunk[3],
+            };
+            let resolved = resolve_node_anchors(
+                node,
+                Point {
+                    x: chunk[4],
+                    y: chunk[5],
+                },
+                Point {
+                    x: chunk[6],
+                    y: chunk[7],
+                },
+                chunk[8],
+                decode_optional_anchor_side(chunk[9]),
+                decode_optional_anchor_side(chunk[10]),
+            );
+
+            self.resolved_anchor_buffer.extend_from_slice(&[
+                resolved.input_anchor.x,
+                resolved.input_anchor.y,
+                resolved.input_anchor.side as u32 as f32,
+                resolved.output_anchor.x,
+                resolved.output_anchor.y,
+                resolved.output_anchor.side as u32 as f32,
+            ]);
+        }
+
+        self.resolved_anchor_buffer.len()
+    }
+
+    fn resolve_edge_curves_batch(&mut self, packed_requests: &[f32]) -> usize {
+        self.resolved_edge_curve_buffer.clear();
+
+        for chunk in packed_requests.chunks_exact(11) {
+            let resolved = resolve_edge_curve(
+                Point {
+                    x: chunk[0],
+                    y: chunk[1],
+                },
+                Point {
+                    x: chunk[2],
+                    y: chunk[3],
+                },
+                decode_anchor_side(chunk[4]),
+                decode_anchor_side(chunk[5]),
+                chunk[6],
+                chunk[7],
+                Some(chunk[8]),
+                Some(chunk[9]),
+                chunk[10],
+            );
+
+            self.resolved_edge_curve_buffer.extend_from_slice(&[
+                resolved.source_x,
+                resolved.source_y,
+                resolved.source_control_x,
+                resolved.source_control_y,
+                resolved.target_control_x,
+                resolved.target_control_y,
+                resolved.target_x,
+                resolved.target_y,
+            ]);
+        }
+
+        self.resolved_edge_curve_buffer.len()
     }
 }
 
@@ -142,6 +266,356 @@ pub fn hit_test(nodes: &[Node], px: f32, py: f32) -> Option<u32> {
         .rev()
         .find(|node| node.contains(px, py))
         .map(|node| node.id)
+}
+
+pub fn get_node_center(node: Node) -> Point {
+    Point {
+        x: node.x + node.width / 2.0,
+        y: node.y + node.height / 2.0,
+    }
+}
+
+pub fn get_node_anchor_point(node: Node, toward: Point) -> AnchorPoint {
+    let center = get_node_center(node);
+    let dx = toward.x - center.x;
+    let dy = toward.y - center.y;
+
+    if dx.abs() >= dy.abs() {
+        if dx >= 0.0 {
+            AnchorPoint {
+                x: node.x + node.width,
+                y: center.y,
+                side: AnchorSide::Right,
+            }
+        } else {
+            AnchorPoint {
+                x: node.x,
+                y: center.y,
+                side: AnchorSide::Left,
+            }
+        }
+    } else if dy >= 0.0 {
+        AnchorPoint {
+            x: center.x,
+            y: node.y + node.height,
+            side: AnchorSide::Bottom,
+        }
+    } else {
+        AnchorPoint {
+            x: center.x,
+            y: node.y,
+            side: AnchorSide::Top,
+        }
+    }
+}
+
+pub fn get_orthogonal_anchor_point(node: Node, side: AnchorSide, toward: Point) -> AnchorPoint {
+    let center = get_node_center(node);
+
+    if side == AnchorSide::Left || side == AnchorSide::Right {
+        if toward.y >= center.y {
+            AnchorPoint {
+                x: center.x,
+                y: node.y + node.height,
+                side: AnchorSide::Bottom,
+            }
+        } else {
+            AnchorPoint {
+                x: center.x,
+                y: node.y,
+                side: AnchorSide::Top,
+            }
+        }
+    } else if toward.x >= center.x {
+        AnchorPoint {
+            x: node.x + node.width,
+            y: center.y,
+            side: AnchorSide::Right,
+        }
+    } else {
+        AnchorPoint {
+            x: node.x,
+            y: center.y,
+            side: AnchorSide::Left,
+        }
+    }
+}
+
+pub fn offset_anchor_within_side(node: Node, anchor: AnchorPoint, offset: f32) -> AnchorPoint {
+    let inset = 14.0_f32;
+
+    if anchor.side == AnchorSide::Left || anchor.side == AnchorSide::Right {
+        let min_y = node.y + inset;
+        let max_y = node.y + node.height - inset;
+        AnchorPoint {
+            y: (anchor.y + offset).max(min_y).min(max_y),
+            ..anchor
+        }
+    } else {
+        let min_x = node.x + inset;
+        let max_x = node.x + node.width - inset;
+        AnchorPoint {
+            x: (anchor.x + offset).max(min_x).min(max_x),
+            ..anchor
+        }
+    }
+}
+
+pub fn resolve_node_anchors(
+    node: Node,
+    input_toward: Point,
+    output_toward: Point,
+    same_side_offset: f32,
+    preferred_input_side: Option<AnchorSide>,
+    preferred_output_side: Option<AnchorSide>,
+) -> ResolvedNodeAnchors {
+    let center = get_node_center(node);
+
+    fn get_node_anchor_point_for_side(node: Node, side: AnchorSide) -> AnchorPoint {
+        let center = get_node_center(node);
+        match side {
+            AnchorSide::Left => AnchorPoint {
+                x: node.x,
+                y: center.y,
+                side,
+            },
+            AnchorSide::Right => AnchorPoint {
+                x: node.x + node.width,
+                y: center.y,
+                side,
+            },
+            AnchorSide::Top => AnchorPoint {
+                x: center.x,
+                y: node.y,
+                side,
+            },
+            AnchorSide::Bottom => AnchorPoint {
+                x: center.x,
+                y: node.y + node.height,
+                side,
+            },
+        }
+    }
+
+    fn opposite_anchor_side(side: AnchorSide) -> AnchorSide {
+        match side {
+            AnchorSide::Left => AnchorSide::Right,
+            AnchorSide::Right => AnchorSide::Left,
+            AnchorSide::Top => AnchorSide::Bottom,
+            AnchorSide::Bottom => AnchorSide::Top,
+        }
+    }
+
+    fn score_anchor_side(
+        node: Node,
+        toward: Point,
+        side: AnchorSide,
+        role: &str,
+        preferred_side: Option<AnchorSide>,
+        center: Point,
+    ) -> f32 {
+        let anchor = get_node_anchor_point_for_side(node, side);
+        let dx = toward.x - center.x;
+        let dy = toward.y - center.y;
+        let dominant_axis_is_horizontal = dx.abs() >= dy.abs();
+        let preferred_directional_side = if dominant_axis_is_horizontal {
+            if dx >= 0.0 {
+                AnchorSide::Right
+            } else {
+                AnchorSide::Left
+            }
+        } else if dy >= 0.0 {
+            AnchorSide::Bottom
+        } else {
+            AnchorSide::Top
+        };
+        let opposite_directional_side = opposite_anchor_side(preferred_directional_side);
+        let orthogonal_penalty = if dominant_axis_is_horizontal {
+            if side == AnchorSide::Top || side == AnchorSide::Bottom {
+                18.0
+            } else {
+                0.0
+            }
+        } else if side == AnchorSide::Left || side == AnchorSide::Right {
+            18.0
+        } else {
+            0.0
+        };
+        let opposite_penalty = if side == opposite_directional_side { 42.0 } else { 0.0 };
+        let preferred_penalty = if preferred_side.is_some() && preferred_side != Some(side) {
+            36.0
+        } else {
+            0.0
+        };
+        let role_bias_penalty = if role == "input" {
+            match side {
+                AnchorSide::Left => 0.0,
+                AnchorSide::Top | AnchorSide::Bottom => 8.0,
+                AnchorSide::Right => 16.0,
+            }
+        } else {
+            match side {
+                AnchorSide::Right => 0.0,
+                AnchorSide::Top | AnchorSide::Bottom => 8.0,
+                AnchorSide::Left => 16.0,
+            }
+        };
+        let distance_penalty =
+            ((anchor.x - toward.x).abs() + (anchor.y - toward.y).abs()) * 0.12;
+
+        opposite_penalty
+            + orthogonal_penalty
+            + preferred_penalty
+            + role_bias_penalty
+            + distance_penalty
+    }
+
+    let mut best_score = f32::INFINITY;
+    let mut best_input_anchor = get_node_anchor_point(node, input_toward);
+    let mut best_output_anchor = get_node_anchor_point(node, output_toward);
+
+    for input_side in ALL_ANCHOR_SIDES {
+        for output_side in ALL_ANCHOR_SIDES {
+            let pair_penalty = if input_side == output_side {
+                64.0
+            } else if input_side == AnchorSide::Right && output_side == AnchorSide::Left {
+                24.0
+            } else {
+                0.0
+            };
+            let score = pair_penalty
+                + score_anchor_side(
+                    node,
+                    input_toward,
+                    input_side,
+                    "input",
+                    preferred_input_side,
+                    center,
+                )
+                + score_anchor_side(
+                    node,
+                    output_toward,
+                    output_side,
+                    "output",
+                    preferred_output_side,
+                    center,
+                );
+
+            if score < best_score {
+                best_score = score;
+                best_input_anchor = get_node_anchor_point_for_side(node, input_side);
+                best_output_anchor = get_node_anchor_point_for_side(node, output_side);
+            }
+        }
+    }
+
+    let mut input_anchor = best_input_anchor;
+    let mut output_anchor = best_output_anchor;
+
+    if input_anchor.side == output_anchor.side {
+        input_anchor = get_orthogonal_anchor_point(node, input_anchor.side, input_toward);
+        output_anchor = offset_anchor_within_side(node, output_anchor, same_side_offset);
+    }
+
+    ResolvedNodeAnchors {
+        input_anchor,
+        output_anchor,
+    }
+}
+
+pub fn decode_anchor_side(code: f32) -> AnchorSide {
+    match code.round() as i32 {
+        0 => AnchorSide::Left,
+        1 => AnchorSide::Right,
+        2 => AnchorSide::Top,
+        3 => AnchorSide::Bottom,
+        _ => AnchorSide::Right,
+    }
+}
+
+pub fn decode_optional_anchor_side(code: f32) -> Option<AnchorSide> {
+    if code < 0.0 {
+        None
+    } else {
+        Some(decode_anchor_side(code))
+    }
+}
+
+pub fn build_directional_control_point(
+    x: f32,
+    y: f32,
+    side: AnchorSide,
+    base_offset: f32,
+    spread: f32,
+    bend_x: f32,
+    bend_y: f32,
+) -> Point {
+    match side {
+        AnchorSide::Left => Point {
+            x: x - base_offset + bend_x,
+            y: y + spread + bend_y,
+        },
+        AnchorSide::Right => Point {
+            x: x + base_offset + bend_x,
+            y: y + spread + bend_y,
+        },
+        AnchorSide::Top => Point {
+            x: x + spread + bend_x,
+            y: y - base_offset + bend_y,
+        },
+        AnchorSide::Bottom => Point {
+            x: x + spread + bend_x,
+            y: y + base_offset + bend_y,
+        },
+    }
+}
+
+pub fn resolve_edge_curve(
+    source: Point,
+    target: Point,
+    source_side: AnchorSide,
+    target_side: AnchorSide,
+    source_spread: f32,
+    target_spread: f32,
+    bend_offset_x: Option<f32>,
+    bend_offset_y: Option<f32>,
+    minimum_curve_offset: f32,
+) -> ResolvedEdgeCurve {
+    let dx = target.x - source.x;
+    let dy = target.y - source.y;
+    let base_offset = minimum_curve_offset.max(dx.abs().max(dy.abs()) * 0.28);
+    let bend_influence_x = bend_offset_x.unwrap_or(0.0);
+    let bend_influence_y = bend_offset_y.unwrap_or(0.0);
+
+    let source_control = build_directional_control_point(
+        source.x,
+        source.y,
+        source_side,
+        base_offset,
+        source_spread,
+        bend_influence_x * 0.16,
+        bend_influence_y * 0.34,
+    );
+    let target_control = build_directional_control_point(
+        target.x,
+        target.y,
+        target_side,
+        base_offset,
+        target_spread,
+        bend_influence_x * 0.16,
+        bend_influence_y * 0.34,
+    );
+
+    ResolvedEdgeCurve {
+        source_x: source.x,
+        source_y: source.y,
+        source_control_x: source_control.x,
+        source_control_y: source_control.y,
+        target_control_x: target_control.x,
+        target_control_y: target_control.y,
+        target_x: target.x,
+        target_y: target.y,
+    }
 }
 
 fn kernel_state() -> &'static Mutex<KernelState> {
@@ -223,6 +697,52 @@ pub extern "C" fn visible_boxes_len() -> usize {
 pub extern "C" fn hit_test_at(px: f32, py: f32) -> i32 {
     let state = kernel_state().lock().expect("kernel state poisoned");
     hit_test(&state.nodes, px, py).map(|id| id as i32).unwrap_or(-1)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn resolve_node_anchors_batch(ptr: *const f32, len: usize) -> usize {
+    if ptr.is_null() || len == 0 || len % 11 != 0 {
+        return 0;
+    }
+
+    let packed_requests = slice::from_raw_parts(ptr, len);
+    let mut state = kernel_state().lock().expect("kernel state poisoned");
+    state.resolve_node_anchors_batch(packed_requests)
+}
+
+#[no_mangle]
+pub extern "C" fn resolved_anchor_buffer_ptr() -> *const f32 {
+    let state = kernel_state().lock().expect("kernel state poisoned");
+    state.resolved_anchor_buffer.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn resolved_anchor_buffer_len() -> usize {
+    let state = kernel_state().lock().expect("kernel state poisoned");
+    state.resolved_anchor_buffer.len()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn resolve_edge_curves_batch(ptr: *const f32, len: usize) -> usize {
+    if ptr.is_null() || len == 0 || len % 11 != 0 {
+        return 0;
+    }
+
+    let packed_requests = slice::from_raw_parts(ptr, len);
+    let mut state = kernel_state().lock().expect("kernel state poisoned");
+    state.resolve_edge_curves_batch(packed_requests)
+}
+
+#[no_mangle]
+pub extern "C" fn resolved_edge_curve_buffer_ptr() -> *const f32 {
+    let state = kernel_state().lock().expect("kernel state poisoned");
+    state.resolved_edge_curve_buffer.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn resolved_edge_curve_buffer_len() -> usize {
+    let state = kernel_state().lock().expect("kernel state poisoned");
+    state.resolved_edge_curve_buffer.len()
 }
 
 #[cfg(test)]
@@ -322,5 +842,84 @@ mod tests {
                 4.0, 40.0, 20.0, 80.0, 40.0,
             ],
         );
+    }
+
+    #[test]
+    fn resolve_node_anchors_moves_input_off_a_collapsed_side() {
+        let node = Node { id: 1, x: 100.0, y: 100.0, width: 180.0, height: 96.0 };
+        let resolved = resolve_node_anchors(
+            node,
+            Point { x: 320.0, y: 120.0 },
+            Point { x: 360.0, y: 140.0 },
+            18.0,
+            None,
+            None,
+        );
+
+        assert_ne!(resolved.input_anchor.side, resolved.output_anchor.side);
+    }
+
+    #[test]
+    fn resolve_node_anchors_batch_writes_six_values_per_request() {
+        let mut state = KernelState::default();
+        let written = state.resolve_node_anchors_batch(&[
+            100.0, 100.0, 180.0, 96.0, 320.0, 120.0, 360.0, 140.0, 18.0, -1.0, -1.0,
+            260.0, 80.0, 180.0, 96.0, 120.0, 120.0, 520.0, 160.0, 18.0, -1.0, -1.0,
+        ]);
+
+        assert_eq!(written, 12);
+        assert_eq!(state.resolved_anchor_buffer.len(), 12);
+    }
+
+    #[test]
+    fn resolve_node_anchors_can_prefer_left_right_sides() {
+        let node = Node { id: 1, x: 100.0, y: 100.0, width: 180.0, height: 96.0 };
+        let resolved = resolve_node_anchors(
+            node,
+            Point { x: 190.0, y: 340.0 },
+            Point { x: 190.0, y: -100.0 },
+            18.0,
+            Some(AnchorSide::Left),
+            Some(AnchorSide::Right),
+        );
+
+        assert_eq!(resolved.input_anchor.side, AnchorSide::Left);
+        assert_eq!(resolved.output_anchor.side, AnchorSide::Right);
+    }
+
+    #[test]
+    fn resolve_edge_curve_preserves_source_and_target_points() {
+        let resolved = resolve_edge_curve(
+            Point { x: 10.0, y: 20.0 },
+            Point { x: 200.0, y: 100.0 },
+            AnchorSide::Right,
+            AnchorSide::Left,
+            0.0,
+            0.0,
+            None,
+            None,
+            40.0,
+        );
+
+        assert_eq!(resolved.source_x, 10.0);
+        assert_eq!(resolved.source_y, 20.0);
+        assert_eq!(resolved.target_x, 200.0);
+        assert_eq!(resolved.target_y, 100.0);
+        assert!(resolved.source_control_x > resolved.source_x);
+        assert!(resolved.target_control_x < resolved.target_x);
+    }
+
+    #[test]
+    fn resolve_edge_curves_batch_writes_eight_values_per_request() {
+        let mut state = KernelState::default();
+        let written = state.resolve_edge_curves_batch(&[
+            10.0, 20.0, 200.0, 100.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 40.0, 20.0, 40.0, 250.0,
+            140.0, 1.0, 0.0, 18.0, -18.0, 4.0, -8.0, 40.0,
+        ]);
+
+        assert_eq!(written, 16);
+        assert_eq!(state.resolved_edge_curve_buffer.len(), 16);
+        assert_eq!(state.resolved_edge_curve_buffer[0], 10.0);
+        assert_eq!(state.resolved_edge_curve_buffer[7], 100.0);
     }
 }

@@ -30,10 +30,18 @@ This document is that boundary.
 - `getVisibleNodeIds()`
 - `getVisibleBoxes()`
 - `getNodeCount()`
+- `resolveNodeAnchorsBatch(requests)`
+- `resolveEdgeCurvesBatch(requests)`
 
 ### Utility operations
 - `createPocViewport(width, height, overrides?)`
 - `createPocMetricsSummary(metrics)`
+- `getPocNodeCenter(node)`
+- `resolvePocNodeAnchors(node, options)`
+- `createPocEdgeSpreadMaps(nodes, edges, nodeAnchorsById, spreadStep?)`
+- `resolvePocSmoothEdgeCurve(options)`
+- `buildPocSvgCurvePath(curve)`
+- `buildSmoothPocEdgePath(options)`
 
 ## How to interpret this contract
 
@@ -61,6 +69,24 @@ The current SDK now separates:
   - `height`
 
 That split is intentional. It makes the public node model easier to compare against React Flow-style editor nodes while keeping the runtime boundary focused on geometry and viewport work.
+
+## Anchor and edge-path seam
+
+The current slice also now exposes a **shared anchor/path calculation seam** in the SDK.
+
+That seam is intentionally used by both:
+
+- the main React canvas overlay
+- the starter minimap projection
+
+The goal is to keep the following on the same contract before any broader Rust/WASM migration:
+
+- visible handle placement
+- actual edge start/end anchors
+- sibling fan-out offsets
+- rendered edge paths
+
+This means the current validated boundary is no longer only "editor-facing node shape vs runtime geometry node shape". It also includes a narrow, shared **anchor + edge-path utility layer** and a matching **batched engine seam** that higher-level surfaces can call consistently today and migrate inward later.
 
 This contract should **not** be read as:
 

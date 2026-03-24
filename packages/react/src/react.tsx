@@ -1,11 +1,20 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
+  buildPocSvgCurvePath,
+  buildSmoothPocEdgePath,
   createPocEngine,
+  createPocEdgeSpreadMaps,
+  getPocNodeCenter,
   projectPocNodesToRuntimeNodes,
+  resolvePocSmoothEdgeCurve,
+  resolvePocNodeAnchors,
   type PocEngine,
   type PocEdge,
+  type PocEdgePathResolutionRequest,
   type PocMetrics,
+  type PocAnchorSide,
   type PocNode,
+  type PocResolvedNodeAnchors,
   type PocViewport,
   type VisibleBox,
 } from "@hyperflow/sdk";
@@ -41,6 +50,12 @@ export type HyperFlowPocCanvasProps = {
   nodeRenderers?: HyperFlowPocNodeRenderers;
   getNodeRendererKey?: (node: PocNode) => string | null;
   getNodeRendererData?: (node: PocNode) => unknown;
+  getNodeAnchorPreferences?: (
+    node: PocNode,
+  ) => {
+    preferredInputSide?: PocAnchorSide;
+    preferredOutputSide?: PocAnchorSide;
+  };
   onNodeSelect?: (nodeId: number | null, options?: { additive?: boolean }) => void;
   onNodeSelectionBoxChange?: (nodeIds: number[], options?: { additive?: boolean }) => void;
   onEdgeSelect?: (edgeId: string | null, options?: { additive?: boolean }) => void;
@@ -55,141 +70,6 @@ export type HyperFlowPocCanvasProps = {
 
 const HANDLE_SIZE = 18;
 const HANDLE_HALF = HANDLE_SIZE / 2;
-
-type AnchorSide = "left" | "right" | "top" | "bottom";
-
-function getNodeCenter(node: PocNode) {
-  return {
-    x: node.position.x + node.size.width / 2,
-    y: node.position.y + node.size.height / 2,
-  };
-}
-
-function getNodeAnchorPoint(node: PocNode, toward: { x: number; y: number }) {
-  const center = getNodeCenter(node);
-  const dx = toward.x - center.x;
-  const dy = toward.y - center.y;
-
-  if (Math.abs(dx) >= Math.abs(dy)) {
-    return dx >= 0
-      ? { x: node.position.x + node.size.width, y: center.y, side: "right" as const }
-      : { x: node.position.x, y: center.y, side: "left" as const };
-  }
-
-  return dy >= 0
-    ? { x: center.x, y: node.position.y + node.size.height, side: "bottom" as const }
-    : { x: center.x, y: node.position.y, side: "top" as const };
-}
-
-function getOrthogonalAnchorPoint(
-  node: PocNode,
-  side: AnchorSide,
-  toward: { x: number; y: number },
-) {
-  const center = getNodeCenter(node);
-
-  if (side === "left" || side === "right") {
-    return toward.y >= center.y
-      ? { x: center.x, y: node.position.y + node.size.height, side: "bottom" as const }
-      : { x: center.x, y: node.position.y, side: "top" as const };
-  }
-
-  return toward.x >= center.x
-    ? { x: node.position.x + node.size.width, y: center.y, side: "right" as const }
-    : { x: node.position.x, y: center.y, side: "left" as const };
-}
-
-function offsetAnchorWithinSide(
-  anchor: { x: number; y: number; side: AnchorSide },
-  node: PocNode,
-  offset: number,
-) {
-  const inset = 14;
-  if (anchor.side === "left" || anchor.side === "right") {
-    const minY = node.position.y + inset;
-    const maxY = node.position.y + node.size.height - inset;
-    return {
-      ...anchor,
-      y: Math.min(maxY, Math.max(minY, anchor.y + offset)),
-    };
-  }
-
-  const minX = node.position.x + inset;
-  const maxX = node.position.x + node.size.width - inset;
-  return {
-    ...anchor,
-    x: Math.min(maxX, Math.max(minX, anchor.x + offset)),
-  };
-}
-
-function buildSmoothEdgePath({
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourceSide,
-  targetSide,
-  sourceSpread = 0,
-  targetSpread = 0,
-  bendOffsetX,
-  bendOffsetY,
-}: {
-  sourceX: number;
-  sourceY: number;
-  targetX: number;
-  targetY: number;
-  sourceSide: AnchorSide;
-  targetSide: AnchorSide;
-  sourceSpread?: number;
-  targetSpread?: number;
-  bendOffsetX?: number | null;
-  bendOffsetY?: number | null;
-}) {
-  const dx = targetX - sourceX;
-  const dy = targetY - sourceY;
-  const baseOffset = Math.max(40, Math.max(Math.abs(dx), Math.abs(dy)) * 0.28);
-
-  function buildDirectionalControlPoint(
-    x: number,
-    y: number,
-    side: AnchorSide,
-    spread: number,
-    bendX = 0,
-    bendY = 0,
-  ) {
-    switch (side) {
-      case "left":
-        return { x: x - baseOffset + bendX, y: y + spread + bendY };
-      case "right":
-        return { x: x + baseOffset + bendX, y: y + spread + bendY };
-      case "top":
-        return { x: x + spread + bendX, y: y - baseOffset + bendY };
-      case "bottom":
-        return { x: x + spread + bendX, y: y + baseOffset + bendY };
-    }
-  }
-
-  const bendInfluenceX = bendOffsetX ?? 0;
-  const bendInfluenceY = bendOffsetY ?? 0;
-  const sourceControl = buildDirectionalControlPoint(
-    sourceX,
-    sourceY,
-    sourceSide,
-    sourceSpread,
-    bendInfluenceX * 0.16,
-    bendInfluenceY * 0.34,
-  );
-  const targetControl = buildDirectionalControlPoint(
-    targetX,
-    targetY,
-    targetSide,
-    targetSpread,
-    bendInfluenceX * 0.16,
-    bendInfluenceY * 0.34,
-  );
-
-  return `M ${sourceX} ${sourceY} C ${sourceControl.x} ${sourceControl.y}, ${targetControl.x} ${targetControl.y}, ${targetX} ${targetY}`;
-}
 
 export function HyperFlowPocCanvas({
   nodes,
@@ -206,6 +86,7 @@ export function HyperFlowPocCanvas({
   nodeRenderers,
   getNodeRendererKey,
   getNodeRendererData,
+  getNodeAnchorPreferences,
   onNodeSelect,
   onNodeSelectionBoxChange,
   onEdgeSelect,
@@ -748,8 +629,8 @@ export function HyperFlowPocCanvas({
       return;
     }
 
-    if (onNodeSelectionBoxChange && !event.altKey) {
-      startSelectionDrag(event.clientX, event.clientY, event.shiftKey);
+    if (event.shiftKey && onNodeSelectionBoxChange) {
+      startSelectionDrag(event.clientX, event.clientY, true);
       return;
     }
 
@@ -1032,7 +913,7 @@ export function HyperFlowPocCanvas({
     if (connectedNodes.length === 0) return null;
     const totals = connectedNodes.reduce(
       (sum, connectedNode) => {
-        const center = getNodeCenter(connectedNode);
+        const center = getPocNodeCenter(connectedNode);
         return { x: sum.x + center.x, y: sum.y + center.y };
       },
       { x: 0, y: 0 },
@@ -1043,143 +924,134 @@ export function HyperFlowPocCanvas({
     };
   }
 
-  function getResolvedNodeAnchors(node: PocNode) {
-    const center = getNodeCenter(node);
-    const outputToward =
-      pendingConnectionSourceId === Number(node.id) && connectionPreview
-        ? {
-            x: viewport.x + connectionPreview.currentX / viewport.zoom,
-            y: viewport.y + connectionPreview.currentY / viewport.zoom,
-          }
-        : averageConnectedCenter(connectedNodeMaps.outgoingByNodeId.get(Number(node.id)) ?? []) ?? {
-            x: center.x + 1,
-            y: center.y,
-          };
-    const inputToward = averageConnectedCenter(connectedNodeMaps.incomingByNodeId.get(Number(node.id)) ?? []) ?? {
-      x: center.x - 1,
-      y: center.y,
-    };
+  const resolvedNodeAnchorsById = useMemo(() => {
+    const requests = nodes.map((node) => {
+      const center = getPocNodeCenter(node);
+      const preferences = getNodeAnchorPreferences?.(node);
+      const outputToward =
+        pendingConnectionSourceId === Number(node.id) && connectionPreview
+          ? {
+              x: viewport.x + connectionPreview.currentX / viewport.zoom,
+              y: viewport.y + connectionPreview.currentY / viewport.zoom,
+            }
+          : averageConnectedCenter(connectedNodeMaps.outgoingByNodeId.get(Number(node.id)) ?? []) ?? {
+              x: center.x + 1,
+              y: center.y,
+            };
+      const inputToward = averageConnectedCenter(connectedNodeMaps.incomingByNodeId.get(Number(node.id)) ?? []) ?? {
+        x: center.x - 1,
+        y: center.y,
+      };
 
-    let inputAnchor = getNodeAnchorPoint(node, inputToward);
-    let outputAnchor = getNodeAnchorPoint(node, outputToward);
-    if (inputAnchor.side === outputAnchor.side) {
-      inputAnchor = getOrthogonalAnchorPoint(node, inputAnchor.side, inputToward);
-      outputAnchor = offsetAnchorWithinSide(outputAnchor, node, 18);
-    }
+      return {
+        nodeId: Number(node.id),
+        node,
+        inputToward,
+        outputToward,
+        preferences,
+      };
+    });
 
-    return { inputAnchor, outputAnchor };
-  }
+    const resolvedAnchors = engine
+      ? engine.resolveNodeAnchorsBatch(
+          requests.map(({ node, inputToward, outputToward, preferences }) => ({
+            x: node.position.x,
+            y: node.position.y,
+            width: node.size.width,
+            height: node.size.height,
+            inputToward,
+            outputToward,
+            sameSideOffset: 18,
+            preferredInputSide: preferences?.preferredInputSide,
+            preferredOutputSide: preferences?.preferredOutputSide,
+          })),
+        )
+      : requests.map(({ node, inputToward, outputToward, preferences }) =>
+          resolvePocNodeAnchors(node, {
+            inputToward,
+            outputToward,
+            sameSideOffset: 18,
+            preferredInputSide: preferences?.preferredInputSide,
+            preferredOutputSide: preferences?.preferredOutputSide,
+          }),
+        );
+
+    return new Map<number, PocResolvedNodeAnchors>(
+      requests.map(({ nodeId }, index) => [nodeId, resolvedAnchors[index] ?? null]).filter((entry): entry is [number, PocResolvedNodeAnchors] => entry[1] !== null),
+    );
+  }, [
+    connectedNodeMaps,
+    connectionPreview,
+    engine,
+    nodes,
+    pendingConnectionSourceId,
+    getNodeAnchorPreferences,
+    viewport.x,
+    viewport.y,
+    viewport.zoom,
+  ]);
 
   const renderedEdges = useMemo(() => {
-    const nodeAnchorsById = new Map<
-      number,
+    const { sourceSpreadByEdgeId, targetSpreadByEdgeId } = createPocEdgeSpreadMaps(nodes, edges, resolvedNodeAnchorsById);
+    const edgeRequests: Array<
       {
-        inputAnchor: ReturnType<typeof getResolvedNodeAnchors>["inputAnchor"];
-        outputAnchor: ReturnType<typeof getResolvedNodeAnchors>["outputAnchor"];
-      }
-    >();
-    nodes.forEach((node) => {
-      nodeAnchorsById.set(Number(node.id), getResolvedNodeAnchors(node));
-    });
-
-    const sourceSpreadByEdgeId = new Map<string, number>();
-    const targetSpreadByEdgeId = new Map<string, number>();
-    const spreadStep = 18;
-
-    const edgePositionMetric = (node: PocNode, side: AnchorSide) => {
-      const center = getNodeCenter(node);
-      return side === "left" || side === "right" ? center.y : center.x;
-    };
-
-    const getCenteredSpread = (index: number, count: number) => (index - (count - 1) / 2) * spreadStep;
-
-    const outgoingBySource = new Map<number, PocEdge[]>();
-    const incomingByTarget = new Map<number, PocEdge[]>();
+        id: string;
+        bendOffsetWorldX: number;
+        bendOffsetWorldY: number;
+        bendWorldX: number;
+        bendWorldY: number;
+        hasBend: boolean;
+      } & PocEdgePathResolutionRequest
+    > = [];
 
     edges.forEach((edge) => {
-      const sourceId = Number(edge.source);
-      const targetId = Number(edge.target);
-      outgoingBySource.set(sourceId, [...(outgoingBySource.get(sourceId) ?? []), edge]);
-      incomingByTarget.set(targetId, [...(incomingByTarget.get(targetId) ?? []), edge]);
+      const sourceNode = nodeById.get(Number(edge.source));
+      const targetNode = nodeById.get(Number(edge.target));
+      if (!sourceNode || !targetNode) return;
+
+      const sourceCenter = getPocNodeCenter(sourceNode);
+      const targetCenter = getPocNodeCenter(targetNode);
+      const defaultBendWorldX = (sourceCenter.x + targetCenter.x) / 2;
+      const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
+      const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
+      const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
+      const sourceAnchor = resolvedNodeAnchorsById.get(Number(sourceNode.id))?.outputAnchor;
+      const targetAnchor = resolvedNodeAnchorsById.get(Number(targetNode.id))?.inputAnchor;
+      if (!sourceAnchor || !targetAnchor) return;
+
+      edgeRequests.push({
+        id: edge.id,
+        sourceX: (sourceAnchor.x - viewport.x) * viewport.zoom,
+        sourceY: (sourceAnchor.y - viewport.y) * viewport.zoom,
+        targetX: (targetAnchor.x - viewport.x) * viewport.zoom,
+        targetY: (targetAnchor.y - viewport.y) * viewport.zoom,
+        sourceSide: sourceAnchor.side,
+        targetSide: targetAnchor.side,
+        sourceSpread: (sourceSpreadByEdgeId.get(edge.id) ?? 0) * viewport.zoom,
+        targetSpread: (targetSpreadByEdgeId.get(edge.id) ?? 0) * viewport.zoom,
+        bendOffsetX: edge.bend ? edge.bend.x * viewport.zoom : null,
+        bendOffsetY: edge.bend ? edge.bend.y * viewport.zoom : null,
+        bendOffsetWorldX: edge.bend?.x ?? 0,
+        bendOffsetWorldY: edge.bend?.y ?? 0,
+        bendWorldX,
+        bendWorldY,
+        hasBend: Boolean(edge.bend),
+      });
     });
 
-    outgoingBySource.forEach((group, sourceId) => {
-      const sourceAnchor = nodeAnchorsById.get(sourceId)?.outputAnchor;
-      if (!sourceAnchor || group.length <= 1) return;
-      group
-        .slice()
-        .sort((left, right) => {
-          const leftTarget = nodeById.get(Number(left.target));
-          const rightTarget = nodeById.get(Number(right.target));
-          if (!leftTarget || !rightTarget) return 0;
-          return edgePositionMetric(leftTarget, sourceAnchor.side) - edgePositionMetric(rightTarget, sourceAnchor.side);
-        })
-        .forEach((edge, index, ordered) => {
-          sourceSpreadByEdgeId.set(edge.id, getCenteredSpread(index, ordered.length));
-        });
-    });
+    const resolvedCurves = engine
+      ? engine.resolveEdgeCurvesBatch(edgeRequests)
+      : edgeRequests.map((request) => resolvePocSmoothEdgeCurve(request));
 
-    incomingByTarget.forEach((group, targetId) => {
-      const targetAnchor = nodeAnchorsById.get(targetId)?.inputAnchor;
-      if (!targetAnchor || group.length <= 1) return;
-      group
-        .slice()
-        .sort((left, right) => {
-          const leftSource = nodeById.get(Number(left.source));
-          const rightSource = nodeById.get(Number(right.source));
-          if (!leftSource || !rightSource) return 0;
-          return edgePositionMetric(leftSource, targetAnchor.side) - edgePositionMetric(rightSource, targetAnchor.side);
-        })
-        .forEach((edge, index, ordered) => {
-          targetSpreadByEdgeId.set(edge.id, getCenteredSpread(index, ordered.length));
-        });
-    });
-
-    return edges
-      .map((edge) => {
-        const sourceNode = nodeById.get(Number(edge.source));
-        const targetNode = nodeById.get(Number(edge.target));
-        if (!sourceNode || !targetNode) return null;
-
-        const sourceCenter = getNodeCenter(sourceNode);
-        const targetCenter = getNodeCenter(targetNode);
-        const defaultBendWorldX = (sourceCenter.x + targetCenter.x) / 2;
-        const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
-        const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
-        const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
-        const sourceAnchor = nodeAnchorsById.get(Number(sourceNode.id))?.outputAnchor;
-        const targetAnchor = nodeAnchorsById.get(Number(targetNode.id))?.inputAnchor;
-        if (!sourceAnchor || !targetAnchor) return null;
-        const sourceX = (sourceAnchor.x - viewport.x) * viewport.zoom;
-        const sourceY = (sourceAnchor.y - viewport.y) * viewport.zoom;
-        const targetX = (targetAnchor.x - viewport.x) * viewport.zoom;
-        const targetY = (targetAnchor.y - viewport.y) * viewport.zoom;
-        const bendOffsetX = edge.bend ? edge.bend.x * viewport.zoom : null;
-        const bendOffsetY = edge.bend ? edge.bend.y * viewport.zoom : null;
-        const path = buildSmoothEdgePath({
-          sourceX,
-          sourceY,
-          targetX,
-          targetY,
-          sourceSide: sourceAnchor.side,
-          targetSide: targetAnchor.side,
-          sourceSpread: (sourceSpreadByEdgeId.get(edge.id) ?? 0) * viewport.zoom,
-          targetSpread: (targetSpreadByEdgeId.get(edge.id) ?? 0) * viewport.zoom,
-          bendOffsetX,
-          bendOffsetY,
-        });
-
-        return {
-          id: edge.id,
-          path,
-          bendOffsetWorldX: edge.bend?.x ?? 0,
-          bendOffsetWorldY: edge.bend?.y ?? 0,
-          bendWorldX,
-          bendWorldY,
-          hasBend: Boolean(edge.bend),
-        };
-      })
-      .filter(Boolean) as Array<{
+    return edgeRequests.map((request, index) => ({
+      id: request.id,
+      path: buildPocSvgCurvePath(resolvedCurves[index] ?? resolvePocSmoothEdgeCurve(request)),
+      bendOffsetWorldX: request.bendOffsetWorldX,
+      bendOffsetWorldY: request.bendOffsetWorldY,
+      bendWorldX: request.bendWorldX,
+      bendWorldY: request.bendWorldY,
+      hasBend: request.hasBend,
+    })) as Array<{
       id: string;
       path: string;
       bendOffsetWorldX: number;
@@ -1188,13 +1060,15 @@ export function HyperFlowPocCanvas({
       bendWorldY: number;
       hasBend: boolean;
     }>;
-  }, [edges, nodeById, viewport.x, viewport.y, viewport.zoom, connectedNodeMaps, connectionPreview, pendingConnectionSourceId]);
+  }, [edges, engine, nodeById, nodes, resolvedNodeAnchorsById, viewport.x, viewport.y, viewport.zoom]);
 
   const renderedHandles = useMemo(() => {
     if (!onEdgeConnect) return [];
 
     return nodes.map((node) => {
-      const { inputAnchor, outputAnchor } = getResolvedNodeAnchors(node);
+      const resolvedAnchors = resolvedNodeAnchorsById.get(Number(node.id));
+      if (!resolvedAnchors) return null;
+      const { inputAnchor, outputAnchor } = resolvedAnchors;
 
       return {
         id: node.id,
@@ -1209,13 +1083,21 @@ export function HyperFlowPocCanvas({
           selectedNodeIdsSet.has(Number(node.id)) ||
           Number(pendingConnectionSourceId) === Number(node.id),
       };
-    });
+    }).filter(Boolean) as Array<{
+      id: number;
+      inputX: number;
+      inputY: number;
+      outputX: number;
+      outputY: number;
+      isActive: boolean;
+    }>;
   }, [
     activeDragNodeIdsSet,
     connectionPreview,
     nodes,
     onEdgeConnect,
     pendingConnectionSourceId,
+    resolvedNodeAnchorsById,
     selectedNodeIdsSet,
     viewport.x,
     viewport.y,
@@ -1322,7 +1204,7 @@ export function HyperFlowPocCanvas({
           ))}
           {connectionPreview ? (
             <path
-              d={buildSmoothEdgePath({
+              d={buildSmoothPocEdgePath({
                 sourceX: connectionPreview.startX,
                 sourceY: connectionPreview.startY,
                 targetX: connectionPreview.currentX,

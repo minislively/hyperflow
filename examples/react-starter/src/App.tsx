@@ -1,9 +1,14 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
+  buildPocSvgCurvePath,
+  createPocEdgeSpreadMaps,
   HyperFlowPocCanvas,
   type HyperFlowPocNodeRendererProps,
   createPocViewport,
   fitPocViewportToNodes,
+  getPocNodeCenter,
+  resolvePocSmoothEdgeCurve,
+  resolvePocNodeAnchors,
   updateNodeData,
   useWorkflowEdgesState,
   useSelectedNode,
@@ -11,6 +16,7 @@ import {
   useWorkflowSelection,
   type PocEdge,
   type PocNode,
+  type PocResolvedNodeAnchors,
   type PocViewport,
 } from "@hyperflow/react";
 
@@ -218,6 +224,13 @@ function cloneLearnDemoEdges() {
     ...edge,
     bend: edge.bend ? { ...edge.bend } : edge.bend ?? null,
   }));
+}
+
+function getEditorNodeAnchorPreferences() {
+  return {
+    preferredInputSide: "left" as const,
+    preferredOutputSide: "right" as const,
+  };
 }
 
 function getNextLearnDemoNodeId(nodes: LearnDemoNode[]) {
@@ -2368,121 +2381,6 @@ function IconRestore() {
   return <svg viewBox="0 0 20 20"><path d="M6 7H3V4M4 7a6 6 0 1 1-1 7m7-8v4l3 2" /></svg>;
 }
 
-function buildSmoothMiniMapEdgePath({
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourceSide,
-  targetSide,
-  sourceSpread = 0,
-  targetSpread = 0,
-  bendOffsetX,
-  bendOffsetY,
-}: {
-  sourceX: number;
-  sourceY: number;
-  targetX: number;
-  targetY: number;
-  sourceSide: "left" | "right" | "top" | "bottom";
-  targetSide: "left" | "right" | "top" | "bottom";
-  sourceSpread?: number;
-  targetSpread?: number;
-  bendOffsetX?: number | null;
-  bendOffsetY?: number | null;
-}) {
-  const dx = targetX - sourceX;
-  const dy = targetY - sourceY;
-  const baseOffset = Math.max(10, Math.max(Math.abs(dx), Math.abs(dy)) * 0.28);
-
-  function buildDirectionalControlPoint(
-    x: number,
-    y: number,
-    side: "left" | "right" | "top" | "bottom",
-    spread: number,
-    bendX = 0,
-    bendY = 0,
-  ) {
-    switch (side) {
-      case "left":
-        return { x: x - baseOffset + bendX, y: y + spread + bendY };
-      case "right":
-        return { x: x + baseOffset + bendX, y: y + spread + bendY };
-      case "top":
-        return { x: x + spread + bendX, y: y - baseOffset + bendY };
-      case "bottom":
-        return { x: x + spread + bendX, y: y + baseOffset + bendY };
-    }
-  }
-
-  const bendInfluenceX = bendOffsetX ?? 0;
-  const bendInfluenceY = bendOffsetY ?? 0;
-  const sourceControl = buildDirectionalControlPoint(
-    sourceX,
-    sourceY,
-    sourceSide,
-    sourceSpread,
-    bendInfluenceX * 0.16,
-    bendInfluenceY * 0.34,
-  );
-  const targetControl = buildDirectionalControlPoint(
-    targetX,
-    targetY,
-    targetSide,
-    targetSpread,
-    bendInfluenceX * 0.16,
-    bendInfluenceY * 0.34,
-  );
-
-  return `M ${sourceX} ${sourceY} C ${sourceControl.x} ${sourceControl.y}, ${targetControl.x} ${targetControl.y}, ${targetX} ${targetY}`;
-}
-
-function getMiniMapNodeCenter(node: PocNode) {
-  return {
-    x: node.position.x + node.size.width / 2,
-    y: node.position.y + node.size.height / 2,
-  };
-}
-
-function getMiniMapNodeAnchorPoint(node: PocNode, toward: { x: number; y: number }) {
-  const center = getMiniMapNodeCenter(node);
-  const dx = toward.x - center.x;
-  const dy = toward.y - center.y;
-
-  if (Math.abs(dx) >= Math.abs(dy)) {
-    return dx >= 0
-      ? { x: node.position.x + node.size.width, y: center.y, side: "right" as const }
-      : { x: node.position.x, y: center.y, side: "left" as const };
-  }
-
-  return dy >= 0
-    ? { x: center.x, y: node.position.y + node.size.height, side: "bottom" as const }
-    : { x: center.x, y: node.position.y, side: "top" as const };
-}
-
-function offsetMiniMapAnchorWithinSide(
-  anchor: { x: number; y: number; side: "left" | "right" | "top" | "bottom" },
-  node: PocNode,
-  offset: number,
-) {
-  const inset = 14;
-  if (anchor.side === "left" || anchor.side === "right") {
-    const minY = node.position.y + inset;
-    const maxY = node.position.y + node.size.height - inset;
-    return {
-      ...anchor,
-      y: Math.min(maxY, Math.max(minY, anchor.y + offset)),
-    };
-  }
-
-  const minX = node.position.x + inset;
-  const maxX = node.position.x + node.size.width - inset;
-  return {
-    ...anchor,
-    x: Math.min(maxX, Math.max(minX, anchor.x + offset)),
-  };
-}
-
 function EditorMiniMap({
   locale,
   nodes,
@@ -2557,7 +2455,7 @@ function EditorMiniMap({
       if (connectedNodes.length === 0) return null;
       const totals = connectedNodes.reduce(
         (sum, connectedNode) => {
-          const center = getMiniMapNodeCenter(connectedNode);
+          const center = getPocNodeCenter(connectedNode);
           return { x: sum.x + center.x, y: sum.y + center.y };
         },
         { x: 0, y: 0 },
@@ -2568,16 +2466,10 @@ function EditorMiniMap({
       };
     };
 
-    const anchorsByNodeId = new Map<
-      number,
-      {
-        inputAnchor: { x: number; y: number; side: "left" | "right" | "top" | "bottom" };
-        outputAnchor: { x: number; y: number; side: "left" | "right" | "top" | "bottom" };
-      }
-    >();
+    const anchorsByNodeId = new Map<number, PocResolvedNodeAnchors>();
 
     nodes.forEach((node) => {
-      const center = getMiniMapNodeCenter(node);
+      const center = getPocNodeCenter(node);
       const outputToward = averageCenter(outgoingByNodeId.get(Number(node.id)) ?? []) ?? {
         x: center.x + 1,
         y: center.y,
@@ -2586,71 +2478,22 @@ function EditorMiniMap({
         x: center.x - 1,
         y: center.y,
       };
-      let inputAnchor = getMiniMapNodeAnchorPoint(node, inputToward);
-      let outputAnchor = getMiniMapNodeAnchorPoint(node, outputToward);
-      if (inputAnchor.side === outputAnchor.side) {
-        inputAnchor = offsetMiniMapAnchorWithinSide(inputAnchor, node, -18);
-        outputAnchor = offsetMiniMapAnchorWithinSide(outputAnchor, node, 18);
-      }
-      anchorsByNodeId.set(Number(node.id), { inputAnchor, outputAnchor });
+      anchorsByNodeId.set(
+        Number(node.id),
+        resolvePocNodeAnchors(node, {
+          inputToward,
+          outputToward,
+          sameSideOffset: 18,
+          ...getEditorNodeAnchorPreferences(),
+        }),
+      );
     });
 
     return anchorsByNodeId;
   }, [edges, nodes]);
 
   const edgeSpreadMaps = useMemo(() => {
-    const sourceSpreadByEdgeId = new Map<string, number>();
-    const targetSpreadByEdgeId = new Map<string, number>();
-    const spreadStep = 18;
-
-    const edgePositionMetric = (node: PocNode, side: "left" | "right" | "top" | "bottom") => {
-      const center = getMiniMapNodeCenter(node);
-      return side === "left" || side === "right" ? center.y : center.x;
-    };
-
-    const centeredSpread = (index: number, count: number) => (index - (count - 1) / 2) * spreadStep;
-
-    const outgoingBySource = new Map<number, LearnDemoEdge[]>();
-    const incomingByTarget = new Map<number, LearnDemoEdge[]>();
-
-    edges.forEach((edge) => {
-      outgoingBySource.set(Number(edge.source), [...(outgoingBySource.get(Number(edge.source)) ?? []), edge]);
-      incomingByTarget.set(Number(edge.target), [...(incomingByTarget.get(Number(edge.target)) ?? []), edge]);
-    });
-
-    outgoingBySource.forEach((group, sourceId) => {
-      const sourceAnchor = anchorMaps.get(sourceId)?.outputAnchor;
-      if (!sourceAnchor || group.length <= 1) return;
-      group
-        .slice()
-        .sort((left, right) => {
-          const leftTarget = nodes.find((node) => Number(node.id) === Number(left.target));
-          const rightTarget = nodes.find((node) => Number(node.id) === Number(right.target));
-          if (!leftTarget || !rightTarget) return 0;
-          return edgePositionMetric(leftTarget, sourceAnchor.side) - edgePositionMetric(rightTarget, sourceAnchor.side);
-        })
-        .forEach((edge, index, ordered) => {
-          sourceSpreadByEdgeId.set(edge.id, centeredSpread(index, ordered.length));
-        });
-    });
-
-    incomingByTarget.forEach((group, targetId) => {
-      const targetAnchor = anchorMaps.get(targetId)?.inputAnchor;
-      if (!targetAnchor || group.length <= 1) return;
-      group
-        .slice()
-        .sort((left, right) => {
-          const leftSource = nodes.find((node) => Number(node.id) === Number(left.source));
-          const rightSource = nodes.find((node) => Number(node.id) === Number(right.source));
-          if (!leftSource || !rightSource) return 0;
-          return edgePositionMetric(leftSource, targetAnchor.side) - edgePositionMetric(rightSource, targetAnchor.side);
-        })
-        .forEach((edge, index, ordered) => {
-          targetSpreadByEdgeId.set(edge.id, centeredSpread(index, ordered.length));
-        });
-    });
-
-    return { sourceSpreadByEdgeId, targetSpreadByEdgeId };
+    return createPocEdgeSpreadMaps(nodes, edges, anchorMaps);
   }, [anchorMaps, edges, nodes]);
 
   function recenterViewport(clientX: number, clientY: number, rect: DOMRect) {
@@ -2680,8 +2523,8 @@ function EditorMiniMap({
           const targetNode = nodes.find((node) => Number(node.id) === Number(edge.target));
           if (!sourceNode || !targetNode) return null;
 
-          const sourceCenter = getMiniMapNodeCenter(sourceNode);
-          const targetCenter = getMiniMapNodeCenter(targetNode);
+          const sourceCenter = getPocNodeCenter(sourceNode);
+          const targetCenter = getPocNodeCenter(targetNode);
           const defaultBendWorldX = (sourceCenter.x + targetCenter.x) / 2;
           const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
           const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
@@ -2695,22 +2538,24 @@ function EditorMiniMap({
           const y2 = model.projectY(targetAnchor.y);
           const bendOffsetX = edge.bend ? model.projectX(bendWorldX) - model.projectX(defaultBendWorldX) : null;
           const bendOffsetY = edge.bend ? model.projectY(bendWorldY) - model.projectY(defaultBendWorldY) : null;
+          const curve = resolvePocSmoothEdgeCurve({
+            sourceX: x1,
+            sourceY: y1,
+            targetX: x2,
+            targetY: y2,
+            sourceSide: sourceAnchor.side,
+            targetSide: targetAnchor.side,
+            sourceSpread: (edgeSpreadMaps.sourceSpreadByEdgeId.get(edge.id) ?? 0) * model.scale,
+            targetSpread: (edgeSpreadMaps.targetSpreadByEdgeId.get(edge.id) ?? 0) * model.scale,
+            bendOffsetX,
+            bendOffsetY,
+            minimumCurveOffset: 10,
+          });
           return (
             <path
               key={edge.id}
               className="editor-minimap-edge"
-              d={buildSmoothMiniMapEdgePath({
-                sourceX: x1,
-                sourceY: y1,
-                targetX: x2,
-                targetY: y2,
-                sourceSide: sourceAnchor.side,
-                targetSide: targetAnchor.side,
-                sourceSpread: (edgeSpreadMaps.sourceSpreadByEdgeId.get(edge.id) ?? 0) * model.scale,
-                targetSpread: (edgeSpreadMaps.targetSpreadByEdgeId.get(edge.id) ?? 0) * model.scale,
-                bendOffsetX,
-                bendOffsetY,
-              })}
+              d={buildPocSvgCurvePath(curve)}
             />
           );
         })}
@@ -2922,7 +2767,7 @@ function MainEditorSurface({
             saved: "저장된 스냅샷",
             notSaved: "아직 저장된 스냅샷이 없다.",
             multiSelectedSuffix: "개 노드 선택됨",
-            multiHint: "Shift+클릭으로 선택을 더하고 빼거나, Shift를 누른 채 빈 캔버스를 드래그해 여러 노드를 한 번에 더할 수 있다. Alt를 누른 채 드래그하면 화면을 이동한다.",
+            multiHint: "Shift+클릭으로 선택을 더하고 빼거나, Shift를 누른 채 빈 캔버스를 드래그해 여러 노드를 한 번에 더할 수 있다. 빈 캔버스를 그냥 드래그하면 화면이 이동한다.",
           },
           topNav: {
             editor: "에디터",
@@ -2961,7 +2806,7 @@ function MainEditorSurface({
             saved: "Saved snapshot",
             notSaved: "No saved snapshot yet.",
             multiSelectedSuffix: "nodes selected",
-            multiHint: "Use Shift+click to add or remove nodes from the current selection, or Shift-drag across empty canvas to add multiple nodes at once. Hold Alt while dragging to pan the viewport.",
+            multiHint: "Use Shift+click to add or remove nodes from the current selection, or Shift-drag across empty canvas to add multiple nodes at once. Drag empty canvas space to pan the viewport.",
           },
           topNav: {
             editor: "Editor",
@@ -3247,6 +3092,7 @@ function MainEditorSurface({
                 nodeRenderers={{ card: EditorNodeCard }}
                 getNodeRendererKey={() => "card"}
                 getNodeRendererData={(node) => node.data}
+                getNodeAnchorPreferences={getEditorNodeAnchorPreferences}
                 onNodeSelect={handleNodeSelect}
                 onNodeSelectionBoxChange={handleNodeSelectionBoxChange}
                 onEdgeSelect={(edgeId) => {
@@ -3707,6 +3553,7 @@ function LearnInteractiveDemo({
             height={learnDemoCanvas.height}
             selectedNodeId={selection.nodeId}
             selectedEdgeId={selectedEdgeId}
+            getNodeAnchorPreferences={getEditorNodeAnchorPreferences}
             onNodeSelect={(nodeId) => {
               onSelectionChange({ nodeId });
               if (nodeId !== null) setSelectedEdgeId(null);

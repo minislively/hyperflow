@@ -6,14 +6,23 @@ export type {
 } from "./react";
 export { createPocViewport } from "@hyperflow/sdk";
 export {
+  buildPocSvgCurvePath,
+  buildSmoothPocEdgePath,
+  createPocEdgeSpreadMaps,
+  getPocNodeCenter,
   projectPocNodeToRuntimeNode,
   projectPocNodesToRuntimeNodes,
+  resolvePocSmoothEdgeCurve,
+  resolvePocNodeAnchors,
 } from "@hyperflow/sdk";
 export type {
+  PocAnchorPoint,
+  PocAnchorSide,
   PocEdge,
   PocMetrics,
   PocNode,
   PocNodePosition,
+  PocResolvedNodeAnchors,
   PocNodeSize,
   PocRuntimeNode,
   PocViewport,

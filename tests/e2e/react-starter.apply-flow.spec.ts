@@ -181,6 +181,37 @@ test("dragging a node updates connected edges immediately", async ({ page }) => 
   expect(afterPath).not.toBe(beforePath);
 });
 
+test("dragging empty canvas space pans the viewport without holding modifier keys", async ({ page }) => {
+  await page.goto("/ko");
+
+  const canvas = page.getByLabel("HyperFlow 메인 editor");
+  const canvasBox = await canvas.boundingBox();
+  const nodeOne = page.locator("[data-node-card-id='1']");
+  const beforeNodeBox = await nodeOne.boundingBox();
+  if (!canvasBox || !beforeNodeBox) throw new Error("missing canvas or node before pan test");
+
+  const startX = canvasBox.x + canvasBox.width - 140;
+  const startY = canvasBox.y + canvasBox.height - 220;
+
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - 120, startY - 80, { steps: 10 });
+  await page.mouse.up();
+
+  const afterNodeBox = await nodeOne.boundingBox();
+  if (!afterNodeBox) throw new Error("missing node after pan test");
+
+  expect(Math.abs(afterNodeBox.x - beforeNodeBox.x)).toBeGreaterThan(20);
+  expect(Math.abs(afterNodeBox.y - beforeNodeBox.y)).toBeGreaterThan(20);
+
+  await page.getByRole("button", { name: "저장" }).click();
+  const snapshotText = await page.locator(".editor-snapshot").textContent();
+  if (!snapshotText) throw new Error("missing snapshot after pan test");
+  const snapshot = JSON.parse(snapshotText);
+  expect(snapshot.viewport.x).toBeGreaterThan(20);
+  expect(snapshot.viewport.y).toBeGreaterThan(20);
+});
+
 test("same-side edges fan out from distinct visible anchors", async ({ page }) => {
   await page.goto("/ko");
 
@@ -283,10 +314,12 @@ test("main editor supports box selection and keyboard delete", async ({ page }) 
   const endX = Math.max(nodeOneBox.x + nodeOneBox.width, nodeTwoBox.x + nodeTwoBox.width) + 24;
   const endY = Math.min(nodeOneBox.y, nodeTwoBox.y) - 18;
 
+  await page.keyboard.down("Shift");
   await page.mouse.move(startX, startY);
   await page.mouse.down();
   await page.mouse.move(endX, endY, { steps: 12 });
   await page.mouse.up();
+  await page.keyboard.up("Shift");
 
   await page.keyboard.press("Delete");
 

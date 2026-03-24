@@ -56,3 +56,68 @@ test("bridge keeps visible ids and boxes aligned across successive viewport upda
     assert.deepEqual(secondVisibleBoxes.map((box)=>box.id), secondVisibleIds);
     assert.notDeepEqual(secondVisibleIds, firstVisibleIds);
 });
+test("bridge resolves node anchors with the same-side fallback applied", async ()=>{
+    const bridge = await bridgePromise;
+    const resolved = bridge.resolveNodeAnchorsBatch([
+        {
+            x: 100,
+            y: 100,
+            width: 180,
+            height: 96,
+            inputToward: {
+                x: 320,
+                y: 120
+            },
+            outputToward: {
+                x: 360,
+                y: 140
+            }
+        }
+    ]);
+    assert.equal(resolved.length, 1);
+    assert.notEqual(resolved[0].inputAnchor.side, resolved[0].outputAnchor.side);
+});
+test("bridge resolves node anchors with preferred editor-facing sides when requested", async ()=>{
+    const bridge = await bridgePromise;
+    const resolved = bridge.resolveNodeAnchorsBatch([
+        {
+            x: 100,
+            y: 100,
+            width: 180,
+            height: 96,
+            inputToward: {
+                x: 190,
+                y: 340
+            },
+            outputToward: {
+                x: 190,
+                y: -100
+            },
+            preferredInputSide: "left",
+            preferredOutputSide: "right"
+        }
+    ]);
+    assert.equal(resolved.length, 1);
+    assert.equal(resolved[0].inputAnchor.side, "left");
+    assert.equal(resolved[0].outputAnchor.side, "right");
+});
+test("bridge resolves edge curves into cubic control points", async ()=>{
+    const bridge = await bridgePromise;
+    const resolved = bridge.resolveEdgeCurvesBatch([
+        {
+            sourceX: 10,
+            sourceY: 20,
+            targetX: 200,
+            targetY: 100,
+            sourceSide: "right",
+            targetSide: "left"
+        }
+    ]);
+    assert.equal(resolved.length, 1);
+    assert.equal(resolved[0].sourceX, 10);
+    assert.equal(resolved[0].sourceY, 20);
+    assert.equal(resolved[0].targetX, 200);
+    assert.equal(resolved[0].targetY, 100);
+    assert.ok(resolved[0].sourceControlX > resolved[0].sourceX);
+    assert.ok(resolved[0].targetControlX < resolved[0].targetX);
+});
