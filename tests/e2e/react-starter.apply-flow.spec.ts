@@ -35,28 +35,44 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
 
   await page.getByRole("button", { name: "노드 추가" }).click();
   await expect(page.locator("[data-node-card-id='4']")).toBeVisible();
+  const canvasBoxAfterFirstAdd = await page.getByLabel("HyperFlow 메인 editor").boundingBox();
+  const nodeFourAfterFirstAdd = await page.locator("[data-node-card-id='4']").boundingBox();
+  if (!canvasBoxAfterFirstAdd || !nodeFourAfterFirstAdd) throw new Error("missing canvas or node 4 after first add");
   await page.getByRole("button", { name: "저장" }).click();
   const firstSnapshotText = await page.locator(".editor-snapshot").textContent();
   if (!firstSnapshotText) throw new Error("missing snapshot text after first add");
   const firstSnapshot = JSON.parse(firstSnapshotText);
   const nodeFourSnapshot = firstSnapshot.nodes.find((node: { id: number }) => node.id === 4);
   if (!nodeFourSnapshot) throw new Error("missing node 4 in snapshot");
-  const expectedCenterX = firstSnapshot.viewport.x + 1280 / firstSnapshot.viewport.zoom / 2 - 90;
-  const expectedCenterY = firstSnapshot.viewport.y + 720 / firstSnapshot.viewport.zoom / 2 - 48;
-  expect(Math.abs(nodeFourSnapshot.x - expectedCenterX)).toBeLessThan(2);
-  expect(Math.abs(nodeFourSnapshot.y - expectedCenterY)).toBeLessThan(2);
+  const nodeFourCenterX = nodeFourAfterFirstAdd.x + nodeFourAfterFirstAdd.width / 2;
+  const nodeFourCenterY = nodeFourAfterFirstAdd.y + nodeFourAfterFirstAdd.height / 2;
+  const canvasCenterX = canvasBoxAfterFirstAdd.x + canvasBoxAfterFirstAdd.width / 2;
+  const canvasCenterY = canvasBoxAfterFirstAdd.y + canvasBoxAfterFirstAdd.height / 2;
+  expect(Math.abs(nodeFourCenterX - canvasCenterX)).toBeLessThan(64);
+  expect(Math.abs(nodeFourCenterY - canvasCenterY)).toBeLessThan(64);
+  expect(nodeFourSnapshot.x).toBeGreaterThanOrEqual(firstSnapshot.viewport.x);
+  expect(nodeFourSnapshot.y).toBeGreaterThanOrEqual(firstSnapshot.viewport.y);
 
   await page.getByRole("button", { name: "노드 추가" }).click();
   await expect(page.locator("[data-node-card-id='5']")).toBeVisible();
+  const canvasBox = await page.getByLabel("HyperFlow 메인 editor").boundingBox();
   const nodeFourBox = await page.locator("[data-node-card-id='4']").boundingBox();
   const nodeFiveBox = await page.locator("[data-node-card-id='5']").boundingBox();
-  if (!nodeFourBox || !nodeFiveBox) throw new Error("new node boxes missing after add");
+  if (!canvasBox || !nodeFourBox || !nodeFiveBox) throw new Error("new node boxes missing after add");
   const overlaps =
     nodeFourBox.x < nodeFiveBox.x + nodeFiveBox.width &&
     nodeFourBox.x + nodeFourBox.width > nodeFiveBox.x &&
     nodeFourBox.y < nodeFiveBox.y + nodeFiveBox.height &&
     nodeFourBox.y + nodeFourBox.height > nodeFiveBox.y;
   expect(overlaps).toBeFalsy();
+  expect(nodeFourBox.x).toBeGreaterThanOrEqual(canvasBox.x);
+  expect(nodeFourBox.y).toBeGreaterThanOrEqual(canvasBox.y);
+  expect(nodeFiveBox.x).toBeGreaterThanOrEqual(canvasBox.x);
+  expect(nodeFiveBox.y).toBeGreaterThanOrEqual(canvasBox.y);
+  expect(nodeFourBox.x + nodeFourBox.width).toBeLessThanOrEqual(canvasBox.x + canvasBox.width);
+  expect(nodeFourBox.y + nodeFourBox.height).toBeLessThanOrEqual(canvasBox.y + canvasBox.height);
+  expect(nodeFiveBox.x + nodeFiveBox.width).toBeLessThanOrEqual(canvasBox.x + canvasBox.width);
+  expect(nodeFiveBox.y + nodeFiveBox.height).toBeLessThanOrEqual(canvasBox.y + canvasBox.height);
 
   const nodeOne = page.locator("[data-node-card-id='1']");
   const before = await nodeOne.boundingBox();
@@ -91,6 +107,12 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
   const newEdge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-4-5-3"]');
   await expect(newEdge).toHaveCount(1);
   await expect(page.getByText("엣지: 3")).toBeVisible();
+
+  await page.getByRole("button", { name: "Connect from node 5" }).click();
+  await page.getByRole("button", { name: "Connect into node 3" }).click();
+  const secondNewEdge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-5-3-4"]');
+  await expect(secondNewEdge).toHaveCount(1);
+  await expect(page.getByText("엣지: 4")).toBeVisible();
 
   await nodeOne.click();
   await expect(page.getByRole("heading", { name: "Node A" })).toBeVisible();

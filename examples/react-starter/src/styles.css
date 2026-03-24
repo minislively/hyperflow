@@ -389,6 +389,7 @@ button {
 
 .editor-node-card {
   display: grid;
+  box-sizing: border-box;
   align-content: center;
   justify-items: center;
   gap: 4px;

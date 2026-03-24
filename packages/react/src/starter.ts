@@ -26,11 +26,16 @@ export function fitPocViewportToNodes(
     width / (maxX - minX + padding * 2),
     height / (maxY - minY + padding * 2),
   );
+  const resolvedZoom = Math.max(minZoom, Math.min(zoom, maxZoom));
+  const contentCenterX = (minX + maxX) / 2;
+  const contentCenterY = (minY + maxY) / 2;
+  const x = Math.max(0, contentCenterX - width / (2 * resolvedZoom));
+  const y = Math.max(0, contentCenterY - height / (2 * resolvedZoom));
 
   return createPocViewport(width, height, {
-    x: Math.max(0, minX - padding),
-    y: Math.max(0, minY - padding),
-    zoom: Math.max(minZoom, Math.min(zoom, maxZoom)),
+    x,
+    y,
+    zoom: resolvedZoom,
   });
 }
 

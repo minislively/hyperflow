@@ -148,6 +148,33 @@ const topLevelDefaultPage: Record<SectionId, PageId> = {
 
 const learnDemoCanvas = { width: 720, height: 360 } as const;
 const mainEditorCanvas = { width: 1280, height: 720 } as const;
+
+function useCanvasDimensions(initialSize: { width: number; height: number }) {
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState(initialSize);
+
+  useEffect(() => {
+    const element = frameRef.current;
+    if (!element) return;
+
+    const update = () => {
+      const nextWidth = Math.max(320, Math.round(element.clientWidth));
+      const nextHeight = Math.max(320, Math.round(element.clientHeight));
+      setSize((current) =>
+        current.width === nextWidth && current.height === nextHeight
+          ? current
+          : { width: nextWidth, height: nextHeight },
+      );
+    };
+
+    update();
+    const resizeObserver = new ResizeObserver(update);
+    resizeObserver.observe(element);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  return [frameRef, size] as const;
+}
 const initialLearnDemoNodes: LearnDemoNode[] = [
   {
     id: 1,
@@ -224,8 +251,16 @@ function findNextNodePlacement<TData>(
   viewport: PocViewport,
   size: PocNode<TData>["size"] = { width: 180, height: 96 },
 ) {
-  const baseX = Math.max(24, viewport.x + viewport.width / viewport.zoom / 2 - size.width / 2);
-  const baseY = Math.max(24, viewport.y + viewport.height / viewport.zoom / 2 - size.height / 2);
+  const screenPaddingX = 56;
+  const screenPaddingY = 56;
+  const worldPaddingX = screenPaddingX / viewport.zoom;
+  const worldPaddingY = screenPaddingY / viewport.zoom;
+  const minX = Math.max(24, viewport.x + worldPaddingX);
+  const minY = Math.max(24, viewport.y + worldPaddingY);
+  const maxX = Math.max(minX, viewport.x + viewport.width / viewport.zoom - size.width - worldPaddingX);
+  const maxY = Math.max(minY, viewport.y + viewport.height / viewport.zoom - size.height - worldPaddingY);
+  const baseX = Math.min(maxX, Math.max(minX, viewport.x + viewport.width / viewport.zoom / 2 - size.width / 2));
+  const baseY = Math.min(maxY, Math.max(minY, viewport.y + viewport.height / viewport.zoom / 2 - size.height / 2));
   const stepX = size.width + 44;
   const stepY = size.height + 36;
   const overlapPadding = 24;
@@ -262,8 +297,8 @@ function findNextNodePlacement<TData>(
 
   for (const offset of preferredOffsets) {
     const candidate = {
-      x: Math.max(24, baseX + offset.x),
-      y: Math.max(24, baseY + offset.y),
+      x: Math.min(maxX, Math.max(minX, baseX + offset.x)),
+      y: Math.min(maxY, Math.max(minY, baseY + offset.y)),
     };
 
     if (!overlapsExistingNode(candidate)) {
@@ -277,8 +312,8 @@ function findNextNodePlacement<TData>(
         if (Math.max(Math.abs(column), Math.abs(row)) !== radius) continue;
 
         const candidate = {
-          x: Math.max(24, baseX + column * stepX),
-          y: Math.max(24, baseY + row * stepY),
+          x: Math.min(maxX, Math.max(minX, baseX + column * stepX)),
+          y: Math.min(maxY, Math.max(minY, baseY + row * stepY)),
         };
 
         if (!overlapsExistingNode(candidate)) {
@@ -2476,6 +2511,7 @@ function MainEditorSurface({
   onOpenSection: (sectionId: SectionId) => void;
   onSwitchLocale: (locale: Locale) => void;
 }) {
+  const [editorCanvasFrameRef, editorCanvasSize] = useCanvasDimensions(mainEditorCanvas);
   const [nodes, setNodes] = useWorkflowNodesState<LearnDemoNode>(cloneLearnDemoNodes());
   const [edges, setEdges] = useWorkflowEdgesState<LearnDemoEdge>(cloneLearnDemoEdges());
   const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: null });
@@ -2484,8 +2520,8 @@ function MainEditorSurface({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<PocViewport>(() =>
     fitPocViewportToNodes(cloneLearnDemoNodes(), {
-      width: mainEditorCanvas.width,
-      height: mainEditorCanvas.height,
+      width: editorCanvasSize.width,
+      height: editorCanvasSize.height,
       padding: 96,
       minZoom: 0.35,
       maxZoom: 1.4,
@@ -2500,6 +2536,17 @@ function MainEditorSurface({
   const editorShellRef = useRef<HTMLElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const pendingTitleFocusNodeIdRef = useRef<number | null>(null);
+  const nodesRef = useRef(nodes);
+  const viewportRef = useRef(viewport);
+  const hasUserAdjustedViewportRef = useRef(false);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
 
   useEffect(() => {
     setTitleDraft(selectedNode?.data.title ?? "");
@@ -2519,6 +2566,37 @@ function MainEditorSurface({
     titleInputRef.current.select();
     pendingTitleFocusNodeIdRef.current = null;
   }, [selectedNode]);
+
+  useEffect(() => {
+    setViewport((current) => {
+      if (current.width === editorCanvasSize.width && current.height === editorCanvasSize.height) {
+        return current;
+      }
+
+      const shouldRefitMeasuredCanvas =
+        !hasUserAdjustedViewportRef.current &&
+        (editorCanvasSize.width !== mainEditorCanvas.width || editorCanvasSize.height !== mainEditorCanvas.height);
+
+      if (shouldRefitMeasuredCanvas) {
+        return fitPocViewportToNodes(nodes, {
+          width: editorCanvasSize.width,
+          height: editorCanvasSize.height,
+          padding: 96,
+          minZoom: 0.35,
+          maxZoom: 1.4,
+        });
+      }
+
+      const centerX = current.x + current.width / (2 * current.zoom);
+      const centerY = current.y + current.height / (2 * current.zoom);
+
+      return createPocViewport(editorCanvasSize.width, editorCanvasSize.height, {
+        x: Math.max(0, centerX - editorCanvasSize.width / (2 * current.zoom)),
+        y: Math.max(0, centerY - editorCanvasSize.height / (2 * current.zoom)),
+        zoom: current.zoom,
+      });
+    });
+  }, [editorCanvasSize.height, editorCanvasSize.width]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -2651,10 +2729,11 @@ function MainEditorSurface({
         };
 
   function fitView() {
+    hasUserAdjustedViewportRef.current = true;
     setViewport(
       fitPocViewportToNodes(nodes, {
-        width: mainEditorCanvas.width,
-        height: mainEditorCanvas.height,
+        width: editorCanvasSize.width,
+        height: editorCanvasSize.height,
         padding: 96,
         minZoom: 0.35,
         maxZoom: 1.4,
@@ -2663,6 +2742,7 @@ function MainEditorSurface({
   }
 
   function zoom(delta: number) {
+    hasUserAdjustedViewportRef.current = true;
     setViewport((current) =>
       createPocViewport(current.width, current.height, {
         x: current.x,
@@ -2672,13 +2752,26 @@ function MainEditorSurface({
     );
   }
 
+  function handleViewportChange(nextViewport: PocViewport) {
+    hasUserAdjustedViewportRef.current = true;
+    setViewport(nextViewport);
+  }
+
   function addNode() {
-    const nextId = getNextLearnDemoNodeId(nodes);
-    const nextPosition = findNextNodePlacement(nodes, viewport);
-    pendingTitleFocusNodeIdRef.current = nextId;
-    setNodes((current) => [...current, createLearnDemoNode(nextId, { position: nextPosition, index: current.length })]);
-    setSelectedNodeIds([nextId]);
-    onSelectionChange({ nodeId: nextId });
+    const currentNodes = nodesRef.current;
+    const nextNodeId = getNextLearnDemoNodeId(currentNodes);
+    const nextPosition = findNextNodePlacement(currentNodes, viewportRef.current);
+    const nextNodes = [
+      ...currentNodes,
+      createLearnDemoNode(nextNodeId, { position: nextPosition, index: currentNodes.length }),
+    ];
+
+    nodesRef.current = nextNodes;
+    setNodes(nextNodes);
+
+    pendingTitleFocusNodeIdRef.current = nextNodeId;
+    setSelectedNodeIds([nextNodeId]);
+    onSelectionChange({ nodeId: nextNodeId });
     setSelectedEdgeId(null);
   }
 
@@ -2845,7 +2938,7 @@ function MainEditorSurface({
           </section>
 
           <section className="editor-canvas-shell" aria-label={ui.canvasLabel}>
-            <div className="editor-canvas-frame">
+            <div ref={editorCanvasFrameRef} className="editor-canvas-frame">
               <div className="editor-canvas-overlay editor-canvas-overlay-left">
                 <div className="editor-toolbar-group">
                   <EditorControlButton label={ui.controls.addNode} onClick={addNode}>
@@ -2899,15 +2992,15 @@ function MainEditorSurface({
                 nodes={nodes}
                 edges={edges}
                 viewport={viewport}
-                onViewportChange={setViewport}
+                onViewportChange={handleViewportChange}
               />
               <HyperFlowPocCanvas
                 className="hf-main-editor-canvas"
                 nodes={nodes}
                 edges={edges}
                 viewport={viewport}
-                width={mainEditorCanvas.width}
-                height={mainEditorCanvas.height}
+                width={editorCanvasSize.width}
+                height={editorCanvasSize.height}
                 selectedNodeId={selection.nodeId}
                 selectedNodeIds={selectedNodeIds}
                 selectedEdgeId={selectedEdgeId}
@@ -2961,7 +3054,7 @@ function MainEditorSurface({
                     ),
                   );
                 }}
-                onViewportChange={setViewport}
+                onViewportChange={handleViewportChange}
                 interactive
               />
             </div>
