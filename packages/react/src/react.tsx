@@ -701,7 +701,14 @@ export function HyperFlowPocCanvas({
       {renderedEdges.length > 0 ? (
         <svg className="hf-edge-overlay" width={width} height={height}>
           {renderedEdges.map((edge) => (
-            <Fragment key={edge.id}>
+            <g
+              key={edge.id}
+              className={
+                selectedEdgeId === edge.id
+                  ? "hf-edge-overlay-item hf-edge-overlay-item-selected"
+                  : "hf-edge-overlay-item"
+              }
+            >
               <path
                 d={edge.path}
                 className="hf-edge-overlay-hit"
@@ -747,8 +754,7 @@ export function HyperFlowPocCanvas({
                 }
                 aria-hidden="true"
               />
-
-            </Fragment>
+            </g>
           ))}
         </svg>
       ) : null}
