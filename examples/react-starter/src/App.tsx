@@ -123,6 +123,8 @@ type EditorPerfReadout = {
   avgInputLatencyMs: number | null;
   peakInputLatencyMs: number | null;
   budgetMissCount: number;
+  interactionFrameSampleCount: number;
+  interactionBudgetMissCount: number;
 };
 
 type EditorGraphPreset = "starter" | "benchmark";
@@ -130,10 +132,17 @@ type PerfBaselineStatus = "warming" | "within" | "over";
 
 type PerfBaseline = {
   minSamples: number;
+  minInteractionSamples: number;
   maxAvgRenderMs: number;
   maxAvgViewportMs: number;
   maxAvgInputLatencyMs: number;
+  maxPeakInputLatencyMs: number;
   maxBudgetMissRate: number;
+};
+
+type PerfBaselineEvaluation = {
+  status: PerfBaselineStatus;
+  detail: string;
 };
 
 
@@ -191,37 +200,70 @@ const mainEditorCanvas = { width: 1280, height: 720 } as const;
 const editorPerfBaselines: Record<EditorGraphPreset, PerfBaseline> = {
   starter: {
     minSamples: 10,
+    minInteractionSamples: 4,
     maxAvgRenderMs: 8,
     maxAvgViewportMs: 3,
     maxAvgInputLatencyMs: 45,
+    maxPeakInputLatencyMs: 90,
     maxBudgetMissRate: 0.2,
   },
   benchmark: {
     minSamples: 18,
+    minInteractionSamples: 6,
     maxAvgRenderMs: 12,
     maxAvgViewportMs: 5,
     maxAvgInputLatencyMs: 65,
+    maxPeakInputLatencyMs: 130,
     maxBudgetMissRate: 0.35,
   },
 };
 
 function formatPerfBaselineTarget(baseline: PerfBaseline) {
-  return `R≤${baseline.maxAvgRenderMs.toFixed(0)}ms · V≤${baseline.maxAvgViewportMs.toFixed(0)}ms · I≤${baseline.maxAvgInputLatencyMs.toFixed(0)}ms · B≤${Math.round(baseline.maxBudgetMissRate * 100)}%`;
+  return `F≥${baseline.minSamples} · A≥${baseline.minInteractionSamples} · R≤${baseline.maxAvgRenderMs.toFixed(0)}ms · V≤${baseline.maxAvgViewportMs.toFixed(0)}ms · I≤${baseline.maxAvgInputLatencyMs.toFixed(0)}ms · P≤${baseline.maxPeakInputLatencyMs.toFixed(0)}ms · B≤${Math.round(baseline.maxBudgetMissRate * 100)}%`;
 }
 
-function evaluatePerfBaseline(readout: EditorPerfReadout, baseline: PerfBaseline): PerfBaselineStatus {
-  if (readout.frameSampleCount < baseline.minSamples) return "warming";
+function evaluatePerfBaseline(readout: EditorPerfReadout, baseline: PerfBaseline): PerfBaselineEvaluation {
+  const totalFrames = Math.max(readout.frameSampleCount, 0);
+  const activeFrames = Math.max(readout.interactionFrameSampleCount, 0);
+  if (totalFrames < baseline.minSamples || activeFrames < baseline.minInteractionSamples) {
+    return {
+      status: "warming",
+      detail: `F ${totalFrames}/${baseline.minSamples} · A ${activeFrames}/${baseline.minInteractionSamples}`,
+    };
+  }
+
   const budgetMissRate =
-    readout.frameSampleCount === 0 ? 0 : readout.budgetMissCount / Math.max(readout.frameSampleCount, 1);
+    activeFrames === 0 ? 0 : readout.interactionBudgetMissCount / Math.max(activeFrames, 1);
   const avgRenderMs = readout.avgRenderMs ?? Number.POSITIVE_INFINITY;
   const avgViewportMs = readout.avgViewportMs ?? Number.POSITIVE_INFINITY;
   const avgInputLatencyMs = readout.avgInputLatencyMs ?? Number.POSITIVE_INFINITY;
-  const withinBudget =
-    avgRenderMs <= baseline.maxAvgRenderMs &&
-    avgViewportMs <= baseline.maxAvgViewportMs &&
-    avgInputLatencyMs <= baseline.maxAvgInputLatencyMs &&
-    budgetMissRate <= baseline.maxBudgetMissRate;
-  return withinBudget ? "within" : "over";
+  const peakInputLatencyMs = readout.peakInputLatencyMs ?? Number.POSITIVE_INFINITY;
+  const failures: string[] = [];
+  if (avgRenderMs > baseline.maxAvgRenderMs) {
+    failures.push(`R ${avgRenderMs.toFixed(1)}/${baseline.maxAvgRenderMs.toFixed(0)}ms`);
+  }
+  if (avgViewportMs > baseline.maxAvgViewportMs) {
+    failures.push(`V ${avgViewportMs.toFixed(1)}/${baseline.maxAvgViewportMs.toFixed(0)}ms`);
+  }
+  if (avgInputLatencyMs > baseline.maxAvgInputLatencyMs) {
+    failures.push(`I ${avgInputLatencyMs.toFixed(1)}/${baseline.maxAvgInputLatencyMs.toFixed(0)}ms`);
+  }
+  if (peakInputLatencyMs > baseline.maxPeakInputLatencyMs) {
+    failures.push(`P ${peakInputLatencyMs.toFixed(1)}/${baseline.maxPeakInputLatencyMs.toFixed(0)}ms`);
+  }
+  if (budgetMissRate > baseline.maxBudgetMissRate) {
+    failures.push(`B ${Math.round(budgetMissRate * 100)}/${Math.round(baseline.maxBudgetMissRate * 100)}%`);
+  }
+
+  return failures.length === 0
+    ? {
+        status: "within",
+        detail: `F ${totalFrames} · A ${activeFrames} · B ${Math.round(budgetMissRate * 100)}%`,
+      }
+    : {
+        status: "over",
+        detail: failures[0],
+      };
 }
 
 function useCanvasDimensions(initialSize: { width: number; height: number }) {
@@ -2849,6 +2891,8 @@ function MainEditorSurface({
     avgInputLatencyMs: null,
     peakInputLatencyMs: null,
     budgetMissCount: 0,
+    interactionFrameSampleCount: 0,
+    interactionBudgetMissCount: 0,
   });
   const editorShellRef = useRef<HTMLElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -2871,6 +2915,8 @@ function MainEditorSurface({
     inputLatencySumMs: number;
     peakInputLatencyMs: number | null;
     budgetMissCount: number;
+    interactionFrameCount: number;
+    interactionBudgetMissCount: number;
     lastPublishedAt: number;
   }>({
     lastFrameAt: 0,
@@ -2886,6 +2932,8 @@ function MainEditorSurface({
     inputLatencySumMs: 0,
     peakInputLatencyMs: null,
     budgetMissCount: 0,
+    interactionFrameCount: 0,
+    interactionBudgetMissCount: 0,
     lastPublishedAt: 0,
   });
 
@@ -2977,6 +3025,8 @@ function MainEditorSurface({
       inputLatencySumMs: 0,
       peakInputLatencyMs: null,
       budgetMissCount: 0,
+      interactionFrameCount: 0,
+      interactionBudgetMissCount: 0,
       lastPublishedAt: 0,
     };
     setPerfReadout({
@@ -2993,6 +3043,8 @@ function MainEditorSurface({
       avgInputLatencyMs: null,
       peakInputLatencyMs: null,
       budgetMissCount: 0,
+      interactionFrameSampleCount: 0,
+      interactionBudgetMissCount: 0,
     });
   }, []);
 
@@ -3048,12 +3100,20 @@ function MainEditorSurface({
         ? null
         : Math.max(0, Number(nextInputLatencyMs.toFixed(1)));
     const totalFrameWorkMs = metrics.renderMs + metrics.viewportUpdateMs;
+    const currentInteractionPhase = perfInteractionPhaseRef.current;
+    const isInteractionFrame = hasPendingInteraction || currentInteractionPhase !== "idle";
 
     perfSampleRef.current.frameCount += 1;
     perfSampleRef.current.renderSumMs += metrics.renderMs;
     perfSampleRef.current.viewportSumMs += metrics.viewportUpdateMs;
+    if (isInteractionFrame) {
+      perfSampleRef.current.interactionFrameCount += 1;
+    }
     if (totalFrameWorkMs > 16.7) {
       perfSampleRef.current.budgetMissCount += 1;
+      if (isInteractionFrame) {
+        perfSampleRef.current.interactionBudgetMissCount += 1;
+      }
     }
     if (roundedInputLatencyMs !== null) {
       perfSampleRef.current.inputLatencyCount += 1;
@@ -3078,7 +3138,6 @@ function MainEditorSurface({
       perfSampleRef.current.peakInputLatencyMs === null
         ? null
         : Number(perfSampleRef.current.peakInputLatencyMs.toFixed(1));
-    const currentInteractionPhase = perfInteractionPhaseRef.current;
     const nextInteractionPhase = hasPendingInteraction ? "settling" : currentInteractionPhase;
     const shouldPublishNow =
       hasPendingInteraction ||
@@ -3107,7 +3166,9 @@ function MainEditorSurface({
         current.avgViewportMs === roundedAvgViewportMs &&
         current.avgInputLatencyMs === roundedAvgInputLatencyMs &&
         current.peakInputLatencyMs === roundedPeakInputLatencyMs &&
-        current.budgetMissCount === perfSampleRef.current.budgetMissCount
+        current.budgetMissCount === perfSampleRef.current.budgetMissCount &&
+        current.interactionFrameSampleCount === perfSampleRef.current.interactionFrameCount &&
+        current.interactionBudgetMissCount === perfSampleRef.current.interactionBudgetMissCount
       ) {
         return current;
       }
@@ -3126,6 +3187,8 @@ function MainEditorSurface({
         avgInputLatencyMs: roundedAvgInputLatencyMs,
         peakInputLatencyMs: roundedPeakInputLatencyMs,
         budgetMissCount: perfSampleRef.current.budgetMissCount,
+        interactionFrameSampleCount: perfSampleRef.current.interactionFrameCount,
+        interactionBudgetMissCount: perfSampleRef.current.interactionBudgetMissCount,
       };
     });
   }, [schedulePerfIdleTransition]);
@@ -3407,7 +3470,8 @@ function MainEditorSurface({
         };
 
   const perfBaseline = editorPerfBaselines[graphPreset];
-  const perfBaselineStatus = evaluatePerfBaseline(perfReadout, perfBaseline);
+  const perfBaselineEvaluation = evaluatePerfBaseline(perfReadout, perfBaseline);
+  const perfBaselineStatus = perfBaselineEvaluation.status;
   const perfBaselineTarget = formatPerfBaselineTarget(perfBaseline);
   const deferredMinimapNodes = useDeferredValue(nodes);
   const deferredMinimapEdges = useDeferredValue(edges);
@@ -3721,6 +3785,7 @@ function MainEditorSurface({
                 <span data-editor-perf="baseline-status">
                   {ui.status.perfBaselineStatus}: {ui.status[perfBaselineStatus]}
                 </span>
+                <span data-editor-perf="baseline-detail">{perfBaselineEvaluation.detail}</span>
                 <span>
                   {ui.status.nodes}: {nodes.length}
                 </span>

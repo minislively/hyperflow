@@ -383,8 +383,10 @@ test("main editor can switch into and out of a large benchmark graph", async ({ 
   await expect(page.locator('[data-editor-perf="graph"]')).toContainText("그래프: 대형");
   await expect(page.locator('[data-editor-perf="baseline-target"]')).toContainText("성능 기준:");
   await expect(page.locator('[data-editor-perf="baseline-target"]')).toContainText("R≤12ms");
+  await expect(page.locator('[data-editor-perf="baseline-target"]')).toContainText("A≥6");
   await expect(page.locator('[data-editor-perf="baseline-target"]')).toContainText("B≤35%");
   await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText("기준 상태: 수집 중");
+  await expect(page.locator('[data-editor-perf="baseline-detail"]')).toContainText(/F \d+\/18 · A \d+\/6/);
   await expect(page.getByText("노드: 84")).toBeVisible();
   await expect(page.getByText("엣지: 137")).toBeVisible();
   await expect(page.locator("[data-node-card-id='84']")).toBeVisible();
@@ -416,6 +418,7 @@ test("main editor can reset perf instrumentation without resetting the graph", a
   await expect(page.locator('[data-editor-perf="peak-input-latency"]')).toContainText("--");
   await expect(page.locator('[data-editor-perf="frame-budget"]')).toContainText("0/");
   await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText("기준 상태: 수집 중");
+  await expect(page.locator('[data-editor-perf="baseline-detail"]')).toContainText(/F \d+\/10 · A \d+\/4/);
   const resetSamplesText = await page.locator('[data-editor-perf="samples"]').textContent();
   expect(Number((resetSamplesText ?? "").replace(/\D+/g, ""))).toBeLessThan(12);
   await expect(page.getByText("노드: 3")).toBeVisible();
@@ -438,6 +441,7 @@ test("benchmark perf baseline progresses out of warming after enough benchmark i
 
   await expect(page.locator('[data-editor-perf="samples"]')).not.toContainText("프레임: 0");
   await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText(/기준 상태: (기준 내|기준 초과)/);
+  await expect(page.locator('[data-editor-perf="baseline-detail"]')).toContainText(/(F \d+ · A \d+ · B \d+%|[RVIPB] \d+(?:\.\d+)?\/\d+(?:\.\d+)?(?:ms|%))/);
 });
 
 test("same-side edges fan out from distinct visible anchors", async ({ page }) => {
