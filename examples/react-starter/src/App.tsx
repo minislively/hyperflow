@@ -16,6 +16,7 @@ import {
   useWorkflowNodesState,
   useWorkflowSelection,
   type PocEdge,
+  type PocMetrics,
   type PocNode,
   type PocResolvedNodeAnchors,
   type PocViewport,
@@ -102,6 +103,13 @@ type LearnDemoNode = PocNode<{
 }>;
 
 type LearnDemoEdge = PocEdge<"default">;
+
+type EditorPerfReadout = {
+  fps: number | null;
+  renderMs: number | null;
+  viewportMs: number | null;
+  inputLatencyMs: number | null;
+};
 
 
 const locales: Locale[] = ["ko", "en"];
@@ -2680,12 +2688,29 @@ function MainEditorSurface({
     edges: LearnDemoEdge[];
     viewport: PocViewport;
   } | null>(null);
+  const [perfReadout, setPerfReadout] = useState<EditorPerfReadout>({
+    fps: null,
+    renderMs: null,
+    viewportMs: null,
+    inputLatencyMs: null,
+  });
   const editorShellRef = useRef<HTMLElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const pendingTitleFocusNodeIdRef = useRef<number | null>(null);
   const nodesRef = useRef(nodes);
   const viewportRef = useRef(viewport);
   const hasUserAdjustedViewportRef = useRef(false);
+  const perfSampleRef = useRef<{
+    lastFrameAt: number;
+    smoothedFps: number | null;
+    lastInteractionAt: number;
+    lastInteractionLatencyMs: number | null;
+  }>({
+    lastFrameAt: 0,
+    smoothedFps: null,
+    lastInteractionAt: 0,
+    lastInteractionLatencyMs: null,
+  });
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -2703,6 +2728,59 @@ function MainEditorSurface({
     if (document.activeElement && document.activeElement !== document.body) return;
     editorShellRef.current?.focus();
   }, []);
+
+  function markEditorInteraction() {
+    perfSampleRef.current.lastInteractionAt = performance.now();
+  }
+
+  function handleMetricsChange(metrics: PocMetrics) {
+    const now = performance.now();
+    const previousFrameAt = perfSampleRef.current.lastFrameAt;
+    const frameDeltaMs = previousFrameAt > 0 ? now - previousFrameAt : 0;
+    const instantFps = frameDeltaMs > 0 ? 1000 / frameDeltaMs : null;
+    const nextFps =
+      instantFps === null
+        ? perfSampleRef.current.smoothedFps
+        : perfSampleRef.current.smoothedFps === null
+          ? instantFps
+          : perfSampleRef.current.smoothedFps * 0.8 + instantFps * 0.2;
+    const interactionDeltaMs =
+      perfSampleRef.current.lastInteractionAt > 0 ? now - perfSampleRef.current.lastInteractionAt : Number.POSITIVE_INFINITY;
+    const nextInputLatencyMs =
+      interactionDeltaMs <= 240
+        ? interactionDeltaMs
+        : perfSampleRef.current.lastInteractionLatencyMs;
+
+    perfSampleRef.current.lastFrameAt = now;
+    perfSampleRef.current.smoothedFps = nextFps;
+    perfSampleRef.current.lastInteractionLatencyMs = nextInputLatencyMs ?? null;
+
+    const roundedFps = nextFps === null ? null : Math.max(1, Math.round(nextFps));
+    const roundedRenderMs = Number(metrics.renderMs.toFixed(1));
+    const roundedViewportMs = Number(metrics.viewportUpdateMs.toFixed(1));
+    const roundedInputLatencyMs =
+      nextInputLatencyMs === null || !Number.isFinite(nextInputLatencyMs)
+        ? null
+        : Math.max(0, Number(nextInputLatencyMs.toFixed(1)));
+
+    setPerfReadout((current) => {
+      if (
+        current.fps === roundedFps &&
+        current.renderMs === roundedRenderMs &&
+        current.viewportMs === roundedViewportMs &&
+        current.inputLatencyMs === roundedInputLatencyMs
+      ) {
+        return current;
+      }
+
+      return {
+        fps: roundedFps,
+        renderMs: roundedRenderMs,
+        viewportMs: roundedViewportMs,
+        inputLatencyMs: roundedInputLatencyMs,
+      };
+    });
+  }
 
   useEffect(() => {
     if (!selectedNode || pendingTitleFocusNodeIdRef.current !== selectedNode.id || !titleInputRef.current) {
@@ -2815,6 +2893,11 @@ function MainEditorSurface({
             nodes: "노드",
             edges: "엣지",
             zoom: "줌",
+            fps: "FPS",
+            render: "렌더",
+            viewport: "뷰포트",
+            inputLatency: "입력→프레임",
+            pendingPerf: "측정 중",
             shortcuts:
               "N 노드 추가 · Shift+클릭 다중 선택 · Delete 삭제 · 엣지 선택 후 핸들 클릭 다시 연결 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
           },
@@ -2855,6 +2938,11 @@ function MainEditorSurface({
             nodes: "Nodes",
             edges: "Edges",
             zoom: "Zoom",
+            fps: "FPS",
+            render: "Render",
+            viewport: "Viewport",
+            inputLatency: "Input→frame",
+            pendingPerf: "Sampling",
             shortcuts:
               "N adds nodes · Shift+click multi-select · Delete removes · select an edge then click a handle to reconnect · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
           },
@@ -3041,7 +3129,16 @@ function MainEditorSurface({
       className="editor-shell"
       tabIndex={-1}
       onPointerDownCapture={() => {
+        markEditorInteraction();
         editorShellRef.current?.focus();
+      }}
+      onPointerMoveCapture={(event) => {
+        if (event.buttons > 0) {
+          markEditorInteraction();
+        }
+      }}
+      onWheelCapture={() => {
+        markEditorInteraction();
       }}
     >
       <header className="editor-topbar">
@@ -3134,6 +3231,19 @@ function MainEditorSurface({
                 <span>
                   {ui.status.zoom}: {Math.round(viewport.zoom * 100)}%
                 </span>
+                <span data-editor-perf="fps">
+                  {ui.status.fps}: {perfReadout.fps ?? ui.status.pendingPerf}
+                </span>
+                <span data-editor-perf="render">
+                  {ui.status.render}: {perfReadout.renderMs === null ? ui.status.pendingPerf : `${perfReadout.renderMs.toFixed(1)}ms`}
+                </span>
+                <span data-editor-perf="viewport">
+                  {ui.status.viewport}: {perfReadout.viewportMs === null ? ui.status.pendingPerf : `${perfReadout.viewportMs.toFixed(1)}ms`}
+                </span>
+                <span data-editor-perf="input-latency">
+                  {ui.status.inputLatency}:{" "}
+                  {perfReadout.inputLatencyMs === null ? "--" : `${perfReadout.inputLatencyMs.toFixed(1)}ms`}
+                </span>
                 <span>{ui.status.shortcuts}</span>
               </div>
               <EditorMiniMap
@@ -3197,6 +3307,7 @@ function MainEditorSurface({
                   );
                 }}
                 onViewportChange={handleViewportChange}
+                onMetricsChange={handleMetricsChange}
                 interactive
               />
             </div>

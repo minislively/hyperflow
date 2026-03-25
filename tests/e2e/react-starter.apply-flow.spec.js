@@ -241,6 +241,23 @@ test("dragging empty canvas space pans the viewport without holding modifier key
     expect(snapshot.viewport.x).toBeGreaterThan(20);
     expect(snapshot.viewport.y).toBeGreaterThan(20);
 });
+test("main editor exposes perf readouts and records input-to-frame latency after interaction", async ({ page })=>{
+    await page.goto("/ko");
+    await expect(page.locator('[data-editor-perf="fps"]')).toContainText("FPS");
+    await expect(page.locator('[data-editor-perf="render"]')).toContainText("ms");
+    await expect(page.locator('[data-editor-perf="viewport"]')).toContainText("ms");
+    await expect(page.locator('[data-editor-perf="input-latency"]')).toContainText("--");
+    const nodeTwo = page.locator("[data-node-card-id='2']");
+    const nodeTwoBox = await nodeTwo.boundingBox();
+    if (!nodeTwoBox) throw new Error("node 2 missing before perf interaction test");
+    await page.mouse.move(nodeTwoBox.x + nodeTwoBox.width / 2, nodeTwoBox.y + nodeTwoBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(nodeTwoBox.x + nodeTwoBox.width / 2 + 80, nodeTwoBox.y + nodeTwoBox.height / 2 + 40, {
+        steps: 8
+    });
+    await page.mouse.up();
+    await expect(page.locator('[data-editor-perf="input-latency"]')).not.toContainText("--");
+});
 test("same-side edges fan out from distinct visible anchors", async ({ page })=>{
     await page.goto("/ko");
     await page.getByRole("button", {
