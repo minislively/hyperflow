@@ -1107,51 +1107,51 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
   }, [edges, engine, nodes, resolvedEdgeAnchorsById, viewport.zoom]);
 
   const renderedEdges = useMemo(() => {
-    return worldRenderedEdges.map((entry) => {
-      const curve = projectPocResolvedEdgeCurve(entry.curve, {
-        projectX: (worldX) => (worldX - viewport.x) * viewport.zoom,
-        projectY: (worldY) => (worldY - viewport.y) * viewport.zoom,
-      });
-
-      return {
+    return worldRenderedEdges.map((entry) => ({
       id: entry.id,
-      path: buildPocSvgCurvePath(curve),
-      sourceX: curve.sourceX,
-      sourceY: curve.sourceY,
-      targetX: curve.targetX,
-      targetY: curve.targetY,
+      worldPath: buildPocSvgCurvePath(entry.curve),
+      curve: entry.curve,
       bendOffsetWorldX: entry.bendOffsetWorldX,
       bendOffsetWorldY: entry.bendOffsetWorldY,
       bendWorldX: entry.bendWorldX,
       bendWorldY: entry.bendWorldY,
       hasBend: entry.hasBend,
-      };
-    }) as Array<{
+    })) as Array<{
       id: string;
-      path: string;
-      sourceX: number;
-      sourceY: number;
-      targetX: number;
-      targetY: number;
+      worldPath: string;
+      curve: typeof worldRenderedEdges[number]["curve"];
       bendOffsetWorldX: number;
       bendOffsetWorldY: number;
       bendWorldX: number;
       bendWorldY: number;
       hasBend: boolean;
     }>;
-  }, [viewport.x, viewport.y, viewport.zoom, worldRenderedEdges]);
+  }, [worldRenderedEdges]);
+
+  const edgeOverlayTransform = useMemo(
+    () => `translate(${-viewport.x * viewport.zoom} ${-viewport.y * viewport.zoom}) scale(${viewport.zoom})`,
+    [viewport.x, viewport.y, viewport.zoom],
+  );
 
   const selectedRenderedEdge = useMemo(() => {
     if (!selectedEdgeId) return null;
     const renderedEdge = renderedEdges.find((edge) => edge.id === selectedEdgeId) ?? null;
     const edgeRecord = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
     if (!renderedEdge || !edgeRecord) return null;
+    const projectedCurve = projectPocResolvedEdgeCurve(renderedEdge.curve, {
+      projectX: (worldX) => (worldX - viewport.x) * viewport.zoom,
+      projectY: (worldY) => (worldY - viewport.y) * viewport.zoom,
+    });
     return {
       ...renderedEdge,
+      sourceX: projectedCurve.sourceX,
+      sourceY: projectedCurve.sourceY,
+      targetX: projectedCurve.targetX,
+      targetY: projectedCurve.targetY,
       sourceNodeId: Number(edgeRecord.source),
       targetNodeId: Number(edgeRecord.target),
     };
-  }, [edges, renderedEdges, selectedEdgeId]);
+  }, [edges, renderedEdges, selectedEdgeId, viewport.x, viewport.y, viewport.zoom]);
 
   const edgeAnchorsByNodeId = useMemo(() => {
     const incomingByNodeId = new Map<number, Array<PocResolvedEdgeAnchors["targetAnchor"]>>();
@@ -1311,62 +1311,66 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
 
       {renderedEdges.length > 0 || connectionPreview ? (
         <svg className="hf-edge-overlay" width={width} height={height}>
-          {renderedEdges.map((edge) => (
-            <g
-              key={edge.id}
-              className={
-                selectedEdgeId === edge.id
-                  ? "hf-edge-overlay-item hf-edge-overlay-item-selected"
-                  : "hf-edge-overlay-item"
-              }
-            >
-              <path
-                d={edge.path}
-                className="hf-edge-overlay-hit"
-                data-edge-id={edge.id}
-                role="button"
-                aria-label={`Select edge ${edge.id}`}
-                tabIndex={0}
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  selectNode(null);
-                  selectEdge(edge.id, { additive: event.shiftKey });
-                  if (!isInteractive || !onEdgeBendChange) return;
-                  startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendOffsetWorldX, y: edge.bendOffsetWorldY }, event.pointerId);
-                }}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  selectNode(null);
-                  selectEdge(edge.id, { additive: event.shiftKey });
-                  if (!isInteractive || !onEdgeBendChange || event.button !== 0) return;
-                  startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendOffsetWorldX, y: edge.bendOffsetWorldY });
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  selectNode(null);
-                  selectEdge(edge.id, { additive: event.shiftKey });
-                }}
-                onDoubleClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  selectNode(null);
-                  selectEdge(edge.id, { additive: event.shiftKey });
-                  if (edge.hasBend) onEdgeBendChange?.(edge.id, null);
-                }}
-              />
-              <path
-                d={edge.path}
+          <g transform={edgeOverlayTransform}>
+            {renderedEdges.map((edge) => (
+              <g
+                key={edge.id}
                 className={
                   selectedEdgeId === edge.id
-                    ? "hf-edge-overlay-path hf-edge-overlay-path-selected"
-                    : "hf-edge-overlay-path"
+                    ? "hf-edge-overlay-item hf-edge-overlay-item-selected"
+                    : "hf-edge-overlay-item"
                 }
-                aria-hidden="true"
-              />
-            </g>
-          ))}
+              >
+                <path
+                  d={edge.worldPath}
+                  vectorEffect="non-scaling-stroke"
+                  className="hf-edge-overlay-hit"
+                  data-edge-id={edge.id}
+                  role="button"
+                  aria-label={`Select edge ${edge.id}`}
+                  tabIndex={0}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    selectNode(null);
+                    selectEdge(edge.id, { additive: event.shiftKey });
+                    if (!isInteractive || !onEdgeBendChange) return;
+                    startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendOffsetWorldX, y: edge.bendOffsetWorldY }, event.pointerId);
+                  }}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    selectNode(null);
+                    selectEdge(edge.id, { additive: event.shiftKey });
+                    if (!isInteractive || !onEdgeBendChange || event.button !== 0) return;
+                    startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendOffsetWorldX, y: edge.bendOffsetWorldY });
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    selectNode(null);
+                    selectEdge(edge.id, { additive: event.shiftKey });
+                  }}
+                  onDoubleClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    selectNode(null);
+                    selectEdge(edge.id, { additive: event.shiftKey });
+                    if (edge.hasBend) onEdgeBendChange?.(edge.id, null);
+                  }}
+                />
+                <path
+                  d={edge.worldPath}
+                  vectorEffect="non-scaling-stroke"
+                  className={
+                    selectedEdgeId === edge.id
+                      ? "hf-edge-overlay-path hf-edge-overlay-path-selected"
+                      : "hf-edge-overlay-path"
+                  }
+                  aria-hidden="true"
+                />
+              </g>
+            ))}
+          </g>
           {connectionPreview ? (
             <path
               d={buildSmoothPocEdgePath({
@@ -1377,6 +1381,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
                 sourceSide: connectionPreview.currentX >= connectionPreview.startX ? "right" : "left",
                 targetSide: connectionPreview.currentX >= connectionPreview.startX ? "left" : "right",
               })}
+              vectorEffect="non-scaling-stroke"
               className="hf-edge-overlay-path hf-edge-overlay-path-preview"
               aria-hidden="true"
             />
