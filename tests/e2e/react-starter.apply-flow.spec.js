@@ -339,6 +339,11 @@ test("main editor exposes perf readouts and records input-to-frame latency after
     await expect(page.locator('[data-editor-perf="render"]')).toContainText("ms");
     await expect(page.locator('[data-editor-perf="viewport"]')).toContainText("ms");
     await expect(page.locator('[data-editor-perf="input-latency"]')).toContainText("--");
+    await expect(page.locator('[data-editor-perf="samples"]')).toContainText("프레임");
+    await expect(page.locator('[data-editor-perf="visible"]')).toContainText("표시");
+    await expect(page.locator('[data-editor-perf="avg-render"]')).toContainText("평균 렌더");
+    await expect(page.locator('[data-editor-perf="peak-input-latency"]')).toContainText("--");
+    await expect(page.locator('[data-editor-perf="frame-budget"]')).toContainText("예산 초과");
     const nodeTwo = page.locator("[data-node-card-id='2']");
     const nodeTwoBox = await nodeTwo.boundingBox();
     if (!nodeTwoBox) throw new Error("node 2 missing before perf interaction test");
@@ -350,6 +355,9 @@ test("main editor exposes perf readouts and records input-to-frame latency after
     await page.mouse.up();
     await expect(page.locator('[data-editor-perf="activity"]')).not.toContainText("상태: 대기");
     await expect(page.locator('[data-editor-perf="input-latency"]')).not.toContainText("--");
+    await expect(page.locator('[data-editor-perf="samples"]')).not.toContainText("프레임: 0");
+    await expect(page.locator('[data-editor-perf="avg-render"]')).not.toContainText("--");
+    await expect(page.locator('[data-editor-perf="peak-input-latency"]')).not.toContainText("--");
 });
 test("main editor can switch into and out of a large benchmark graph", async ({ page })=>{
     await page.goto("/ko");
@@ -368,6 +376,29 @@ test("main editor can switch into and out of a large benchmark graph", async ({ 
     await expect(page.locator('[data-editor-perf="graph"]')).toContainText("그래프: 기본");
     await expect(page.getByText("노드: 3")).toBeVisible();
     await expect(page.locator("[data-node-card-id='84']")).toHaveCount(0);
+});
+test("main editor can reset perf instrumentation without resetting the graph", async ({ page })=>{
+    await page.goto("/ko");
+    const nodeTwo = page.locator("[data-node-card-id='2']");
+    const nodeTwoBox = await nodeTwo.boundingBox();
+    if (!nodeTwoBox) throw new Error("node 2 missing before perf reset test");
+    await page.mouse.move(nodeTwoBox.x + nodeTwoBox.width / 2, nodeTwoBox.y + nodeTwoBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(nodeTwoBox.x + nodeTwoBox.width / 2 + 48, nodeTwoBox.y + nodeTwoBox.height / 2 + 24, {
+        steps: 8
+    });
+    await page.mouse.up();
+    await expect(page.locator('[data-editor-perf="samples"]')).not.toContainText("프레임: 0");
+    await expect(page.locator('[data-editor-perf="avg-render"]')).not.toContainText("--");
+    await page.getByRole("button", {
+        name: "성능 계측 초기화"
+    }).click();
+    await expect(page.locator('[data-editor-perf="avg-input-latency"]')).toContainText("--");
+    await expect(page.locator('[data-editor-perf="peak-input-latency"]')).toContainText("--");
+    await expect(page.locator('[data-editor-perf="frame-budget"]')).toContainText("0/");
+    const resetSamplesText = await page.locator('[data-editor-perf="samples"]').textContent();
+    expect(Number((resetSamplesText ?? "").replace(/\D+/g, ""))).toBeLessThan(12);
+    await expect(page.getByText("노드: 3")).toBeVisible();
 });
 test("same-side edges fan out from distinct visible anchors", async ({ page })=>{
     await page.goto("/ko");

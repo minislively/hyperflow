@@ -110,6 +110,14 @@ type EditorPerfReadout = {
   viewportMs: number | null;
   inputLatencyMs: number | null;
   interactionPhase: EditorInteractionPhase;
+  frameSampleCount: number;
+  fixtureSize: number;
+  visibleCount: number;
+  avgRenderMs: number | null;
+  avgViewportMs: number | null;
+  avgInputLatencyMs: number | null;
+  peakInputLatencyMs: number | null;
+  budgetMissCount: number;
 };
 
 type EditorGraphPreset = "starter" | "benchmark";
@@ -2509,6 +2517,10 @@ function IconRestore() {
   return <svg viewBox="0 0 20 20"><path d="M6 7H3V4M4 7a6 6 0 1 1-1 7m7-8v4l3 2" /></svg>;
 }
 
+function IconPulse() {
+  return <svg viewBox="0 0 20 20"><path d="M3 10h3l1.5-3 2.5 7 2-4h5" /></svg>;
+}
+
 function EditorMiniMap({
   locale,
   nodes,
@@ -2733,6 +2745,14 @@ function MainEditorSurface({
     viewportMs: null,
     inputLatencyMs: null,
     interactionPhase: "idle",
+    frameSampleCount: 0,
+    fixtureSize: 0,
+    visibleCount: 0,
+    avgRenderMs: null,
+    avgViewportMs: null,
+    avgInputLatencyMs: null,
+    peakInputLatencyMs: null,
+    budgetMissCount: 0,
   });
   const editorShellRef = useRef<HTMLElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -2747,6 +2767,13 @@ function MainEditorSurface({
     pendingInteractionAt: number | null;
     pendingInteractionPhase: Exclude<EditorInteractionPhase, "idle" | "settling"> | null;
     idleTimerId: number | null;
+    frameCount: number;
+    renderSumMs: number;
+    viewportSumMs: number;
+    inputLatencyCount: number;
+    inputLatencySumMs: number;
+    peakInputLatencyMs: number | null;
+    budgetMissCount: number;
   }>({
     lastFrameAt: 0,
     smoothedFps: null,
@@ -2754,6 +2781,13 @@ function MainEditorSurface({
     pendingInteractionAt: null,
     pendingInteractionPhase: null,
     idleTimerId: null,
+    frameCount: 0,
+    renderSumMs: 0,
+    viewportSumMs: 0,
+    inputLatencyCount: 0,
+    inputLatencySumMs: 0,
+    peakInputLatencyMs: null,
+    budgetMissCount: 0,
   });
 
   useEffect(() => {
@@ -2797,6 +2831,42 @@ function MainEditorSurface({
             },
       );
     }, 420);
+  }
+
+  function resetPerfSampling() {
+    if (perfSampleRef.current.idleTimerId !== null) {
+      window.clearTimeout(perfSampleRef.current.idleTimerId);
+    }
+    perfSampleRef.current = {
+      lastFrameAt: 0,
+      smoothedFps: null,
+      lastInteractionLatencyMs: null,
+      pendingInteractionAt: null,
+      pendingInteractionPhase: null,
+      idleTimerId: null,
+      frameCount: 0,
+      renderSumMs: 0,
+      viewportSumMs: 0,
+      inputLatencyCount: 0,
+      inputLatencySumMs: 0,
+      peakInputLatencyMs: null,
+      budgetMissCount: 0,
+    };
+    setPerfReadout({
+      fps: null,
+      renderMs: null,
+      viewportMs: null,
+      inputLatencyMs: null,
+      interactionPhase: "idle",
+      frameSampleCount: 0,
+      fixtureSize: nodesRef.current.length,
+      visibleCount: 0,
+      avgRenderMs: null,
+      avgViewportMs: null,
+      avgInputLatencyMs: null,
+      peakInputLatencyMs: null,
+      budgetMissCount: 0,
+    });
   }
 
   function markEditorInteraction(phase: Exclude<EditorInteractionPhase, "idle" | "settling">) {
@@ -2850,6 +2920,37 @@ function MainEditorSurface({
       nextInputLatencyMs === null || !Number.isFinite(nextInputLatencyMs)
         ? null
         : Math.max(0, Number(nextInputLatencyMs.toFixed(1)));
+    const totalFrameWorkMs = metrics.renderMs + metrics.viewportUpdateMs;
+
+    perfSampleRef.current.frameCount += 1;
+    perfSampleRef.current.renderSumMs += metrics.renderMs;
+    perfSampleRef.current.viewportSumMs += metrics.viewportUpdateMs;
+    if (totalFrameWorkMs > 16.7) {
+      perfSampleRef.current.budgetMissCount += 1;
+    }
+    if (roundedInputLatencyMs !== null) {
+      perfSampleRef.current.inputLatencyCount += 1;
+      perfSampleRef.current.inputLatencySumMs += roundedInputLatencyMs;
+      perfSampleRef.current.peakInputLatencyMs =
+        perfSampleRef.current.peakInputLatencyMs === null
+          ? roundedInputLatencyMs
+          : Math.max(perfSampleRef.current.peakInputLatencyMs, roundedInputLatencyMs);
+    }
+
+    const roundedAvgRenderMs = Number(
+      (perfSampleRef.current.renderSumMs / Math.max(perfSampleRef.current.frameCount, 1)).toFixed(1),
+    );
+    const roundedAvgViewportMs = Number(
+      (perfSampleRef.current.viewportSumMs / Math.max(perfSampleRef.current.frameCount, 1)).toFixed(1),
+    );
+    const roundedAvgInputLatencyMs =
+      perfSampleRef.current.inputLatencyCount === 0
+        ? null
+        : Number((perfSampleRef.current.inputLatencySumMs / perfSampleRef.current.inputLatencyCount).toFixed(1));
+    const roundedPeakInputLatencyMs =
+      perfSampleRef.current.peakInputLatencyMs === null
+        ? null
+        : Number(perfSampleRef.current.peakInputLatencyMs.toFixed(1));
 
     setPerfReadout((current) => {
       const nextInteractionPhase = hasPendingInteraction ? "settling" : current.interactionPhase;
@@ -2858,7 +2959,15 @@ function MainEditorSurface({
         current.renderMs === roundedRenderMs &&
         current.viewportMs === roundedViewportMs &&
         current.inputLatencyMs === roundedInputLatencyMs &&
-        current.interactionPhase === nextInteractionPhase
+        current.interactionPhase === nextInteractionPhase &&
+        current.frameSampleCount === perfSampleRef.current.frameCount &&
+        current.fixtureSize === metrics.fixtureSize &&
+        current.visibleCount === metrics.visibleCount &&
+        current.avgRenderMs === roundedAvgRenderMs &&
+        current.avgViewportMs === roundedAvgViewportMs &&
+        current.avgInputLatencyMs === roundedAvgInputLatencyMs &&
+        current.peakInputLatencyMs === roundedPeakInputLatencyMs &&
+        current.budgetMissCount === perfSampleRef.current.budgetMissCount
       ) {
         return current;
       }
@@ -2869,6 +2978,14 @@ function MainEditorSurface({
         viewportMs: roundedViewportMs,
         inputLatencyMs: roundedInputLatencyMs,
         interactionPhase: nextInteractionPhase,
+        frameSampleCount: perfSampleRef.current.frameCount,
+        fixtureSize: metrics.fixtureSize,
+        visibleCount: metrics.visibleCount,
+        avgRenderMs: roundedAvgRenderMs,
+        avgViewportMs: roundedAvgViewportMs,
+        avgInputLatencyMs: roundedAvgInputLatencyMs,
+        peakInputLatencyMs: roundedPeakInputLatencyMs,
+        budgetMissCount: perfSampleRef.current.budgetMissCount,
       };
     });
   }
@@ -2976,6 +3093,7 @@ function MainEditorSurface({
             toggleBenchmarkOn: "대형 그래프 보기",
             toggleBenchmarkOff: "기본 그래프 보기",
             deleteSelection: "선택 삭제",
+            resetPerf: "성능 계측 초기화",
             fit: "맞춤 보기",
             zoomOut: "축소",
             zoomIn: "확대",
@@ -2991,6 +3109,13 @@ function MainEditorSurface({
             render: "렌더",
             viewport: "뷰포트",
             inputLatency: "입력→프레임",
+            avgRender: "평균 렌더",
+            avgViewport: "평균 뷰포트",
+            avgInputLatency: "평균 입력",
+            peakInputLatency: "최고 입력",
+            visible: "표시",
+            samples: "프레임",
+            frameBudget: "예산 초과",
             activity: "상태",
             pendingPerf: "측정 중",
             idle: "대기",
@@ -3031,6 +3156,7 @@ function MainEditorSurface({
             toggleBenchmarkOn: "Open benchmark graph",
             toggleBenchmarkOff: "Return to starter graph",
             deleteSelection: "Delete selection",
+            resetPerf: "Reset perf readout",
             fit: "Fit view",
             zoomOut: "Zoom out",
             zoomIn: "Zoom in",
@@ -3046,6 +3172,13 @@ function MainEditorSurface({
             render: "Render",
             viewport: "Viewport",
             inputLatency: "Input→frame",
+            avgRender: "Avg render",
+            avgViewport: "Avg viewport",
+            avgInputLatency: "Avg input",
+            peakInputLatency: "Peak input",
+            visible: "Visible",
+            samples: "Frames",
+            frameBudget: "Budget misses",
             activity: "Activity",
             pendingPerf: "Sampling",
             idle: "Idle",
@@ -3138,6 +3271,7 @@ function MainEditorSurface({
     setSelectedEdgeId(null);
     onSelectionChange({ nodeId: null });
     setSavedSnapshot(null);
+    resetPerfSampling();
     setViewport(
       fitPocViewportToNodes(nextGraph.nodes, {
         width: editorCanvasSize.width,
@@ -3341,6 +3475,9 @@ function MainEditorSurface({
                   >
                     <IconTrash />
                   </EditorControlButton>
+                  <EditorControlButton label={ui.controls.resetPerf} onClick={resetPerfSampling}>
+                    <IconPulse />
+                  </EditorControlButton>
                 </div>
               </div>
               <div className="editor-canvas-controls" aria-label={locale === "ko" ? "캔버스 컨트롤" : "Canvas controls"}>
@@ -3392,6 +3529,30 @@ function MainEditorSurface({
                 <span data-editor-perf="input-latency">
                   {ui.status.inputLatency}:{" "}
                   {perfReadout.inputLatencyMs === null ? "--" : `${perfReadout.inputLatencyMs.toFixed(1)}ms`}
+                </span>
+                <span data-editor-perf="samples">
+                  {ui.status.samples}: {perfReadout.frameSampleCount}
+                </span>
+                <span data-editor-perf="visible">
+                  {ui.status.visible}: {perfReadout.visibleCount}/{perfReadout.fixtureSize}
+                </span>
+                <span data-editor-perf="avg-render">
+                  {ui.status.avgRender}: {perfReadout.avgRenderMs === null ? "--" : `${perfReadout.avgRenderMs.toFixed(1)}ms`}
+                </span>
+                <span data-editor-perf="avg-viewport">
+                  {ui.status.avgViewport}:{" "}
+                  {perfReadout.avgViewportMs === null ? "--" : `${perfReadout.avgViewportMs.toFixed(1)}ms`}
+                </span>
+                <span data-editor-perf="avg-input-latency">
+                  {ui.status.avgInputLatency}:{" "}
+                  {perfReadout.avgInputLatencyMs === null ? "--" : `${perfReadout.avgInputLatencyMs.toFixed(1)}ms`}
+                </span>
+                <span data-editor-perf="peak-input-latency">
+                  {ui.status.peakInputLatency}:{" "}
+                  {perfReadout.peakInputLatencyMs === null ? "--" : `${perfReadout.peakInputLatencyMs.toFixed(1)}ms`}
+                </span>
+                <span data-editor-perf="frame-budget">
+                  {ui.status.frameBudget}: {perfReadout.budgetMissCount}/{perfReadout.frameSampleCount}
                 </span>
                 <span>{ui.status.shortcuts}</span>
               </div>
