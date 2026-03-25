@@ -11,6 +11,7 @@ import {
   getPocNodeCenter,
   projectPocNodeToRuntimeNode,
   projectPocNodesToRuntimeNodes,
+  resolvePocEdgeAnchorsBatch,
   resolvePocSmoothEdgeCurve,
   resolvePocNodeAnchors,
   type PocRuntimeNode,
@@ -173,6 +174,59 @@ test("createPocEdgeSpreadMaps fans out same-side siblings", () => {
   assert.notEqual(sourceSpreadByEdgeId.get("e-1-2"), sourceSpreadByEdgeId.get("e-1-3"));
 });
 
+test("resolvePocEdgeAnchorsBatch keeps same-side siblings on distinct anchors", () => {
+  const nodes = [
+    {
+      id: 1,
+      type: "default",
+      position: { x: 0, y: 0 },
+      size: { width: 180, height: 96 },
+      data: { title: "A" },
+    },
+    {
+      id: 2,
+      type: "default",
+      position: { x: 260, y: -60 },
+      size: { width: 180, height: 96 },
+      data: { title: "B" },
+    },
+    {
+      id: 3,
+      type: "default",
+      position: { x: 260, y: 80 },
+      size: { width: 180, height: 96 },
+      data: { title: "C" },
+    },
+  ] as const;
+
+  const anchorMap = new Map(
+    nodes.map((node) => {
+      const center = getPocNodeCenter(node);
+      return [
+        Number(node.id),
+        resolvePocNodeAnchors(node, {
+          inputToward: { x: center.x - 1, y: center.y },
+          outputToward: { x: center.x + 1, y: center.y },
+        }),
+      ] as const;
+    }),
+  );
+
+  const resolved = resolvePocEdgeAnchorsBatch(
+    nodes.slice(),
+    [
+      { id: "e-1-2", source: 1, target: 2 },
+      { id: "e-1-3", source: 1, target: 3 },
+    ],
+    anchorMap,
+  );
+
+  assert.equal(resolved.length, 2);
+  assert.equal(resolved[0]!.sourceAnchor.side, "right");
+  assert.equal(resolved[1]!.sourceAnchor.side, "right");
+  assert.notEqual(resolved[0]!.sourceAnchor.y, resolved[1]!.sourceAnchor.y);
+});
+
 test("buildSmoothPocEdgePath returns a cubic curve path", () => {
   const path = buildSmoothPocEdgePath({
     sourceX: 10,
@@ -252,6 +306,9 @@ test("createPocEngine renders through injected bridge and renderer", async () =>
         return 2;
       },
       resolveNodeAnchorsBatch() {
+        return [];
+      },
+      resolveEdgeAnchorsBatch() {
         return [];
       },
       resolveEdgeCurvesBatch() {

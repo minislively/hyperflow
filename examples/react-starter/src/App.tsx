@@ -1,12 +1,12 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   buildPocSvgCurvePath,
-  createPocEdgeSpreadMaps,
   HyperFlowPocCanvas,
   type HyperFlowPocNodeRendererProps,
   createPocViewport,
   fitPocViewportToNodes,
   getPocNodeCenter,
+  resolvePocEdgeAnchorsBatch,
   resolvePocSmoothEdgeCurve,
   resolvePocNodeAnchors,
   updateNodeData,
@@ -2492,8 +2492,8 @@ function EditorMiniMap({
     return anchorsByNodeId;
   }, [edges, nodes]);
 
-  const edgeSpreadMaps = useMemo(() => {
-    return createPocEdgeSpreadMaps(nodes, edges, anchorMaps);
+  const edgeAnchorsById = useMemo(() => {
+    return new Map(resolvePocEdgeAnchorsBatch(nodes, edges, anchorMaps).map((entry) => [entry.edgeId, entry] as const));
   }, [anchorMaps, edges, nodes]);
 
   function recenterViewport(clientX: number, clientY: number, rect: DOMRect) {
@@ -2529,8 +2529,9 @@ function EditorMiniMap({
           const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
           const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
           const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
-          const sourceAnchor = anchorMaps.get(Number(sourceNode.id))?.outputAnchor;
-          const targetAnchor = anchorMaps.get(Number(targetNode.id))?.inputAnchor;
+          const resolvedEdgeAnchors = edgeAnchorsById.get(edge.id);
+          const sourceAnchor = resolvedEdgeAnchors?.sourceAnchor;
+          const targetAnchor = resolvedEdgeAnchors?.targetAnchor;
           if (!sourceAnchor || !targetAnchor) return null;
           const x1 = model.projectX(sourceAnchor.x);
           const y1 = model.projectY(sourceAnchor.y);
@@ -2545,8 +2546,8 @@ function EditorMiniMap({
             targetY: y2,
             sourceSide: sourceAnchor.side,
             targetSide: targetAnchor.side,
-            sourceSpread: (edgeSpreadMaps.sourceSpreadByEdgeId.get(edge.id) ?? 0) * model.scale,
-            targetSpread: (edgeSpreadMaps.targetSpreadByEdgeId.get(edge.id) ?? 0) * model.scale,
+            sourceSpread: 0,
+            targetSpread: 0,
             bendOffsetX,
             bendOffsetY,
             minimumCurveOffset: 10,

@@ -86,6 +86,11 @@ The goal is to keep the following on the same contract before any broader Rust/W
 - sibling fan-out offsets
 - rendered edge paths
 
+The current validated split is now intentionally two-tiered:
+
+- **node-level anchors** still drive the visible connect handles and preserve the current one-handle-per-role authoring UX
+- **edge-level transient anchors** derive per-edge start/end points on those same sides so same-side siblings no longer pretend to share one representative point
+
 This means the current validated boundary is no longer only "editor-facing node shape vs runtime geometry node shape". It also includes a narrow, shared **anchor + edge-path utility layer** and a matching **batched engine seam** that higher-level surfaces can call consistently today and migrate inward later.
 
 This contract should **not** be read as:

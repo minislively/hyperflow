@@ -108,6 +108,37 @@ export function offsetPocAnchorWithinSide(anchor, node, offset) {
         x: Math.min(maxX, Math.max(minX, anchor.x + offset))
     };
 }
+export function resolvePocEdgeAnchor(node, options) {
+    const baseAnchor = getPocNodeAnchorPointForSide(node, options.side);
+    const spreadStep = options.spreadStep ?? 18;
+    const offset = (options.slot - (options.slotCount - 1) / 2) * spreadStep;
+    const offsetAnchor = options.slotCount > 1 ? offsetPocAnchorWithinSide(baseAnchor, node, offset) : baseAnchor;
+    return {
+        ...offsetAnchor,
+        slot: options.slot,
+        slotCount: options.slotCount
+    };
+}
+export function resolvePocLowLevelEdgeAnchorsBatch(requests) {
+    return requests.map((request)=>resolvePocEdgeAnchor({
+            id: 0,
+            type: "default",
+            position: {
+                x: request.x,
+                y: request.y
+            },
+            size: {
+                width: request.width,
+                height: request.height
+            },
+            data: {}
+        }, {
+            side: request.side,
+            slot: request.slot,
+            slotCount: request.slotCount,
+            spreadStep: request.spreadStep
+        }));
+}
 export function resolvePocNodeAnchors(node, options) {
     const sameSideOffset = options.sameSideOffset ?? 18;
     const center = getPocNodeCenter(node);
@@ -203,6 +234,103 @@ export function createPocEdgeSpreadMaps(nodes, edges, nodeAnchorsById, spreadSte
         sourceSpreadByEdgeId,
         targetSpreadByEdgeId
     };
+}
+export function resolvePocEdgeAnchorsBatch(nodes, edges, nodeAnchorsById, resolveLowLevelAnchors = resolvePocLowLevelEdgeAnchorsBatch) {
+    const nodeById = new Map(nodes.map((node)=>[
+            Number(node.id),
+            node
+        ]));
+    const sourceRequests = [];
+    const sourceMeta = [];
+    const targetRequests = [];
+    const targetMeta = [];
+    const edgePositionMetric = (node, side)=>{
+        const center = getPocNodeCenter(node);
+        return side === "left" || side === "right" ? center.y : center.x;
+    };
+    const outgoingGroups = new Map();
+    const incomingGroups = new Map();
+    edges.forEach((edge)=>{
+        const sourceId = Number(edge.source);
+        const targetId = Number(edge.target);
+        const sourceSide = nodeAnchorsById.get(sourceId)?.outputAnchor.side;
+        const targetSide = nodeAnchorsById.get(targetId)?.inputAnchor.side;
+        if (!sourceSide || !targetSide) return;
+        const outgoingKey = `${sourceId}:${sourceSide}`;
+        const incomingKey = `${targetId}:${targetSide}`;
+        outgoingGroups.set(outgoingKey, [
+            ...outgoingGroups.get(outgoingKey) ?? [],
+            edge
+        ]);
+        incomingGroups.set(incomingKey, [
+            ...incomingGroups.get(incomingKey) ?? [],
+            edge
+        ]);
+    });
+    outgoingGroups.forEach((group, key)=>{
+        const [sourceIdText, sourceSide] = key.split(":");
+        const sourceId = Number(sourceIdText);
+        const sourceNode = nodeById.get(sourceId);
+        if (!sourceNode) return;
+        group.slice().sort((left, right)=>{
+            const leftTarget = nodeById.get(Number(left.target));
+            const rightTarget = nodeById.get(Number(right.target));
+            if (!leftTarget || !rightTarget) return 0;
+            return edgePositionMetric(leftTarget, sourceSide) - edgePositionMetric(rightTarget, sourceSide);
+        }).forEach((edge, index, ordered)=>{
+            sourceRequests.push({
+                x: sourceNode.position.x,
+                y: sourceNode.position.y,
+                width: sourceNode.size.width,
+                height: sourceNode.size.height,
+                side: sourceSide,
+                slot: index,
+                slotCount: ordered.length
+            });
+            sourceMeta.push(edge.id);
+        });
+    });
+    incomingGroups.forEach((group, key)=>{
+        const [targetIdText, targetSide] = key.split(":");
+        const targetId = Number(targetIdText);
+        const targetNode = nodeById.get(targetId);
+        if (!targetNode) return;
+        group.slice().sort((left, right)=>{
+            const leftSource = nodeById.get(Number(left.source));
+            const rightSource = nodeById.get(Number(right.source));
+            if (!leftSource || !rightSource) return 0;
+            return edgePositionMetric(leftSource, targetSide) - edgePositionMetric(rightSource, targetSide);
+        }).forEach((edge, index, ordered)=>{
+            targetRequests.push({
+                x: targetNode.position.x,
+                y: targetNode.position.y,
+                width: targetNode.size.width,
+                height: targetNode.size.height,
+                side: targetSide,
+                slot: index,
+                slotCount: ordered.length
+            });
+            targetMeta.push(edge.id);
+        });
+    });
+    const sourceAnchorsByEdgeId = new Map();
+    resolveLowLevelAnchors(sourceRequests).forEach((anchor, index)=>{
+        sourceAnchorsByEdgeId.set(sourceMeta[index], anchor);
+    });
+    const targetAnchorsByEdgeId = new Map();
+    resolveLowLevelAnchors(targetRequests).forEach((anchor, index)=>{
+        targetAnchorsByEdgeId.set(targetMeta[index], anchor);
+    });
+    return edges.map((edge)=>{
+        const sourceAnchor = sourceAnchorsByEdgeId.get(edge.id);
+        const targetAnchor = targetAnchorsByEdgeId.get(edge.id);
+        if (!sourceAnchor || !targetAnchor) return null;
+        return {
+            edgeId: edge.id,
+            sourceAnchor,
+            targetAnchor
+        };
+    }).filter((entry)=>entry !== null);
 }
 export function buildSmoothPocEdgePath({ sourceX, sourceY, targetX, targetY, sourceSide, targetSide, sourceSpread = 0, targetSpread = 0, bendOffsetX, bendOffsetY, minimumCurveOffset = 40 }) {
     return buildPocSvgCurvePath(resolvePocSmoothEdgeCurve({
@@ -353,6 +481,9 @@ export async function createPocEngine(options = {}) {
         },
         resolveNodeAnchorsBatch (requests) {
             return bridge.resolveNodeAnchorsBatch(requests);
+        },
+        resolveEdgeAnchorsBatch (requests) {
+            return bridge.resolveEdgeAnchorsBatch(requests);
         },
         resolveEdgeCurvesBatch (requests) {
             return bridge.resolveEdgeCurvesBatch(requests);

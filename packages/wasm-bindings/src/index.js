@@ -81,6 +81,21 @@ function packEdgePathRequests(requests) {
     });
     return packed;
 }
+function packEdgeAnchorRequests(requests) {
+    const packed = new Float32Array(requests.length * 8);
+    requests.forEach((request, index)=>{
+        const offset = index * 8;
+        packed[offset] = Number(request.x);
+        packed[offset + 1] = Number(request.y);
+        packed[offset + 2] = Number(request.width);
+        packed[offset + 3] = Number(request.height);
+        packed[offset + 4] = encodeAnchorSide(request.side);
+        packed[offset + 5] = Number(request.slot);
+        packed[offset + 6] = Number(request.slotCount);
+        packed[offset + 7] = Number(request.spreadStep ?? 18);
+    });
+    return packed;
+}
 function decodeAnchorSide(code) {
     switch(code){
         case 0:
@@ -186,6 +201,33 @@ export async function createHyperflowWasmBridge(options = {}) {
                         y: values[index + 4],
                         side: decodeAnchorSide(values[index + 5])
                     }
+                };
+            }
+            return resolved;
+        },
+        resolveEdgeAnchorsBatch (requests) {
+            if (requests.length === 0) return [];
+            const packed = packEdgeAnchorRequests(requests);
+            const { pointer, byteLength } = copyInput(packed);
+            try {
+                exports.resolve_edge_anchors_batch(pointer, packed.length);
+            } finally{
+                exports.dealloc(pointer, byteLength);
+            }
+            const resultsPointer = exports.resolved_edge_anchor_buffer_ptr();
+            const resultsLength = exports.resolved_edge_anchor_buffer_len();
+            if (resultsLength !== requests.length * 5) {
+                throw new Error(`Expected ${requests.length * 5} resolved edge anchor values, received ${resultsLength}.`);
+            }
+            const values = new Float32Array(exports.memory.buffer, resultsPointer, resultsLength);
+            const resolved = new Array(requests.length);
+            for(let index = 0; index < values.length; index += 5){
+                resolved[index / 5] = {
+                    x: values[index],
+                    y: values[index + 1],
+                    side: decodeAnchorSide(values[index + 2]),
+                    slot: values[index + 3] ?? 0,
+                    slotCount: values[index + 4] ?? 1
                 };
             }
             return resolved;

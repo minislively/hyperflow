@@ -36,6 +36,22 @@ export type HyperflowResolvedNodeAnchors = {
   outputAnchor: HyperflowAnchorPoint;
 };
 
+export type HyperflowEdgeAnchorResolutionRequest = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  side: HyperflowAnchorSide;
+  slot: number;
+  slotCount: number;
+  spreadStep?: number;
+};
+
+export type HyperflowResolvedEdgeAnchor = HyperflowAnchorPoint & {
+  slot: number;
+  slotCount: number;
+};
+
 export type HyperflowEdgePathResolutionRequest = {
   sourceX: number;
   sourceY: number;
@@ -97,6 +113,9 @@ type WasmExports = {
   resolve_node_anchors_batch(pointer: number, length: number): number;
   resolved_anchor_buffer_ptr(): number;
   resolved_anchor_buffer_len(): number;
+  resolve_edge_anchors_batch(pointer: number, length: number): number;
+  resolved_edge_anchor_buffer_ptr(): number;
+  resolved_edge_anchor_buffer_len(): number;
   resolve_edge_curves_batch(pointer: number, length: number): number;
   resolved_edge_curve_buffer_ptr(): number;
   resolved_edge_curve_buffer_len(): number;
@@ -110,6 +129,7 @@ export type HyperflowWasmBridge = {
   hitTest(point: HyperflowPoint): number | null;
   getNodeCount(): number;
   resolveNodeAnchorsBatch(requests: HyperflowAnchorResolutionRequest[]): HyperflowResolvedNodeAnchors[];
+  resolveEdgeAnchorsBatch(requests: HyperflowEdgeAnchorResolutionRequest[]): HyperflowResolvedEdgeAnchor[];
   resolveEdgeCurvesBatch(requests: HyperflowEdgePathResolutionRequest[]): HyperflowResolvedEdgeCurve[];
 };
 
@@ -198,6 +218,22 @@ function packEdgePathRequests(requests: HyperflowEdgePathResolutionRequest[]): F
     packed[offset + 8] = Number(request.bendOffsetX ?? 0);
     packed[offset + 9] = Number(request.bendOffsetY ?? 0);
     packed[offset + 10] = Number(request.minimumCurveOffset ?? 40);
+  });
+  return packed;
+}
+
+function packEdgeAnchorRequests(requests: HyperflowEdgeAnchorResolutionRequest[]): Float32Array {
+  const packed = new Float32Array(requests.length * 8);
+  requests.forEach((request, index) => {
+    const offset = index * 8;
+    packed[offset] = Number(request.x);
+    packed[offset + 1] = Number(request.y);
+    packed[offset + 2] = Number(request.width);
+    packed[offset + 3] = Number(request.height);
+    packed[offset + 4] = encodeAnchorSide(request.side);
+    packed[offset + 5] = Number(request.slot);
+    packed[offset + 6] = Number(request.slotCount);
+    packed[offset + 7] = Number(request.spreadStep ?? 18);
   });
   return packed;
 }
@@ -328,6 +364,41 @@ export async function createHyperflowWasmBridge(options: HyperflowWasmSourceOpti
             y: values[index + 4],
             side: decodeAnchorSide(values[index + 5]),
           },
+        };
+      }
+
+      return resolved;
+    },
+
+    resolveEdgeAnchorsBatch(requests) {
+      if (requests.length === 0) return [];
+
+      const packed = packEdgeAnchorRequests(requests);
+      const { pointer, byteLength } = copyInput(packed);
+      try {
+        exports.resolve_edge_anchors_batch(pointer, packed.length);
+      } finally {
+        exports.dealloc(pointer, byteLength);
+      }
+
+      const resultsPointer = exports.resolved_edge_anchor_buffer_ptr();
+      const resultsLength = exports.resolved_edge_anchor_buffer_len();
+      if (resultsLength !== requests.length * 5) {
+        throw new Error(
+          `Expected ${requests.length * 5} resolved edge anchor values, received ${resultsLength}.`,
+        );
+      }
+
+      const values = new Float32Array(exports.memory.buffer, resultsPointer, resultsLength);
+      const resolved = new Array<HyperflowResolvedEdgeAnchor>(requests.length);
+
+      for (let index = 0; index < values.length; index += 5) {
+        resolved[index / 5] = {
+          x: values[index],
+          y: values[index + 1],
+          side: decodeAnchorSide(values[index + 2]),
+          slot: values[index + 3] ?? 0,
+          slotCount: values[index + 4] ?? 1,
         };
       }
 

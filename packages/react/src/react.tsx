@@ -3,9 +3,9 @@ import {
   buildPocSvgCurvePath,
   buildSmoothPocEdgePath,
   createPocEngine,
-  createPocEdgeSpreadMaps,
   getPocNodeCenter,
   projectPocNodesToRuntimeNodes,
+  resolvePocEdgeAnchorsBatch,
   resolvePocSmoothEdgeCurve,
   resolvePocNodeAnchors,
   type PocEngine,
@@ -14,6 +14,7 @@ import {
   type PocMetrics,
   type PocAnchorSide,
   type PocNode,
+  type PocResolvedEdgeAnchors,
   type PocResolvedNodeAnchors,
   type PocViewport,
   type VisibleBox,
@@ -992,7 +993,14 @@ export function HyperFlowPocCanvas({
   ]);
 
   const renderedEdges = useMemo(() => {
-    const { sourceSpreadByEdgeId, targetSpreadByEdgeId } = createPocEdgeSpreadMaps(nodes, edges, resolvedNodeAnchorsById);
+    const resolvedEdgeAnchorsById = new Map<string, PocResolvedEdgeAnchors>(
+      resolvePocEdgeAnchorsBatch(
+        nodes,
+        edges,
+        resolvedNodeAnchorsById,
+        engine ? (requests) => engine.resolveEdgeAnchorsBatch(requests) : undefined,
+      ).map((entry) => [entry.edgeId, entry] as const),
+    );
     const edgeRequests: Array<
       {
         id: string;
@@ -1015,8 +1023,9 @@ export function HyperFlowPocCanvas({
       const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
       const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
       const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
-      const sourceAnchor = resolvedNodeAnchorsById.get(Number(sourceNode.id))?.outputAnchor;
-      const targetAnchor = resolvedNodeAnchorsById.get(Number(targetNode.id))?.inputAnchor;
+      const resolvedEdgeAnchors = resolvedEdgeAnchorsById.get(edge.id);
+      const sourceAnchor = resolvedEdgeAnchors?.sourceAnchor;
+      const targetAnchor = resolvedEdgeAnchors?.targetAnchor;
       if (!sourceAnchor || !targetAnchor) return;
 
       edgeRequests.push({
@@ -1027,8 +1036,8 @@ export function HyperFlowPocCanvas({
         targetY: (targetAnchor.y - viewport.y) * viewport.zoom,
         sourceSide: sourceAnchor.side,
         targetSide: targetAnchor.side,
-        sourceSpread: (sourceSpreadByEdgeId.get(edge.id) ?? 0) * viewport.zoom,
-        targetSpread: (targetSpreadByEdgeId.get(edge.id) ?? 0) * viewport.zoom,
+        sourceSpread: 0,
+        targetSpread: 0,
         bendOffsetX: edge.bend ? edge.bend.x * viewport.zoom : null,
         bendOffsetY: edge.bend ? edge.bend.y * viewport.zoom : null,
         bendOffsetWorldX: edge.bend?.x ?? 0,

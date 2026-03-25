@@ -252,10 +252,8 @@ test("same-side edges fan out from distinct visible anchors", async ({ page })=>
     if (!originalPath || !fanOutPath) throw new Error("missing fan-out edge paths");
     const originalMove = parseMoveTo(originalPath);
     const fanOutMove = parseMoveTo(fanOutPath);
-    const originalControl = parseFirstCurveControl(originalPath);
-    const fanOutControl = parseFirstCurveControl(fanOutPath);
-    expect(Math.abs(originalMove.y - fanOutMove.y)).toBeLessThanOrEqual(2);
-    expect(Math.abs(originalControl.y - fanOutControl.y)).toBeGreaterThan(6);
+    expect(Math.abs(originalMove.x - fanOutMove.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(originalMove.y - fanOutMove.y)).toBeGreaterThan(6);
 });
 test("editor save and restore keeps authoring state together", async ({ page })=>{
     await page.goto("/ko");

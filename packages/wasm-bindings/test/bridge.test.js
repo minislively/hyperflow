@@ -101,6 +101,33 @@ test("bridge resolves node anchors with preferred editor-facing sides when reque
     assert.equal(resolved[0].inputAnchor.side, "left");
     assert.equal(resolved[0].outputAnchor.side, "right");
 });
+test("bridge resolves same-side edge anchors into distinct slots", async ()=>{
+    const bridge = await bridgePromise;
+    const resolved = bridge.resolveEdgeAnchorsBatch([
+        {
+            x: 0,
+            y: 0,
+            width: 180,
+            height: 96,
+            side: "right",
+            slot: 0,
+            slotCount: 2
+        },
+        {
+            x: 0,
+            y: 0,
+            width: 180,
+            height: 96,
+            side: "right",
+            slot: 1,
+            slotCount: 2
+        }
+    ]);
+    assert.equal(resolved.length, 2);
+    assert.equal(resolved[0].side, "right");
+    assert.equal(resolved[1].side, "right");
+    assert.notEqual(resolved[0].y, resolved[1].y);
+});
 test("bridge resolves edge curves into cubic control points", async ()=>{
     const bridge = await bridgePromise;
     const resolved = bridge.resolveEdgeCurvesBatch([

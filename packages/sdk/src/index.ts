@@ -1,8 +1,10 @@
 import {
   createHyperflowWasmBridge,
   type HyperflowAnchorResolutionRequest,
+  type HyperflowEdgeAnchorResolutionRequest,
   type HyperflowEdgePathResolutionRequest,
   type HyperflowPoint,
+  type HyperflowResolvedEdgeAnchor,
   type HyperflowResolvedEdgeCurve,
   type HyperflowResolvedNodeAnchors,
   type HyperflowRuntimeNode,
@@ -53,8 +55,32 @@ export type PocResolvedNodeAnchors = {
   outputAnchor: PocAnchorPoint;
 };
 
+export type PocResolvedEdgeAnchor = PocAnchorPoint & {
+  slot: number;
+  slotCount: number;
+};
+
+export type PocResolvedEdgeAnchors = {
+  edgeId: string;
+  sourceAnchor: PocResolvedEdgeAnchor;
+  targetAnchor: PocResolvedEdgeAnchor;
+};
+
+export type PocEdgeAnchorResolutionRequest = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  side: PocAnchorSide;
+  slot: number;
+  slotCount: number;
+  spreadStep?: number;
+};
+
 export type PocAnchorResolutionRequest = HyperflowAnchorResolutionRequest;
+export type PocLowLevelEdgeAnchorResolutionRequest = HyperflowEdgeAnchorResolutionRequest;
 export type PocEdgePathResolutionRequest = HyperflowEdgePathResolutionRequest;
+export type PocLowLevelResolvedEdgeAnchor = HyperflowResolvedEdgeAnchor;
 export type PocResolvedEdgeCurve = HyperflowResolvedEdgeCurve;
 
 export type PocRuntimeNode = HyperflowRuntimeNode;
@@ -165,6 +191,49 @@ export function offsetPocAnchorWithinSide<TData extends Record<string, unknown>,
     ...anchor,
     x: Math.min(maxX, Math.max(minX, anchor.x + offset)),
   };
+}
+
+export function resolvePocEdgeAnchor<TData extends Record<string, unknown>, TType extends string>(
+  node: PocNode<TData, TType>,
+  options: {
+    side: PocAnchorSide;
+    slot: number;
+    slotCount: number;
+    spreadStep?: number;
+  },
+): PocResolvedEdgeAnchor {
+  const baseAnchor = getPocNodeAnchorPointForSide(node, options.side);
+  const spreadStep = options.spreadStep ?? 18;
+  const offset = (options.slot - (options.slotCount - 1) / 2) * spreadStep;
+  const offsetAnchor = options.slotCount > 1 ? offsetPocAnchorWithinSide(baseAnchor, node, offset) : baseAnchor;
+
+  return {
+    ...offsetAnchor,
+    slot: options.slot,
+    slotCount: options.slotCount,
+  };
+}
+
+export function resolvePocLowLevelEdgeAnchorsBatch(
+  requests: PocEdgeAnchorResolutionRequest[],
+): PocResolvedEdgeAnchor[] {
+  return requests.map((request) =>
+    resolvePocEdgeAnchor(
+      {
+        id: 0,
+        type: "default",
+        position: { x: request.x, y: request.y },
+        size: { width: request.width, height: request.height },
+        data: {},
+      },
+      {
+        side: request.side,
+        slot: request.slot,
+        slotCount: request.slotCount,
+        spreadStep: request.spreadStep,
+      },
+    ),
+  );
 }
 
 export function resolvePocNodeAnchors<TData extends Record<string, unknown>, TType extends string>(
@@ -332,6 +401,116 @@ export function createPocEdgeSpreadMaps<TData extends Record<string, unknown>, T
   return { sourceSpreadByEdgeId, targetSpreadByEdgeId };
 }
 
+export function resolvePocEdgeAnchorsBatch<TData extends Record<string, unknown>, TType extends string>(
+  nodes: Array<PocNode<TData, TType>>,
+  edges: PocEdge[],
+  nodeAnchorsById: Map<number, PocResolvedNodeAnchors>,
+  resolveLowLevelAnchors: (requests: PocEdgeAnchorResolutionRequest[]) => PocResolvedEdgeAnchor[] = resolvePocLowLevelEdgeAnchorsBatch,
+): PocResolvedEdgeAnchors[] {
+  const nodeById = new Map(nodes.map((node) => [Number(node.id), node] as const));
+  const sourceRequests: PocEdgeAnchorResolutionRequest[] = [];
+  const sourceMeta: string[] = [];
+  const targetRequests: PocEdgeAnchorResolutionRequest[] = [];
+  const targetMeta: string[] = [];
+
+  const edgePositionMetric = (node: PocNode<TData, TType>, side: PocAnchorSide) => {
+    const center = getPocNodeCenter(node);
+    return side === "left" || side === "right" ? center.y : center.x;
+  };
+
+  const outgoingGroups = new Map<string, PocEdge[]>();
+  const incomingGroups = new Map<string, PocEdge[]>();
+
+  edges.forEach((edge) => {
+    const sourceId = Number(edge.source);
+    const targetId = Number(edge.target);
+    const sourceSide = nodeAnchorsById.get(sourceId)?.outputAnchor.side;
+    const targetSide = nodeAnchorsById.get(targetId)?.inputAnchor.side;
+    if (!sourceSide || !targetSide) return;
+    const outgoingKey = `${sourceId}:${sourceSide}`;
+    const incomingKey = `${targetId}:${targetSide}`;
+    outgoingGroups.set(outgoingKey, [...(outgoingGroups.get(outgoingKey) ?? []), edge]);
+    incomingGroups.set(incomingKey, [...(incomingGroups.get(incomingKey) ?? []), edge]);
+  });
+
+  outgoingGroups.forEach((group, key) => {
+    const [sourceIdText, sourceSide] = key.split(":") as [string, PocAnchorSide];
+    const sourceId = Number(sourceIdText);
+    const sourceNode = nodeById.get(sourceId);
+    if (!sourceNode) return;
+    group
+      .slice()
+      .sort((left, right) => {
+        const leftTarget = nodeById.get(Number(left.target));
+        const rightTarget = nodeById.get(Number(right.target));
+        if (!leftTarget || !rightTarget) return 0;
+        return edgePositionMetric(leftTarget, sourceSide) - edgePositionMetric(rightTarget, sourceSide);
+      })
+      .forEach((edge, index, ordered) => {
+        sourceRequests.push({
+          x: sourceNode.position.x,
+          y: sourceNode.position.y,
+          width: sourceNode.size.width,
+          height: sourceNode.size.height,
+          side: sourceSide,
+          slot: index,
+          slotCount: ordered.length,
+        });
+        sourceMeta.push(edge.id);
+      });
+  });
+
+  incomingGroups.forEach((group, key) => {
+    const [targetIdText, targetSide] = key.split(":") as [string, PocAnchorSide];
+    const targetId = Number(targetIdText);
+    const targetNode = nodeById.get(targetId);
+    if (!targetNode) return;
+    group
+      .slice()
+      .sort((left, right) => {
+        const leftSource = nodeById.get(Number(left.source));
+        const rightSource = nodeById.get(Number(right.source));
+        if (!leftSource || !rightSource) return 0;
+        return edgePositionMetric(leftSource, targetSide) - edgePositionMetric(rightSource, targetSide);
+      })
+      .forEach((edge, index, ordered) => {
+        targetRequests.push({
+          x: targetNode.position.x,
+          y: targetNode.position.y,
+          width: targetNode.size.width,
+          height: targetNode.size.height,
+          side: targetSide,
+          slot: index,
+          slotCount: ordered.length,
+        });
+        targetMeta.push(edge.id);
+      });
+  });
+
+  const sourceAnchorsByEdgeId = new Map<string, PocResolvedEdgeAnchor>();
+  resolveLowLevelAnchors(sourceRequests).forEach((anchor, index) => {
+    sourceAnchorsByEdgeId.set(sourceMeta[index]!, anchor);
+  });
+
+  const targetAnchorsByEdgeId = new Map<string, PocResolvedEdgeAnchor>();
+  resolveLowLevelAnchors(targetRequests).forEach((anchor, index) => {
+    targetAnchorsByEdgeId.set(targetMeta[index]!, anchor);
+  });
+
+  return edges
+    .map((edge) => {
+      const sourceAnchor = sourceAnchorsByEdgeId.get(edge.id);
+      const targetAnchor = targetAnchorsByEdgeId.get(edge.id);
+      if (!sourceAnchor || !targetAnchor) return null;
+      return {
+        edgeId: edge.id,
+        sourceAnchor,
+        targetAnchor,
+      };
+    })
+    .filter((entry): entry is PocResolvedEdgeAnchors => entry !== null);
+}
+
 export function buildSmoothPocEdgePath({
   sourceX,
   sourceY,
@@ -467,6 +646,7 @@ export type PocEngineBridge = Pick<
   | "hitTest"
   | "getNodeCount"
   | "resolveNodeAnchorsBatch"
+  | "resolveEdgeAnchorsBatch"
   | "resolveEdgeCurvesBatch"
 >;
 
@@ -490,6 +670,7 @@ export type PocEngine = {
   getVisibleBoxes(): VisibleBox[];
   getNodeCount(): number;
   resolveNodeAnchorsBatch(requests: PocAnchorResolutionRequest[]): HyperflowResolvedNodeAnchors[];
+  resolveEdgeAnchorsBatch(requests: PocLowLevelEdgeAnchorResolutionRequest[]): PocLowLevelResolvedEdgeAnchor[];
   resolveEdgeCurvesBatch(requests: PocEdgePathResolutionRequest[]): PocResolvedEdgeCurve[];
 };
 
@@ -598,6 +779,10 @@ export async function createPocEngine(options: PocEngineOptions = {}): Promise<P
 
     resolveNodeAnchorsBatch(requests) {
       return bridge.resolveNodeAnchorsBatch(requests);
+    },
+
+    resolveEdgeAnchorsBatch(requests) {
+      return bridge.resolveEdgeAnchorsBatch(requests);
     },
 
     resolveEdgeCurvesBatch(requests) {

@@ -67,6 +67,13 @@ pub struct ResolvedNodeAnchors {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ResolvedEdgeAnchor {
+    pub anchor: AnchorPoint,
+    pub slot: usize,
+    pub slot_count: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ResolvedEdgeCurve {
     pub source_x: f32,
     pub source_y: f32,
@@ -124,6 +131,7 @@ struct KernelState {
     visible_ids: Vec<u32>,
     visible_boxes: Vec<f32>,
     resolved_anchor_buffer: Vec<f32>,
+    resolved_edge_anchor_buffer: Vec<f32>,
     resolved_edge_curve_buffer: Vec<f32>,
 }
 
@@ -232,6 +240,37 @@ impl KernelState {
         }
 
         self.resolved_edge_curve_buffer.len()
+    }
+
+    fn resolve_edge_anchors_batch(&mut self, packed_requests: &[f32]) -> usize {
+        self.resolved_edge_anchor_buffer.clear();
+
+        for chunk in packed_requests.chunks_exact(8) {
+            let node = Node {
+                id: 0,
+                x: chunk[0],
+                y: chunk[1],
+                width: chunk[2],
+                height: chunk[3],
+            };
+            let resolved = resolve_edge_anchor(
+                node,
+                decode_anchor_side(chunk[4]),
+                chunk[5].round().max(0.0) as usize,
+                chunk[6].round().max(1.0) as usize,
+                chunk[7],
+            );
+
+            self.resolved_edge_anchor_buffer.extend_from_slice(&[
+                resolved.anchor.x,
+                resolved.anchor.y,
+                resolved.anchor.side as u32 as f32,
+                resolved.slot as f32,
+                resolved.slot_count as f32,
+            ]);
+        }
+
+        self.resolved_edge_anchor_buffer.len()
     }
 }
 
@@ -358,6 +397,50 @@ pub fn offset_anchor_within_side(node: Node, anchor: AnchorPoint, offset: f32) -
             x: (anchor.x + offset).max(min_x).min(max_x),
             ..anchor
         }
+    }
+}
+
+pub fn resolve_edge_anchor(
+    node: Node,
+    side: AnchorSide,
+    slot: usize,
+    slot_count: usize,
+    spread_step: f32,
+) -> ResolvedEdgeAnchor {
+    let center = get_node_center(node);
+    let base_anchor = match side {
+        AnchorSide::Left => AnchorPoint {
+            x: node.x,
+            y: center.y,
+            side,
+        },
+        AnchorSide::Right => AnchorPoint {
+            x: node.x + node.width,
+            y: center.y,
+            side,
+        },
+        AnchorSide::Top => AnchorPoint {
+            x: center.x,
+            y: node.y,
+            side,
+        },
+        AnchorSide::Bottom => AnchorPoint {
+            x: center.x,
+            y: node.y + node.height,
+            side,
+        },
+    };
+    let centered_offset = (slot as f32 - (slot_count as f32 - 1.0) / 2.0) * spread_step;
+    let anchor = if slot_count > 1 {
+        offset_anchor_within_side(node, base_anchor, centered_offset)
+    } else {
+        base_anchor
+    };
+
+    ResolvedEdgeAnchor {
+        anchor,
+        slot,
+        slot_count,
     }
 }
 
@@ -723,6 +806,29 @@ pub extern "C" fn resolved_anchor_buffer_len() -> usize {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn resolve_edge_anchors_batch(ptr: *const f32, len: usize) -> usize {
+    if ptr.is_null() || len == 0 || len % 8 != 0 {
+        return 0;
+    }
+
+    let packed_requests = slice::from_raw_parts(ptr, len);
+    let mut state = kernel_state().lock().expect("kernel state poisoned");
+    state.resolve_edge_anchors_batch(packed_requests)
+}
+
+#[no_mangle]
+pub extern "C" fn resolved_edge_anchor_buffer_ptr() -> *const f32 {
+    let state = kernel_state().lock().expect("kernel state poisoned");
+    state.resolved_edge_anchor_buffer.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn resolved_edge_anchor_buffer_len() -> usize {
+    let state = kernel_state().lock().expect("kernel state poisoned");
+    state.resolved_edge_anchor_buffer.len()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn resolve_edge_curves_batch(ptr: *const f32, len: usize) -> usize {
     if ptr.is_null() || len == 0 || len % 11 != 0 {
         return 0;
@@ -885,6 +991,30 @@ mod tests {
 
         assert_eq!(resolved.input_anchor.side, AnchorSide::Left);
         assert_eq!(resolved.output_anchor.side, AnchorSide::Right);
+    }
+
+    #[test]
+    fn resolve_edge_anchor_offsets_same_side_slots() {
+        let node = Node { id: 1, x: 100.0, y: 100.0, width: 180.0, height: 96.0 };
+        let first = resolve_edge_anchor(node, AnchorSide::Right, 0, 2, 18.0);
+        let second = resolve_edge_anchor(node, AnchorSide::Right, 1, 2, 18.0);
+
+        assert_eq!(first.anchor.side, AnchorSide::Right);
+        assert_eq!(second.anchor.side, AnchorSide::Right);
+        assert_ne!(first.anchor.y, second.anchor.y);
+    }
+
+    #[test]
+    fn resolve_edge_anchors_batch_writes_five_values_per_request() {
+        let mut state = KernelState::default();
+        let written = state.resolve_edge_anchors_batch(&[
+            100.0, 100.0, 180.0, 96.0, 1.0, 0.0, 2.0, 18.0,
+            100.0, 100.0, 180.0, 96.0, 1.0, 1.0, 2.0, 18.0,
+        ]);
+
+        assert_eq!(written, 10);
+        assert_eq!(state.resolved_edge_anchor_buffer.len(), 10);
+        assert_ne!(state.resolved_edge_anchor_buffer[1], state.resolved_edge_anchor_buffer[6]);
     }
 
     #[test]
