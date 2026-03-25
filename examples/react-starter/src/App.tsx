@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   HyperFlowPocCanvas,
   type HyperFlowPocNodeRendererProps,
@@ -2521,7 +2521,7 @@ function IconPulse() {
   return <svg viewBox="0 0 20 20"><path d="M3 10h3l1.5-3 2.5 7 2-4h5" /></svg>;
 }
 
-function EditorMiniMap({
+const EditorMiniMap = memo(function EditorMiniMap({
   locale,
   nodes,
   edges,
@@ -2701,7 +2701,7 @@ function EditorMiniMap({
       </svg>
     </div>
   );
-}
+});
 
 function MainEditorSurface({
   locale,
@@ -2759,6 +2759,7 @@ function MainEditorSurface({
   const pendingTitleFocusNodeIdRef = useRef<number | null>(null);
   const nodesRef = useRef(nodes);
   const viewportRef = useRef(viewport);
+  const perfInteractionPhaseRef = useRef<EditorInteractionPhase>("idle");
   const hasUserAdjustedViewportRef = useRef(false);
   const perfSampleRef = useRef<{
     lastFrameAt: number;
@@ -2774,6 +2775,7 @@ function MainEditorSurface({
     inputLatencySumMs: number;
     peakInputLatencyMs: number | null;
     budgetMissCount: number;
+    lastPublishedAt: number;
   }>({
     lastFrameAt: 0,
     smoothedFps: null,
@@ -2788,6 +2790,7 @@ function MainEditorSurface({
     inputLatencySumMs: 0,
     peakInputLatencyMs: null,
     budgetMissCount: 0,
+    lastPublishedAt: 0,
   });
 
   useEffect(() => {
@@ -2797,6 +2800,10 @@ function MainEditorSurface({
   useEffect(() => {
     viewportRef.current = viewport;
   }, [viewport]);
+
+  useEffect(() => {
+    perfInteractionPhaseRef.current = perfReadout.interactionPhase;
+  }, [perfReadout.interactionPhase]);
 
   useEffect(() => {
     setTitleDraft(selectedNode?.data.title ?? "");
@@ -2815,7 +2822,7 @@ function MainEditorSurface({
     };
   }, []);
 
-  function schedulePerfIdleTransition() {
+  const schedulePerfIdleTransition = useCallback(() => {
     if (perfSampleRef.current.idleTimerId !== null) {
       window.clearTimeout(perfSampleRef.current.idleTimerId);
     }
@@ -2831,9 +2838,9 @@ function MainEditorSurface({
             },
       );
     }, 420);
-  }
+  }, []);
 
-  function resetPerfSampling() {
+  const resetPerfSampling = useCallback(() => {
     if (perfSampleRef.current.idleTimerId !== null) {
       window.clearTimeout(perfSampleRef.current.idleTimerId);
     }
@@ -2851,6 +2858,7 @@ function MainEditorSurface({
       inputLatencySumMs: 0,
       peakInputLatencyMs: null,
       budgetMissCount: 0,
+      lastPublishedAt: 0,
     };
     setPerfReadout({
       fps: null,
@@ -2867,9 +2875,9 @@ function MainEditorSurface({
       peakInputLatencyMs: null,
       budgetMissCount: 0,
     });
-  }
+  }, []);
 
-  function markEditorInteraction(phase: Exclude<EditorInteractionPhase, "idle" | "settling">) {
+  const markEditorInteraction = useCallback((phase: Exclude<EditorInteractionPhase, "idle" | "settling">) => {
     const now = performance.now();
     perfSampleRef.current.pendingInteractionAt = now;
     perfSampleRef.current.pendingInteractionPhase = phase;
@@ -2885,9 +2893,9 @@ function MainEditorSurface({
             interactionPhase: phase,
           },
     );
-  }
+  }, []);
 
-  function handleMetricsChange(metrics: PocMetrics) {
+  const handleMetricsChange = useCallback((metrics: PocMetrics) => {
     const now = performance.now();
     const previousFrameAt = perfSampleRef.current.lastFrameAt;
     const frameDeltaMs = previousFrameAt > 0 ? now - previousFrameAt : 0;
@@ -2951,6 +2959,19 @@ function MainEditorSurface({
       perfSampleRef.current.peakInputLatencyMs === null
         ? null
         : Number(perfSampleRef.current.peakInputLatencyMs.toFixed(1));
+    const currentInteractionPhase = perfInteractionPhaseRef.current;
+    const nextInteractionPhase = hasPendingInteraction ? "settling" : currentInteractionPhase;
+    const shouldPublishNow =
+      hasPendingInteraction ||
+      nextInteractionPhase !== currentInteractionPhase ||
+      perfSampleRef.current.frameCount <= 3 ||
+      now - perfSampleRef.current.lastPublishedAt >= 96;
+
+    if (!shouldPublishNow) {
+      return;
+    }
+
+    perfSampleRef.current.lastPublishedAt = now;
 
     setPerfReadout((current) => {
       const nextInteractionPhase = hasPendingInteraction ? "settling" : current.interactionPhase;
@@ -2988,7 +3009,54 @@ function MainEditorSurface({
         budgetMissCount: perfSampleRef.current.budgetMissCount,
       };
     });
-  }
+  }, [schedulePerfIdleTransition]);
+
+  const canvasNodeRenderers = useMemo(() => ({ card: EditorNodeCard }), []);
+  const getCanvasNodeRendererKey = useCallback(() => "card", []);
+  const getCanvasNodeRendererData = useCallback((node: LearnDemoNode) => node.data, []);
+  const handleCanvasEdgeSelect = useCallback(
+    (edgeId: string | null) => {
+      setSelectedEdgeId(edgeId);
+      if (edgeId !== null) {
+        setSelectedNodeIds([]);
+        onSelectionChange({ nodeId: null });
+      }
+    },
+    [onSelectionChange],
+  );
+  const handleCanvasNodePositionChange = useCallback((nodeId: number, nextPosition: PocNode["position"]) => {
+    updateNodeData(setNodes, nodeId, () => ({
+      position: nextPosition,
+    }));
+  }, []);
+  const handleCanvasNodesPositionChange = useCallback(
+    (updates: Array<{ nodeId: number; nextPosition: PocNode["position"] }>) => {
+      applyNodePositionUpdates(setNodes, updates);
+    },
+    [],
+  );
+  const handleCanvasEdgeConnect = useCallback((sourceNodeId: number, targetNodeId: number) => {
+    setEdges((current) =>
+      appendLearnDemoEdge(current, sourceNodeId, targetNodeId, {
+        toggleExisting: true,
+      }),
+    );
+  }, []);
+  const handleCanvasEdgeReconnect = useCallback((edgeId: string, next: { sourceNodeId?: number; targetNodeId?: number }) => {
+    setEdges((current) => reconnectLearnDemoEdge(current, edgeId, next));
+  }, []);
+  const handleCanvasEdgeBendChange = useCallback((edgeId: string, nextBend: PocEdge["bend"]) => {
+    setEdges((current) =>
+      current.map((edge) =>
+        edge.id === edgeId
+          ? {
+              ...edge,
+              bend: nextBend ? { ...nextBend } : null,
+            }
+          : edge,
+      ),
+    );
+  }, []);
 
   useEffect(() => {
     if (!selectedNode || pendingTitleFocusNodeIdRef.current !== selectedNode.id || !titleInputRef.current) {
@@ -3209,7 +3277,7 @@ function MainEditorSurface({
           },
         };
 
-  function fitView() {
+  const fitView = useCallback(() => {
     hasUserAdjustedViewportRef.current = true;
     setViewport(
       fitPocViewportToNodes(nodes, {
@@ -3220,9 +3288,9 @@ function MainEditorSurface({
         maxZoom: 1.4,
       }),
     );
-  }
+  }, [editorCanvasSize.height, editorCanvasSize.width, graphPreset, nodes]);
 
-  function zoom(delta: number) {
+  const zoom = useCallback((delta: number) => {
     hasUserAdjustedViewportRef.current = true;
     setViewport((current) =>
       createPocViewport(current.width, current.height, {
@@ -3231,12 +3299,12 @@ function MainEditorSurface({
         zoom: Math.max(0.3, Math.min(current.zoom + delta, 1.8)),
       }),
     );
-  }
+  }, []);
 
-  function handleViewportChange(nextViewport: PocViewport) {
+  const handleViewportChange = useCallback((nextViewport: PocViewport) => {
     hasUserAdjustedViewportRef.current = true;
     setViewport(nextViewport);
-  }
+  }, []);
 
   function addNode() {
     const currentNodes = nodesRef.current;
@@ -3283,19 +3351,19 @@ function MainEditorSurface({
     );
   }
 
-  function getResolvedSelectedNodeIds() {
+  const getResolvedSelectedNodeIds = useCallback(() => {
     if (selectedNodeIds.length > 0) return selectedNodeIds.map((id) => Number(id));
     return selection.nodeId !== null ? [Number(selection.nodeId)] : [];
-  }
+  }, [selectedNodeIds, selection.nodeId]);
 
-  function applyNodeSelection(nodeIds: number[]) {
+  const applyNodeSelection = useCallback((nodeIds: number[]) => {
     const uniqueIds = Array.from(new Set(nodeIds.map((id) => Number(id))));
     setSelectedNodeIds(uniqueIds);
     onSelectionChange({ nodeId: uniqueIds[0] ?? null });
     if (uniqueIds.length > 0) setSelectedEdgeId(null);
-  }
+  }, [onSelectionChange]);
 
-  function handleNodeSelect(nodeId: number | null, options?: { additive?: boolean }) {
+  const handleNodeSelect = useCallback((nodeId: number | null, options?: { additive?: boolean }) => {
     if (!options?.additive) {
       applyNodeSelection(nodeId !== null ? [nodeId] : []);
       return;
@@ -3307,9 +3375,9 @@ function MainEditorSurface({
       ? currentIds.filter((id) => Number(id) !== Number(nodeId))
       : [...currentIds, Number(nodeId)];
     applyNodeSelection(nextIds);
-  }
+  }, [applyNodeSelection, getResolvedSelectedNodeIds]);
 
-  function handleNodeSelectionBoxChange(nodeIds: number[], options?: { additive?: boolean }) {
+  const handleNodeSelectionBoxChange = useCallback((nodeIds: number[], options?: { additive?: boolean }) => {
     if (!options?.additive) {
       applyNodeSelection(nodeIds);
       return;
@@ -3317,7 +3385,7 @@ function MainEditorSurface({
 
     const currentIds = getResolvedSelectedNodeIds();
     applyNodeSelection([...currentIds, ...nodeIds]);
-  }
+  }, [applyNodeSelection, getResolvedSelectedNodeIds]);
 
   function deleteSelected() {
     if (selectedEdgeId) {
@@ -3556,13 +3624,7 @@ function MainEditorSurface({
                 </span>
                 <span>{ui.status.shortcuts}</span>
               </div>
-              <EditorMiniMap
-                locale={locale}
-                nodes={nodes}
-                edges={edges}
-                viewport={viewport}
-                onViewportChange={handleViewportChange}
-              />
+              <EditorMiniMap locale={locale} nodes={nodes} edges={edges} viewport={viewport} onViewportChange={handleViewportChange} />
               <HyperFlowPocCanvas
                 className="hf-main-editor-canvas"
                 nodes={nodes}
@@ -3573,49 +3635,18 @@ function MainEditorSurface({
                 selectedNodeId={selection.nodeId}
                 selectedNodeIds={selectedNodeIds}
                 selectedEdgeId={selectedEdgeId}
-                nodeRenderers={{ card: EditorNodeCard }}
-                getNodeRendererKey={() => "card"}
-                getNodeRendererData={(node) => node.data}
+                nodeRenderers={canvasNodeRenderers}
+                getNodeRendererKey={getCanvasNodeRendererKey}
+                getNodeRendererData={getCanvasNodeRendererData}
                 getNodeAnchorPreferences={getEditorNodeAnchorPreferences}
                 onNodeSelect={handleNodeSelect}
                 onNodeSelectionBoxChange={handleNodeSelectionBoxChange}
-                onEdgeSelect={(edgeId) => {
-                  setSelectedEdgeId(edgeId);
-                  if (edgeId !== null) {
-                    setSelectedNodeIds([]);
-                    onSelectionChange({ nodeId: null });
-                  }
-                }}
-                onNodePositionChange={(nodeId, nextPosition) => {
-                  updateNodeData(setNodes, nodeId, () => ({
-                    position: nextPosition,
-                  }));
-                }}
-                onNodesPositionChange={(updates) => {
-                  applyNodePositionUpdates(setNodes, updates);
-                }}
-                onEdgeConnect={(sourceNodeId, targetNodeId) => {
-                  setEdges((current) =>
-                    appendLearnDemoEdge(current, sourceNodeId, targetNodeId, {
-                      toggleExisting: true,
-                    }),
-                  );
-                }}
-                onEdgeReconnect={(edgeId, next) => {
-                  setEdges((current) => reconnectLearnDemoEdge(current, edgeId, next));
-                }}
-                onEdgeBendChange={(edgeId, nextBend) => {
-                  setEdges((current) =>
-                    current.map((edge) =>
-                      edge.id === edgeId
-                        ? {
-                            ...edge,
-                            bend: nextBend ? { ...nextBend } : null,
-                          }
-                        : edge,
-                    ),
-                  );
-                }}
+                onEdgeSelect={handleCanvasEdgeSelect}
+                onNodePositionChange={handleCanvasNodePositionChange}
+                onNodesPositionChange={handleCanvasNodesPositionChange}
+                onEdgeConnect={handleCanvasEdgeConnect}
+                onEdgeReconnect={handleCanvasEdgeReconnect}
+                onEdgeBendChange={handleCanvasEdgeBendChange}
                 onViewportChange={handleViewportChange}
                 onMetricsChange={handleMetricsChange}
                 interactive

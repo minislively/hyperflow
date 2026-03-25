@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildSmoothPocEdgePath,
   createPocEngine,
@@ -72,7 +72,7 @@ export type HyperFlowPocCanvasProps = {
 const HANDLE_SIZE = 18;
 const HANDLE_HALF = HANDLE_SIZE / 2;
 
-export function HyperFlowPocCanvas({
+export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
   nodes,
   edges = [],
   viewport,
@@ -128,6 +128,7 @@ export function HyperFlowPocCanvas({
   const onNodesPositionChangeRef = useRef(onNodesPositionChange);
   const onViewportChangeRef = useRef(onViewportChange);
   const onEdgeBendChangeRef = useRef(onEdgeBendChange);
+  const onMetricsChangeRef = useRef(onMetricsChange);
   const ignoreCanvasClickUntilRef = useRef(0);
   const scheduledFrameRef = useRef<number | null>(null);
   const connectionPreviewFrameRef = useRef<number | null>(null);
@@ -240,7 +241,8 @@ export function HyperFlowPocCanvas({
     onNodesPositionChangeRef.current = onNodesPositionChange;
     onViewportChangeRef.current = onViewportChange;
     onEdgeBendChangeRef.current = onEdgeBendChange;
-  }, [onEdgeBendChange, onNodePositionChange, onNodesPositionChange, onViewportChange, viewport]);
+    onMetricsChangeRef.current = onMetricsChange;
+  }, [onEdgeBendChange, onMetricsChange, onNodePositionChange, onNodesPositionChange, onViewportChange, viewport]);
 
   function flushPendingUpdates() {
     scheduledFrameRef.current = null;
@@ -363,8 +365,8 @@ export function HyperFlowPocCanvas({
     }
 
     setVisibleBoxes(boxes);
-    onMetricsChange?.(metrics);
-  }, [engine, hasCustomNodeRendering, height, nodes, onMetricsChange, selectedNodeId, viewport, width]);
+    onMetricsChangeRef.current?.(metrics);
+  }, [engine, hasCustomNodeRendering, height, nodes, selectedNodeId, viewport, width]);
 
   function selectNode(nodeId: number | null, options?: { additive?: boolean }) {
     onNodeSelect?.(nodeId, options);
@@ -1656,4 +1658,4 @@ export function HyperFlowPocCanvas({
       {error ? <div className="hf-canvas-error">{error}</div> : null}
     </div>
   );
-}
+});
