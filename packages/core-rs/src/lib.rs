@@ -208,23 +208,25 @@ impl KernelState {
     fn resolve_edge_curves_batch(&mut self, packed_requests: &[f32]) -> usize {
         self.resolved_edge_curve_buffer.clear();
 
-        for chunk in packed_requests.chunks_exact(11) {
+        let mut push_curve = |source: Point,
+                              target: Point,
+                              source_side: AnchorSide,
+                              target_side: AnchorSide,
+                              source_spread: f32,
+                              target_spread: f32,
+                              bend_offset_x: Option<f32>,
+                              bend_offset_y: Option<f32>,
+                              minimum_curve_offset: f32| {
             let resolved = resolve_edge_curve(
-                Point {
-                    x: chunk[0],
-                    y: chunk[1],
-                },
-                Point {
-                    x: chunk[2],
-                    y: chunk[3],
-                },
-                decode_anchor_side(chunk[4]),
-                decode_anchor_side(chunk[5]),
-                chunk[6],
-                chunk[7],
-                Some(chunk[8]),
-                Some(chunk[9]),
-                chunk[10],
+                source,
+                target,
+                source_side,
+                target_side,
+                source_spread,
+                target_spread,
+                bend_offset_x,
+                bend_offset_y,
+                minimum_curve_offset,
             );
 
             self.resolved_edge_curve_buffer.extend_from_slice(&[
@@ -237,6 +239,50 @@ impl KernelState {
                 resolved.target_x,
                 resolved.target_y,
             ]);
+        };
+
+        if packed_requests.len() % 16 == 0 {
+            for chunk in packed_requests.chunks_exact(16) {
+                let spread_step = chunk[12];
+                let source_spread = resolve_edge_curve_spread(
+                    chunk[6],
+                    chunk[8].round() as isize,
+                    chunk[9].round().max(0.0) as usize,
+                    spread_step,
+                );
+                let target_spread = resolve_edge_curve_spread(
+                    chunk[7],
+                    chunk[10].round() as isize,
+                    chunk[11].round().max(0.0) as usize,
+                    spread_step,
+                );
+                push_curve(
+                    Point { x: chunk[0], y: chunk[1] },
+                    Point { x: chunk[2], y: chunk[3] },
+                    decode_anchor_side(chunk[4]),
+                    decode_anchor_side(chunk[5]),
+                    source_spread,
+                    target_spread,
+                    Some(chunk[13]),
+                    Some(chunk[14]),
+                    chunk[15],
+                );
+            }
+            return self.resolved_edge_curve_buffer.len();
+        }
+
+        for chunk in packed_requests.chunks_exact(11) {
+            push_curve(
+                Point { x: chunk[0], y: chunk[1] },
+                Point { x: chunk[2], y: chunk[3] },
+                decode_anchor_side(chunk[4]),
+                decode_anchor_side(chunk[5]),
+                chunk[6],
+                chunk[7],
+                Some(chunk[8]),
+                Some(chunk[9]),
+                chunk[10],
+            );
         }
 
         self.resolved_edge_curve_buffer.len()
@@ -430,7 +476,7 @@ pub fn resolve_edge_anchor(
             side,
         },
     };
-    let centered_offset = (slot as f32 - (slot_count as f32 - 1.0) / 2.0) * spread_step;
+    let centered_offset = centered_slot_spread(slot, slot_count, spread_step);
     let anchor = if slot_count > 1 {
         offset_anchor_within_side(node, base_anchor, centered_offset)
     } else {
@@ -441,6 +487,27 @@ pub fn resolve_edge_anchor(
         anchor,
         slot,
         slot_count,
+    }
+}
+
+pub fn centered_slot_spread(slot: usize, slot_count: usize, spread_step: f32) -> f32 {
+    if slot_count <= 1 {
+        return 0.0;
+    }
+
+    (slot as f32 - (slot_count as f32 - 1.0) / 2.0) * spread_step
+}
+
+pub fn resolve_edge_curve_spread(
+    explicit_spread: f32,
+    slot: isize,
+    slot_count: usize,
+    spread_step: f32,
+) -> f32 {
+    if slot >= 0 && slot_count > 0 {
+        centered_slot_spread(slot as usize, slot_count, spread_step)
+    } else {
+        explicit_spread
     }
 }
 
@@ -830,7 +897,7 @@ pub extern "C" fn resolved_edge_anchor_buffer_len() -> usize {
 
 #[no_mangle]
 pub unsafe extern "C" fn resolve_edge_curves_batch(ptr: *const f32, len: usize) -> usize {
-    if ptr.is_null() || len == 0 || len % 11 != 0 {
+    if ptr.is_null() || len == 0 || (len % 11 != 0 && len % 16 != 0) {
         return 0;
     }
 
@@ -1040,11 +1107,17 @@ mod tests {
     }
 
     #[test]
+    fn resolve_edge_curve_spread_prefers_slot_metadata_over_explicit_spread() {
+        let spread = resolve_edge_curve_spread(99.0, 0, 2, 18.0);
+        assert_eq!(spread, -9.0);
+    }
+
+    #[test]
     fn resolve_edge_curves_batch_writes_eight_values_per_request() {
         let mut state = KernelState::default();
         let written = state.resolve_edge_curves_batch(&[
-            10.0, 20.0, 200.0, 100.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 40.0, 20.0, 40.0, 250.0,
-            140.0, 1.0, 0.0, 18.0, -18.0, 4.0, -8.0, 40.0,
+            10.0, 20.0, 200.0, 100.0, 1.0, 0.0, 0.0, 0.0, 0.0, 2.0, 1.0, 2.0, 18.0, 0.0, 0.0, 40.0,
+            20.0, 40.0, 250.0, 140.0, 1.0, 0.0, -18.0, 18.0, 1.0, 2.0, 0.0, 2.0, 18.0, 4.0, -8.0, 40.0,
         ]);
 
         assert_eq!(written, 16);

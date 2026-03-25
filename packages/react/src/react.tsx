@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildPocSvgCurvePath,
   buildSmoothPocEdgePath,
+  createPocEdgePathResolutionRequest,
   createPocEngine,
   getPocNodeCenter,
   projectPocNodesToRuntimeNodes,
@@ -1030,14 +1031,16 @@ export function HyperFlowPocCanvas({
 
       edgeRequests.push({
         id: edge.id,
-        sourceX: (sourceAnchor.x - viewport.x) * viewport.zoom,
-        sourceY: (sourceAnchor.y - viewport.y) * viewport.zoom,
-        targetX: (targetAnchor.x - viewport.x) * viewport.zoom,
-        targetY: (targetAnchor.y - viewport.y) * viewport.zoom,
-        sourceSide: sourceAnchor.side,
-        targetSide: targetAnchor.side,
-        sourceSpread: 0,
-        targetSpread: 0,
+        ...createPocEdgePathResolutionRequest({
+          sourceAnchor,
+          targetAnchor,
+          sourceX: (sourceAnchor.x - viewport.x) * viewport.zoom,
+          sourceY: (sourceAnchor.y - viewport.y) * viewport.zoom,
+          targetX: (targetAnchor.x - viewport.x) * viewport.zoom,
+          targetY: (targetAnchor.y - viewport.y) * viewport.zoom,
+          spreadStep: 18 * viewport.zoom,
+          minimumCurveOffset: 40,
+        }),
         bendOffsetX: edge.bend ? edge.bend.x * viewport.zoom : null,
         bendOffsetY: edge.bend ? edge.bend.y * viewport.zoom : null,
         bendOffsetWorldX: edge.bend?.x ?? 0,

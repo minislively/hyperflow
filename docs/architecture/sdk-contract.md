@@ -31,14 +31,17 @@ This document is that boundary.
 - `getVisibleBoxes()`
 - `getNodeCount()`
 - `resolveNodeAnchorsBatch(requests)`
+- `resolveEdgeAnchorsBatch(requests)`
 - `resolveEdgeCurvesBatch(requests)`
 
 ### Utility operations
 - `createPocViewport(width, height, overrides?)`
 - `createPocMetricsSummary(metrics)`
+- `createPocEdgePathResolutionRequest(options)`
 - `getPocNodeCenter(node)`
+- `getPocCenteredSlotSpread(slot, slotCount, spreadStep?)`
 - `resolvePocNodeAnchors(node, options)`
-- `createPocEdgeSpreadMaps(nodes, edges, nodeAnchorsById, spreadStep?)`
+- `resolvePocEdgeCurveSpread(options)`
 - `resolvePocSmoothEdgeCurve(options)`
 - `buildPocSvgCurvePath(curve)`
 - `buildSmoothPocEdgePath(options)`
@@ -90,6 +93,7 @@ The current validated split is now intentionally two-tiered:
 
 - **node-level anchors** still drive the visible connect handles and preserve the current one-handle-per-role authoring UX
 - **edge-level transient anchors** derive per-edge start/end points on those same sides so same-side siblings no longer pretend to share one representative point
+- **slot-aware curve requests** derive same-side curve offsets from per-edge `slot` / `slotCount` metadata so the main canvas and minimap no longer have to invent separate sibling spread math
 
 This means the current validated boundary is no longer only "editor-facing node shape vs runtime geometry node shape". It also includes a narrow, shared **anchor + edge-path utility layer** and a matching **batched engine seam** that higher-level surfaces can call consistently today and migrate inward later.
 

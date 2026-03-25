@@ -140,6 +140,10 @@ test("bridge resolves edge curves into cubic control points", async () => {
       targetY: 100,
       sourceSide: "right",
       targetSide: "left",
+      sourceSlot: 0,
+      sourceSlotCount: 2,
+      targetSlot: 1,
+      targetSlotCount: 2,
     },
   ]);
 
@@ -150,4 +154,5 @@ test("bridge resolves edge curves into cubic control points", async () => {
   assert.equal(resolved[0].targetY, 100);
   assert.ok(resolved[0].sourceControlX > resolved[0].sourceX);
   assert.ok(resolved[0].targetControlX < resolved[0].targetX);
+  assert.notEqual(resolved[0].sourceControlY, resolved[0].targetControlY);
 });

@@ -4,14 +4,17 @@ import assert from "node:assert/strict";
 import {
   buildPocSvgCurvePath,
   buildSmoothPocEdgePath,
+  createPocEdgePathResolutionRequest,
   createPocEdgeSpreadMaps,
   createPocEngine,
   createPocMetricsSummary,
   createPocViewport,
+  getPocCenteredSlotSpread,
   getPocNodeCenter,
   projectPocNodeToRuntimeNode,
   projectPocNodesToRuntimeNodes,
   resolvePocEdgeAnchorsBatch,
+  resolvePocEdgeCurveSpread,
   resolvePocSmoothEdgeCurve,
   resolvePocNodeAnchors,
   type PocRuntimeNode,
@@ -227,6 +230,25 @@ test("resolvePocEdgeAnchorsBatch keeps same-side siblings on distinct anchors", 
   assert.notEqual(resolved[0]!.sourceAnchor.y, resolved[1]!.sourceAnchor.y);
 });
 
+test("resolvePocEdgeCurveSpread centers slot-based offsets", () => {
+  assert.equal(getPocCenteredSlotSpread(0, 2, 18), -9);
+  assert.equal(getPocCenteredSlotSpread(1, 2, 18), 9);
+  assert.equal(resolvePocEdgeCurveSpread({ spread: 99, slot: 0, slotCount: 2, spreadStep: 18 }), -9);
+});
+
+test("createPocEdgePathResolutionRequest carries per-edge slot metadata into curve requests", () => {
+  const request = createPocEdgePathResolutionRequest({
+    sourceAnchor: { x: 10, y: 20, side: "right", slot: 0, slotCount: 2 },
+    targetAnchor: { x: 200, y: 100, side: "left", slot: 1, slotCount: 2 },
+  });
+
+  assert.equal(request.sourceSlot, 0);
+  assert.equal(request.sourceSlotCount, 2);
+  assert.equal(request.targetSlot, 1);
+  assert.equal(request.targetSlotCount, 2);
+  assert.equal(request.spreadStep, 18);
+});
+
 test("buildSmoothPocEdgePath returns a cubic curve path", () => {
   const path = buildSmoothPocEdgePath({
     sourceX: 10,
@@ -242,14 +264,12 @@ test("buildSmoothPocEdgePath returns a cubic curve path", () => {
 });
 
 test("resolvePocSmoothEdgeCurve returns cubic control points without moving endpoints", () => {
-  const curve = resolvePocSmoothEdgeCurve({
-    sourceX: 10,
-    sourceY: 20,
-    targetX: 200,
-    targetY: 100,
-    sourceSide: "right",
-    targetSide: "left",
-  });
+  const curve = resolvePocSmoothEdgeCurve(
+    createPocEdgePathResolutionRequest({
+      sourceAnchor: { x: 10, y: 20, side: "right", slot: 0, slotCount: 2 },
+      targetAnchor: { x: 200, y: 100, side: "left", slot: 1, slotCount: 2 },
+    }),
+  );
 
   assert.equal(curve.sourceX, 10);
   assert.equal(curve.sourceY, 20);
@@ -257,6 +277,7 @@ test("resolvePocSmoothEdgeCurve returns cubic control points without moving endp
   assert.equal(curve.targetY, 100);
   assert.ok(curve.sourceControlX > curve.sourceX);
   assert.ok(curve.targetControlX < curve.targetX);
+  assert.notEqual(curve.sourceControlY, curve.targetControlY);
 });
 
 test("buildPocSvgCurvePath formats a resolved curve as an svg cubic path", () => {

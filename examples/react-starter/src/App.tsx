@@ -3,6 +3,7 @@ import {
   buildPocSvgCurvePath,
   HyperFlowPocCanvas,
   type HyperFlowPocNodeRendererProps,
+  createPocEdgePathResolutionRequest,
   createPocViewport,
   fitPocViewportToNodes,
   getPocNodeCenter,
@@ -2539,19 +2540,20 @@ function EditorMiniMap({
           const y2 = model.projectY(targetAnchor.y);
           const bendOffsetX = edge.bend ? model.projectX(bendWorldX) - model.projectX(defaultBendWorldX) : null;
           const bendOffsetY = edge.bend ? model.projectY(bendWorldY) - model.projectY(defaultBendWorldY) : null;
-          const curve = resolvePocSmoothEdgeCurve({
-            sourceX: x1,
-            sourceY: y1,
-            targetX: x2,
-            targetY: y2,
-            sourceSide: sourceAnchor.side,
-            targetSide: targetAnchor.side,
-            sourceSpread: 0,
-            targetSpread: 0,
-            bendOffsetX,
-            bendOffsetY,
-            minimumCurveOffset: 10,
-          });
+          const curve = resolvePocSmoothEdgeCurve(
+            createPocEdgePathResolutionRequest({
+              sourceAnchor,
+              targetAnchor,
+              sourceX: x1,
+              sourceY: y1,
+              targetX: x2,
+              targetY: y2,
+              spreadStep: 18 * model.scale,
+              bendOffsetX,
+              bendOffsetY,
+              minimumCurveOffset: 10,
+            }),
+          );
           return (
             <path
               key={edge.id}

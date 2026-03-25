@@ -66,6 +66,21 @@ export type PocResolvedEdgeAnchors = {
   targetAnchor: PocResolvedEdgeAnchor;
 };
 
+export type PocEdgeCurveRequestOptions = {
+  sourceAnchor: PocResolvedEdgeAnchor;
+  targetAnchor: PocResolvedEdgeAnchor;
+  sourceX?: number;
+  sourceY?: number;
+  targetX?: number;
+  targetY?: number;
+  sourceSpread?: number;
+  targetSpread?: number;
+  spreadStep?: number;
+  bendOffsetX?: number | null;
+  bendOffsetY?: number | null;
+  minimumCurveOffset?: number;
+};
+
 export type PocEdgeAnchorResolutionRequest = {
   x: number;
   y: number;
@@ -354,8 +369,6 @@ export function createPocEdgeSpreadMaps<TData extends Record<string, unknown>, T
     return side === "left" || side === "right" ? center.y : center.x;
   };
 
-  const getCenteredSpread = (index: number, count: number) => (index - (count - 1) / 2) * spreadStep;
-
   const outgoingBySource = new Map<number, PocEdge[]>();
   const incomingByTarget = new Map<number, PocEdge[]>();
 
@@ -378,7 +391,7 @@ export function createPocEdgeSpreadMaps<TData extends Record<string, unknown>, T
         return edgePositionMetric(leftTarget, sourceAnchor.side) - edgePositionMetric(rightTarget, sourceAnchor.side);
       })
       .forEach((edge, index, ordered) => {
-        sourceSpreadByEdgeId.set(edge.id, getCenteredSpread(index, ordered.length));
+        sourceSpreadByEdgeId.set(edge.id, getPocCenteredSlotSpread(index, ordered.length, spreadStep));
       });
   });
 
@@ -394,11 +407,67 @@ export function createPocEdgeSpreadMaps<TData extends Record<string, unknown>, T
         return edgePositionMetric(leftSource, targetAnchor.side) - edgePositionMetric(rightSource, targetAnchor.side);
       })
       .forEach((edge, index, ordered) => {
-        targetSpreadByEdgeId.set(edge.id, getCenteredSpread(index, ordered.length));
+        targetSpreadByEdgeId.set(edge.id, getPocCenteredSlotSpread(index, ordered.length, spreadStep));
       });
   });
 
   return { sourceSpreadByEdgeId, targetSpreadByEdgeId };
+}
+
+export function getPocCenteredSlotSpread(slot: number, slotCount: number, spreadStep = 18) {
+  if (slotCount <= 1) return 0;
+  return (slot - (slotCount - 1) / 2) * spreadStep;
+}
+
+export function resolvePocEdgeCurveSpread({
+  spread,
+  slot,
+  slotCount,
+  spreadStep = 18,
+}: {
+  spread?: number;
+  slot?: number;
+  slotCount?: number;
+  spreadStep?: number;
+}) {
+  if (typeof slot === "number" && Number.isFinite(slot) && typeof slotCount === "number" && slotCount > 0) {
+    return getPocCenteredSlotSpread(slot, slotCount, spreadStep);
+  }
+  return spread ?? 0;
+}
+
+export function createPocEdgePathResolutionRequest({
+  sourceAnchor,
+  targetAnchor,
+  sourceX = sourceAnchor.x,
+  sourceY = sourceAnchor.y,
+  targetX = targetAnchor.x,
+  targetY = targetAnchor.y,
+  sourceSpread,
+  targetSpread,
+  spreadStep = 18,
+  bendOffsetX,
+  bendOffsetY,
+  minimumCurveOffset = 40,
+}: PocEdgeCurveRequestOptions): PocEdgePathResolutionRequest {
+  return {
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourceSide: sourceAnchor.side,
+    targetSide: targetAnchor.side,
+    sourceSpread,
+    targetSpread,
+    sourceSlot: sourceAnchor.slot,
+    sourceSlotCount: sourceAnchor.slotCount,
+    targetSlot: targetAnchor.slot,
+    targetSlotCount: targetAnchor.slotCount,
+    spreadStep,
+    bendOffsetX,
+    bendOffsetY,
+    minimumCurveOffset,
+  };
 }
 
 export function resolvePocEdgeAnchorsBatch<TData extends Record<string, unknown>, TType extends string>(
@@ -511,44 +580,10 @@ export function resolvePocEdgeAnchorsBatch<TData extends Record<string, unknown>
     .filter((entry): entry is PocResolvedEdgeAnchors => entry !== null);
 }
 
-export function buildSmoothPocEdgePath({
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourceSide,
-  targetSide,
-  sourceSpread = 0,
-  targetSpread = 0,
-  bendOffsetX,
-  bendOffsetY,
-  minimumCurveOffset = 40,
-}: {
-  sourceX: number;
-  sourceY: number;
-  targetX: number;
-  targetY: number;
-  sourceSide: PocAnchorSide;
-  targetSide: PocAnchorSide;
-  sourceSpread?: number;
-  targetSpread?: number;
-  bendOffsetX?: number | null;
-  bendOffsetY?: number | null;
-  minimumCurveOffset?: number;
-}) {
+export function buildSmoothPocEdgePath(request: PocEdgePathResolutionRequest) {
   return buildPocSvgCurvePath(
     resolvePocSmoothEdgeCurve({
-      sourceX,
-      sourceY,
-      targetX,
-      targetY,
-      sourceSide,
-      targetSide,
-      sourceSpread,
-      targetSpread,
-      bendOffsetX,
-      bendOffsetY,
-      minimumCurveOffset,
+      ...request,
     }),
   );
 }
@@ -565,19 +600,24 @@ export function resolvePocSmoothEdgeCurve({
   bendOffsetX,
   bendOffsetY,
   minimumCurveOffset = 40,
-}: {
-  sourceX: number;
-  sourceY: number;
-  targetX: number;
-  targetY: number;
-  sourceSide: PocAnchorSide;
-  targetSide: PocAnchorSide;
-  sourceSpread?: number;
-  targetSpread?: number;
-  bendOffsetX?: number | null;
-  bendOffsetY?: number | null;
-  minimumCurveOffset?: number;
-}): PocResolvedEdgeCurve {
+  sourceSlot,
+  sourceSlotCount,
+  targetSlot,
+  targetSlotCount,
+  spreadStep = 18,
+}: PocEdgePathResolutionRequest): PocResolvedEdgeCurve {
+  const effectiveSourceSpread = resolvePocEdgeCurveSpread({
+    spread: sourceSpread,
+    slot: sourceSlot,
+    slotCount: sourceSlotCount,
+    spreadStep,
+  });
+  const effectiveTargetSpread = resolvePocEdgeCurveSpread({
+    spread: targetSpread,
+    slot: targetSlot,
+    slotCount: targetSlotCount,
+    spreadStep,
+  });
   const dx = targetX - sourceX;
   const dy = targetY - sourceY;
   const baseOffset = Math.max(minimumCurveOffset, Math.max(Math.abs(dx), Math.abs(dy)) * 0.28);
@@ -608,7 +648,7 @@ export function resolvePocSmoothEdgeCurve({
     sourceX,
     sourceY,
     sourceSide,
-    sourceSpread,
+    effectiveSourceSpread,
     bendInfluenceX * 0.16,
     bendInfluenceY * 0.34,
   );
@@ -616,7 +656,7 @@ export function resolvePocSmoothEdgeCurve({
     targetX,
     targetY,
     targetSide,
-    targetSpread,
+    effectiveTargetSpread,
     bendInfluenceX * 0.16,
     bendInfluenceY * 0.34,
   );

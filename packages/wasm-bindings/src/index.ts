@@ -61,6 +61,11 @@ export type HyperflowEdgePathResolutionRequest = {
   targetSide: HyperflowAnchorSide;
   sourceSpread?: number;
   targetSpread?: number;
+  sourceSlot?: number;
+  sourceSlotCount?: number;
+  targetSlot?: number;
+  targetSlotCount?: number;
+  spreadStep?: number;
   bendOffsetX?: number | null;
   bendOffsetY?: number | null;
   minimumCurveOffset?: number;
@@ -204,9 +209,9 @@ function encodeAnchorSide(side: HyperflowAnchorSide): number {
 }
 
 function packEdgePathRequests(requests: HyperflowEdgePathResolutionRequest[]): Float32Array {
-  const packed = new Float32Array(requests.length * 11);
+  const packed = new Float32Array(requests.length * 16);
   requests.forEach((request, index) => {
-    const offset = index * 11;
+    const offset = index * 16;
     packed[offset] = Number(request.sourceX);
     packed[offset + 1] = Number(request.sourceY);
     packed[offset + 2] = Number(request.targetX);
@@ -215,9 +220,14 @@ function packEdgePathRequests(requests: HyperflowEdgePathResolutionRequest[]): F
     packed[offset + 5] = encodeAnchorSide(request.targetSide);
     packed[offset + 6] = Number(request.sourceSpread ?? 0);
     packed[offset + 7] = Number(request.targetSpread ?? 0);
-    packed[offset + 8] = Number(request.bendOffsetX ?? 0);
-    packed[offset + 9] = Number(request.bendOffsetY ?? 0);
-    packed[offset + 10] = Number(request.minimumCurveOffset ?? 40);
+    packed[offset + 8] = Number(request.sourceSlot ?? -1);
+    packed[offset + 9] = Number(request.sourceSlotCount ?? 0);
+    packed[offset + 10] = Number(request.targetSlot ?? -1);
+    packed[offset + 11] = Number(request.targetSlotCount ?? 0);
+    packed[offset + 12] = Number(request.spreadStep ?? 18);
+    packed[offset + 13] = Number(request.bendOffsetX ?? 0);
+    packed[offset + 14] = Number(request.bendOffsetY ?? 0);
+    packed[offset + 15] = Number(request.minimumCurveOffset ?? 40);
   });
   return packed;
 }

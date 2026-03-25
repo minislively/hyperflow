@@ -191,7 +191,6 @@ export function createPocEdgeSpreadMaps(nodes, edges, nodeAnchorsById, spreadSte
         const center = getPocNodeCenter(node);
         return side === "left" || side === "right" ? center.y : center.x;
     };
-    const getCenteredSpread = (index, count)=>(index - (count - 1) / 2) * spreadStep;
     const outgoingBySource = new Map();
     const incomingByTarget = new Map();
     edges.forEach((edge)=>{
@@ -215,7 +214,7 @@ export function createPocEdgeSpreadMaps(nodes, edges, nodeAnchorsById, spreadSte
             if (!leftTarget || !rightTarget) return 0;
             return edgePositionMetric(leftTarget, sourceAnchor.side) - edgePositionMetric(rightTarget, sourceAnchor.side);
         }).forEach((edge, index, ordered)=>{
-            sourceSpreadByEdgeId.set(edge.id, getCenteredSpread(index, ordered.length));
+            sourceSpreadByEdgeId.set(edge.id, getPocCenteredSlotSpread(index, ordered.length, spreadStep));
         });
     });
     incomingByTarget.forEach((group, targetId)=>{
@@ -227,12 +226,42 @@ export function createPocEdgeSpreadMaps(nodes, edges, nodeAnchorsById, spreadSte
             if (!leftSource || !rightSource) return 0;
             return edgePositionMetric(leftSource, targetAnchor.side) - edgePositionMetric(rightSource, targetAnchor.side);
         }).forEach((edge, index, ordered)=>{
-            targetSpreadByEdgeId.set(edge.id, getCenteredSpread(index, ordered.length));
+            targetSpreadByEdgeId.set(edge.id, getPocCenteredSlotSpread(index, ordered.length, spreadStep));
         });
     });
     return {
         sourceSpreadByEdgeId,
         targetSpreadByEdgeId
+    };
+}
+export function getPocCenteredSlotSpread(slot, slotCount, spreadStep = 18) {
+    if (slotCount <= 1) return 0;
+    return (slot - (slotCount - 1) / 2) * spreadStep;
+}
+export function resolvePocEdgeCurveSpread({ spread, slot, slotCount, spreadStep = 18 }) {
+    if (typeof slot === "number" && Number.isFinite(slot) && typeof slotCount === "number" && slotCount > 0) {
+        return getPocCenteredSlotSpread(slot, slotCount, spreadStep);
+    }
+    return spread ?? 0;
+}
+export function createPocEdgePathResolutionRequest({ sourceAnchor, targetAnchor, sourceX = sourceAnchor.x, sourceY = sourceAnchor.y, targetX = targetAnchor.x, targetY = targetAnchor.y, sourceSpread, targetSpread, spreadStep = 18, bendOffsetX, bendOffsetY, minimumCurveOffset = 40 }) {
+    return {
+        sourceX,
+        sourceY,
+        targetX,
+        targetY,
+        sourceSide: sourceAnchor.side,
+        targetSide: targetAnchor.side,
+        sourceSpread,
+        targetSpread,
+        sourceSlot: sourceAnchor.slot,
+        sourceSlotCount: sourceAnchor.slotCount,
+        targetSlot: targetAnchor.slot,
+        targetSlotCount: targetAnchor.slotCount,
+        spreadStep,
+        bendOffsetX,
+        bendOffsetY,
+        minimumCurveOffset
     };
 }
 export function resolvePocEdgeAnchorsBatch(nodes, edges, nodeAnchorsById, resolveLowLevelAnchors = resolvePocLowLevelEdgeAnchorsBatch) {
@@ -332,22 +361,24 @@ export function resolvePocEdgeAnchorsBatch(nodes, edges, nodeAnchorsById, resolv
         };
     }).filter((entry)=>entry !== null);
 }
-export function buildSmoothPocEdgePath({ sourceX, sourceY, targetX, targetY, sourceSide, targetSide, sourceSpread = 0, targetSpread = 0, bendOffsetX, bendOffsetY, minimumCurveOffset = 40 }) {
+export function buildSmoothPocEdgePath(request) {
     return buildPocSvgCurvePath(resolvePocSmoothEdgeCurve({
-        sourceX,
-        sourceY,
-        targetX,
-        targetY,
-        sourceSide,
-        targetSide,
-        sourceSpread,
-        targetSpread,
-        bendOffsetX,
-        bendOffsetY,
-        minimumCurveOffset
+        ...request
     }));
 }
-export function resolvePocSmoothEdgeCurve({ sourceX, sourceY, targetX, targetY, sourceSide, targetSide, sourceSpread = 0, targetSpread = 0, bendOffsetX, bendOffsetY, minimumCurveOffset = 40 }) {
+export function resolvePocSmoothEdgeCurve({ sourceX, sourceY, targetX, targetY, sourceSide, targetSide, sourceSpread = 0, targetSpread = 0, bendOffsetX, bendOffsetY, minimumCurveOffset = 40, sourceSlot, sourceSlotCount, targetSlot, targetSlotCount, spreadStep = 18 }) {
+    const effectiveSourceSpread = resolvePocEdgeCurveSpread({
+        spread: sourceSpread,
+        slot: sourceSlot,
+        slotCount: sourceSlotCount,
+        spreadStep
+    });
+    const effectiveTargetSpread = resolvePocEdgeCurveSpread({
+        spread: targetSpread,
+        slot: targetSlot,
+        slotCount: targetSlotCount,
+        spreadStep
+    });
     const dx = targetX - sourceX;
     const dy = targetY - sourceY;
     const baseOffset = Math.max(minimumCurveOffset, Math.max(Math.abs(dx), Math.abs(dy)) * 0.28);
@@ -377,8 +408,8 @@ export function resolvePocSmoothEdgeCurve({ sourceX, sourceY, targetX, targetY, 
     }
     const bendInfluenceX = bendOffsetX ?? 0;
     const bendInfluenceY = bendOffsetY ?? 0;
-    const sourceControl = buildDirectionalControlPoint(sourceX, sourceY, sourceSide, sourceSpread, bendInfluenceX * 0.16, bendInfluenceY * 0.34);
-    const targetControl = buildDirectionalControlPoint(targetX, targetY, targetSide, targetSpread, bendInfluenceX * 0.16, bendInfluenceY * 0.34);
+    const sourceControl = buildDirectionalControlPoint(sourceX, sourceY, sourceSide, effectiveSourceSpread, bendInfluenceX * 0.16, bendInfluenceY * 0.34);
+    const targetControl = buildDirectionalControlPoint(targetX, targetY, targetSide, effectiveTargetSpread, bendInfluenceX * 0.16, bendInfluenceY * 0.34);
     return {
         sourceX,
         sourceY,
