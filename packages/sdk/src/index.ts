@@ -66,6 +66,19 @@ export type PocResolvedEdgeAnchors = {
   targetAnchor: PocResolvedEdgeAnchor;
 };
 
+export type PocResolvedRenderableEdge = {
+  id: string;
+  sourceAnchor: PocResolvedEdgeAnchor;
+  targetAnchor: PocResolvedEdgeAnchor;
+  curve: PocResolvedEdgeCurve;
+  path: string;
+  bendOffsetWorldX: number;
+  bendOffsetWorldY: number;
+  bendWorldX: number;
+  bendWorldY: number;
+  hasBend: boolean;
+};
+
 export type PocEdgeCurveRequestOptions = {
   sourceAnchor: PocResolvedEdgeAnchor;
   targetAnchor: PocResolvedEdgeAnchor;
@@ -79,6 +92,17 @@ export type PocEdgeCurveRequestOptions = {
   bendOffsetX?: number | null;
   bendOffsetY?: number | null;
   minimumCurveOffset?: number;
+};
+
+export type PocRenderableEdgeResolutionOptions<TData extends Record<string, unknown>, TType extends string> = {
+  nodes: Array<PocNode<TData, TType>>;
+  edges: PocEdge[];
+  resolvedEdgeAnchorsById: Map<string, PocResolvedEdgeAnchors>;
+  projectX?: (worldX: number) => number;
+  projectY?: (worldY: number) => number;
+  spreadStep?: number;
+  minimumCurveOffset?: number;
+  resolveCurves?: (requests: PocEdgePathResolutionRequest[]) => PocResolvedEdgeCurve[];
 };
 
 export type PocEdgeAnchorResolutionRequest = {
@@ -622,6 +646,92 @@ export function buildSmoothPocEdgePath(request: PocEdgePathResolutionRequest) {
       ...request,
     }),
   );
+}
+
+export function resolvePocRenderableEdgesBatch<TData extends Record<string, unknown>, TType extends string>({
+  nodes,
+  edges,
+  resolvedEdgeAnchorsById,
+  projectX = (value) => value,
+  projectY = (value) => value,
+  spreadStep = 18,
+  minimumCurveOffset = 40,
+  resolveCurves,
+}: PocRenderableEdgeResolutionOptions<TData, TType>): PocResolvedRenderableEdge[] {
+  const nodeById = new Map(nodes.map((node) => [Number(node.id), node] as const));
+  const requests: Array<{
+    id: string;
+    sourceAnchor: PocResolvedEdgeAnchor;
+    targetAnchor: PocResolvedEdgeAnchor;
+    request: PocEdgePathResolutionRequest;
+    bendOffsetWorldX: number;
+    bendOffsetWorldY: number;
+    bendWorldX: number;
+    bendWorldY: number;
+    hasBend: boolean;
+  }> = [];
+
+  edges.forEach((edge) => {
+    const sourceNode = nodeById.get(Number(edge.source));
+    const targetNode = nodeById.get(Number(edge.target));
+    if (!sourceNode || !targetNode) return;
+
+    const resolvedEdgeAnchors = resolvedEdgeAnchorsById.get(edge.id);
+    const sourceAnchor = resolvedEdgeAnchors?.sourceAnchor;
+    const targetAnchor = resolvedEdgeAnchors?.targetAnchor;
+    if (!sourceAnchor || !targetAnchor) return;
+
+    const sourceCenter = getPocNodeCenter(sourceNode);
+    const targetCenter = getPocNodeCenter(targetNode);
+    const defaultBendWorldX = (sourceCenter.x + targetCenter.x) / 2;
+    const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
+    const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
+    const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
+
+    requests.push({
+      id: edge.id,
+      sourceAnchor,
+      targetAnchor,
+      request: createPocEdgePathResolutionRequest({
+        sourceAnchor,
+        targetAnchor,
+        sourceX: projectX(sourceAnchor.x),
+        sourceY: projectY(sourceAnchor.y),
+        targetX: projectX(targetAnchor.x),
+        targetY: projectY(targetAnchor.y),
+        spreadStep,
+        bendOffsetX: edge.bend ? projectX(bendWorldX) - projectX(defaultBendWorldX) : null,
+        bendOffsetY: edge.bend ? projectY(bendWorldY) - projectY(defaultBendWorldY) : null,
+        minimumCurveOffset,
+      }),
+      bendOffsetWorldX: edge.bend?.x ?? 0,
+      bendOffsetWorldY: edge.bend?.y ?? 0,
+      bendWorldX,
+      bendWorldY,
+      hasBend: Boolean(edge.bend),
+    });
+  });
+
+  const requestPayload = requests.map((entry) => entry.request);
+  const curves = resolveCurves
+    ? resolveCurves(requestPayload)
+    : requestPayload.map((request) => resolvePocSmoothEdgeCurve(request));
+
+  return requests.map((entry, index) => {
+    const curve = curves[index] ?? resolvePocSmoothEdgeCurve(entry.request);
+    return {
+      id: entry.id,
+      sourceAnchor: entry.sourceAnchor,
+      targetAnchor: entry.targetAnchor,
+      curve,
+      path: buildPocSvgCurvePath(curve),
+      bendOffsetWorldX: entry.bendOffsetWorldX,
+      bendOffsetWorldY: entry.bendOffsetWorldY,
+      bendWorldX: entry.bendWorldX,
+      bendWorldY: entry.bendWorldY,
+      hasBend: entry.hasBend,
+    };
+  });
 }
 
 export function resolvePocSmoothEdgeCurve({

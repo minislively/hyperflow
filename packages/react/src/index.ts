@@ -18,6 +18,7 @@ export {
   resolvePocEdgeAnchorsBatch,
   resolvePocEdgeCurveSpread,
   resolvePocLowLevelEdgeAnchorsBatch,
+  resolvePocRenderableEdgesBatch,
   resolvePocSmoothEdgeCurve,
   resolvePocNodeAnchors,
 } from "@hyperflow/sdk";
@@ -31,6 +32,7 @@ export type {
   PocNodePosition,
   PocResolvedEdgeAnchor,
   PocResolvedEdgeAnchors,
+  PocResolvedRenderableEdge,
   PocLowLevelEdgeAnchorResolutionRequest,
   PocLowLevelResolvedEdgeAnchor,
   PocResolvedNodeAnchors,

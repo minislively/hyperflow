@@ -401,6 +401,67 @@ export function buildSmoothPocEdgePath(request) {
         ...request
     }));
 }
+export function resolvePocRenderableEdgesBatch({ nodes, edges, resolvedEdgeAnchorsById, projectX = (value)=>value, projectY = (value)=>value, spreadStep = 18, minimumCurveOffset = 40, resolveCurves }) {
+    const nodeById = new Map(nodes.map((node)=>[
+            Number(node.id),
+            node
+        ]));
+    const requests = [];
+    edges.forEach((edge)=>{
+        const sourceNode = nodeById.get(Number(edge.source));
+        const targetNode = nodeById.get(Number(edge.target));
+        if (!sourceNode || !targetNode) return;
+        const resolvedEdgeAnchors = resolvedEdgeAnchorsById.get(edge.id);
+        const sourceAnchor = resolvedEdgeAnchors?.sourceAnchor;
+        const targetAnchor = resolvedEdgeAnchors?.targetAnchor;
+        if (!sourceAnchor || !targetAnchor) return;
+        const sourceCenter = getPocNodeCenter(sourceNode);
+        const targetCenter = getPocNodeCenter(targetNode);
+        const defaultBendWorldX = (sourceCenter.x + targetCenter.x) / 2;
+        const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
+        const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
+        const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
+        requests.push({
+            id: edge.id,
+            sourceAnchor,
+            targetAnchor,
+            request: createPocEdgePathResolutionRequest({
+                sourceAnchor,
+                targetAnchor,
+                sourceX: projectX(sourceAnchor.x),
+                sourceY: projectY(sourceAnchor.y),
+                targetX: projectX(targetAnchor.x),
+                targetY: projectY(targetAnchor.y),
+                spreadStep,
+                bendOffsetX: edge.bend ? projectX(bendWorldX) - projectX(defaultBendWorldX) : null,
+                bendOffsetY: edge.bend ? projectY(bendWorldY) - projectY(defaultBendWorldY) : null,
+                minimumCurveOffset
+            }),
+            bendOffsetWorldX: edge.bend?.x ?? 0,
+            bendOffsetWorldY: edge.bend?.y ?? 0,
+            bendWorldX,
+            bendWorldY,
+            hasBend: Boolean(edge.bend)
+        });
+    });
+    const requestPayload = requests.map((entry)=>entry.request);
+    const curves = resolveCurves ? resolveCurves(requestPayload) : requestPayload.map((request)=>resolvePocSmoothEdgeCurve(request));
+    return requests.map((entry, index)=>{
+        const curve = curves[index] ?? resolvePocSmoothEdgeCurve(entry.request);
+        return {
+            id: entry.id,
+            sourceAnchor: entry.sourceAnchor,
+            targetAnchor: entry.targetAnchor,
+            curve,
+            path: buildPocSvgCurvePath(curve),
+            bendOffsetWorldX: entry.bendOffsetWorldX,
+            bendOffsetWorldY: entry.bendOffsetWorldY,
+            bendWorldX: entry.bendWorldX,
+            bendWorldY: entry.bendWorldY,
+            hasBend: entry.hasBend
+        };
+    });
+}
 export function resolvePocSmoothEdgeCurve({ sourceX, sourceY, targetX, targetY, sourceSide, targetSide, sourceSpread = 0, targetSpread = 0, bendOffsetX, bendOffsetY, minimumCurveOffset = 40, sourceSlot, sourceSlotCount, targetSlot, targetSlotCount, spreadStep = 18 }) {
     const effectiveSourceSpread = resolvePocEdgeCurveSpread({
         spread: sourceSpread,

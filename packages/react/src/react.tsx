@@ -1,18 +1,15 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
-  buildPocSvgCurvePath,
   buildSmoothPocEdgePath,
-  createPocEdgePathResolutionRequest,
   createPocEngine,
   getPocNodeCenter,
   offsetPocAnchorWithinSide,
   projectPocNodesToRuntimeNodes,
   resolvePocEdgeAnchorsBatch,
-  resolvePocSmoothEdgeCurve,
+  resolvePocRenderableEdgesBatch,
   resolvePocNodeAnchors,
   type PocEngine,
   type PocEdge,
-  type PocEdgePathResolutionRequest,
   type PocMetrics,
   type PocAnchorSide,
   type PocNode,
@@ -568,12 +565,23 @@ export function HyperFlowPocCanvas({
     if (!connectionDragRef.current || !matchesConnectionPointer(pointerId)) return false;
 
     const connectionDrag = connectionDragRef.current;
-    const targetNodeId = connectionDrag.hoveredTargetId;
-    if (
-      connectionDrag.moved &&
-      targetNodeId !== null &&
-      Number(targetNodeId) !== Number(connectionDrag.sourceNodeId)
-    ) {
+    let targetNodeId = connectionDrag.hoveredTargetId;
+    if (targetNodeId === null && engine && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const screenX = connectionDrag.currentX - rect.left;
+      const screenY = connectionDrag.currentY - rect.top;
+      if (screenX >= 0 && screenY >= 0 && screenX <= rect.width && screenY <= rect.height) {
+        const worldPoint = {
+          x: viewportRef.current.x + screenX / viewportRef.current.zoom,
+          y: viewportRef.current.y + screenY / viewportRef.current.zoom,
+        };
+        const hitNodeId = engine.hitTest(worldPoint);
+        if (hitNodeId !== null && Number(hitNodeId) !== Number(connectionDrag.sourceNodeId)) {
+          targetNodeId = hitNodeId;
+        }
+      }
+    }
+    if (targetNodeId !== null && Number(targetNodeId) !== Number(connectionDrag.sourceNodeId)) {
       onEdgeConnect?.(connectionDrag.sourceNodeId, targetNodeId);
       selectNode(targetNodeId);
       selectEdge(null);
@@ -1010,67 +1018,23 @@ export function HyperFlowPocCanvas({
   );
 
   const renderedEdges = useMemo(() => {
-    const edgeRequests: Array<
-      {
-        id: string;
-        bendOffsetWorldX: number;
-        bendOffsetWorldY: number;
-        bendWorldX: number;
-        bendWorldY: number;
-        hasBend: boolean;
-      } & PocEdgePathResolutionRequest
-    > = [];
-
-    edges.forEach((edge) => {
-      const sourceNode = nodeById.get(Number(edge.source));
-      const targetNode = nodeById.get(Number(edge.target));
-      if (!sourceNode || !targetNode) return;
-
-      const sourceCenter = getPocNodeCenter(sourceNode);
-      const targetCenter = getPocNodeCenter(targetNode);
-      const defaultBendWorldX = (sourceCenter.x + targetCenter.x) / 2;
-      const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
-      const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
-      const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
-      const resolvedEdgeAnchors = resolvedEdgeAnchorsById.get(edge.id);
-      const sourceAnchor = resolvedEdgeAnchors?.sourceAnchor;
-      const targetAnchor = resolvedEdgeAnchors?.targetAnchor;
-      if (!sourceAnchor || !targetAnchor) return;
-
-      edgeRequests.push({
-        id: edge.id,
-        ...createPocEdgePathResolutionRequest({
-          sourceAnchor,
-          targetAnchor,
-          sourceX: (sourceAnchor.x - viewport.x) * viewport.zoom,
-          sourceY: (sourceAnchor.y - viewport.y) * viewport.zoom,
-          targetX: (targetAnchor.x - viewport.x) * viewport.zoom,
-          targetY: (targetAnchor.y - viewport.y) * viewport.zoom,
-          spreadStep: 18 * viewport.zoom,
-          minimumCurveOffset: 40,
-        }),
-        bendOffsetX: edge.bend ? edge.bend.x * viewport.zoom : null,
-        bendOffsetY: edge.bend ? edge.bend.y * viewport.zoom : null,
-        bendOffsetWorldX: edge.bend?.x ?? 0,
-        bendOffsetWorldY: edge.bend?.y ?? 0,
-        bendWorldX,
-        bendWorldY,
-        hasBend: Boolean(edge.bend),
-      });
-    });
-
-    const resolvedCurves = engine
-      ? engine.resolveEdgeCurvesBatch(edgeRequests)
-      : edgeRequests.map((request) => resolvePocSmoothEdgeCurve(request));
-
-    return edgeRequests.map((request, index) => ({
-      id: request.id,
-      path: buildPocSvgCurvePath(resolvedCurves[index] ?? resolvePocSmoothEdgeCurve(request)),
-      bendOffsetWorldX: request.bendOffsetWorldX,
-      bendOffsetWorldY: request.bendOffsetWorldY,
-      bendWorldX: request.bendWorldX,
-      bendWorldY: request.bendWorldY,
-      hasBend: request.hasBend,
+    return resolvePocRenderableEdgesBatch({
+      nodes,
+      edges,
+      resolvedEdgeAnchorsById,
+      projectX: (worldX) => (worldX - viewport.x) * viewport.zoom,
+      projectY: (worldY) => (worldY - viewport.y) * viewport.zoom,
+      spreadStep: 18 * viewport.zoom,
+      minimumCurveOffset: 40,
+      resolveCurves: engine ? (requests) => engine.resolveEdgeCurvesBatch(requests) : undefined,
+    }).map((entry) => ({
+      id: entry.id,
+      path: entry.path,
+      bendOffsetWorldX: entry.bendOffsetWorldX,
+      bendOffsetWorldY: entry.bendOffsetWorldY,
+      bendWorldX: entry.bendWorldX,
+      bendWorldY: entry.bendWorldY,
+      hasBend: entry.hasBend,
     })) as Array<{
       id: string;
       path: string;
@@ -1080,7 +1044,7 @@ export function HyperFlowPocCanvas({
       bendWorldY: number;
       hasBend: boolean;
     }>;
-  }, [edges, engine, nodeById, nodes, resolvedEdgeAnchorsById, viewport.x, viewport.y, viewport.zoom]);
+  }, [edges, engine, nodes, resolvedEdgeAnchorsById, viewport.x, viewport.y, viewport.zoom]);
 
   const renderedHandles = useMemo(() => {
     if (!onEdgeConnect) return [];

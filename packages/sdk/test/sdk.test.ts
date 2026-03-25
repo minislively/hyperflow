@@ -15,6 +15,7 @@ import {
   projectPocNodesToRuntimeNodes,
   resolvePocEdgeAnchorsBatch,
   resolvePocEdgeCurveSpread,
+  resolvePocRenderableEdgesBatch,
   resolvePocSmoothEdgeCurve,
   resolvePocNodeAnchors,
   type PocRuntimeNode,
@@ -362,6 +363,63 @@ test("resolvePocSmoothEdgeCurve keeps opposite-side sibling lanes aligned when o
 
   assert.equal(curve.sourceControlY - curve.sourceY, curve.targetControlY - curve.targetY);
   assert.notEqual(curve.sourceControlY, curve.sourceY);
+});
+
+test("resolvePocRenderableEdgesBatch reuses one projected edge-path contract", () => {
+  const nodes = [
+    {
+      id: 1,
+      type: "default",
+      position: { x: 0, y: 0 },
+      size: { width: 180, height: 96 },
+      data: { title: "A" },
+    },
+    {
+      id: 2,
+      type: "default",
+      position: { x: 260, y: 40 },
+      size: { width: 180, height: 96 },
+      data: { title: "B" },
+    },
+  ] as const;
+
+  const anchorMap = new Map(
+    nodes.map((node) => {
+      const center = getPocNodeCenter(node);
+      return [
+        Number(node.id),
+        resolvePocNodeAnchors(node, {
+          inputToward: { x: center.x - 1, y: center.y },
+          outputToward: { x: center.x + 1, y: center.y },
+        }),
+      ] as const;
+    }),
+  );
+
+  const resolvedEdgeAnchorsById = new Map(
+    resolvePocEdgeAnchorsBatch(nodes.slice(), [{ id: "e-1-2", source: 1, target: 2 }], anchorMap).map((entry) => [entry.edgeId, entry] as const),
+  );
+
+  let capturedRequests = 0;
+  const rendered = resolvePocRenderableEdgesBatch({
+    nodes: nodes.slice(),
+    edges: [{ id: "e-1-2", source: 1, target: 2, bend: { x: 30, y: -20 } }],
+    resolvedEdgeAnchorsById,
+    projectX: (x) => x * 0.5,
+    projectY: (y) => y * 0.5,
+    spreadStep: 9,
+    minimumCurveOffset: 12,
+    resolveCurves(requests) {
+      capturedRequests = requests.length;
+      return requests.map((request) => resolvePocSmoothEdgeCurve(request));
+    },
+  });
+
+  assert.equal(capturedRequests, 1);
+  assert.equal(rendered.length, 1);
+  assert.match(rendered[0]!.path, /^M /);
+  assert.equal(rendered[0]!.hasBend, true);
+  assert.ok(rendered[0]!.curve.sourceX < rendered[0]!.curve.targetX);
 });
 
 test("buildPocSvgCurvePath formats a resolved curve as an svg cubic path", () => {

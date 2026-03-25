@@ -77,6 +77,8 @@ That split is intentional. It makes the public node model easier to compare agai
 
 The current slice also now exposes a **shared anchor/path calculation seam** in the SDK.
 
+That seam is now intentionally consumable as a single rendered-edge helper (`resolvePocRenderableEdgesBatch(...)`) so the main canvas and starter minimap do not each maintain their own curve-projection math.
+
 That seam is intentionally used by both:
 
 - the main React canvas overlay

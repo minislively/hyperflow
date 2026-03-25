@@ -1,14 +1,12 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
-  buildPocSvgCurvePath,
   HyperFlowPocCanvas,
   type HyperFlowPocNodeRendererProps,
-  createPocEdgePathResolutionRequest,
   createPocViewport,
   fitPocViewportToNodes,
   getPocNodeCenter,
   resolvePocEdgeAnchorsBatch,
-  resolvePocSmoothEdgeCurve,
+  resolvePocRenderableEdgesBatch,
   resolvePocNodeAnchors,
   updateNodeData,
   useWorkflowEdgesState,
@@ -2626,6 +2624,20 @@ function EditorMiniMap({
     return new Map(resolvePocEdgeAnchorsBatch(nodes, edges, anchorMaps).map((entry) => [entry.edgeId, entry] as const));
   }, [anchorMaps, edges, nodes]);
 
+  const renderedEdges = useMemo(
+    () =>
+      resolvePocRenderableEdgesBatch({
+        nodes,
+        edges,
+        resolvedEdgeAnchorsById: edgeAnchorsById,
+        projectX: model.projectX,
+        projectY: model.projectY,
+        spreadStep: 18 * model.scale,
+        minimumCurveOffset: 10,
+      }),
+    [edgeAnchorsById, edges, model.projectX, model.projectY, model.scale, nodes],
+  );
+
   function recenterViewport(clientX: number, clientY: number, rect: DOMRect) {
     const localX = clientX - rect.left;
     const localY = clientY - rect.top;
@@ -2648,49 +2660,13 @@ function EditorMiniMap({
     >
       <span className="editor-minimap-title">{title}</span>
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-hidden="true">
-        {edges.map((edge) => {
-          const sourceNode = nodes.find((node) => Number(node.id) === Number(edge.source));
-          const targetNode = nodes.find((node) => Number(node.id) === Number(edge.target));
-          if (!sourceNode || !targetNode) return null;
-
-          const sourceCenter = getPocNodeCenter(sourceNode);
-          const targetCenter = getPocNodeCenter(targetNode);
-          const defaultBendWorldX = (sourceCenter.x + targetCenter.x) / 2;
-          const defaultBendWorldY = (sourceCenter.y + targetCenter.y) / 2;
-          const bendWorldX = defaultBendWorldX + (edge.bend?.x ?? 0);
-          const bendWorldY = defaultBendWorldY + (edge.bend?.y ?? 0);
-          const resolvedEdgeAnchors = edgeAnchorsById.get(edge.id);
-          const sourceAnchor = resolvedEdgeAnchors?.sourceAnchor;
-          const targetAnchor = resolvedEdgeAnchors?.targetAnchor;
-          if (!sourceAnchor || !targetAnchor) return null;
-          const x1 = model.projectX(sourceAnchor.x);
-          const y1 = model.projectY(sourceAnchor.y);
-          const x2 = model.projectX(targetAnchor.x);
-          const y2 = model.projectY(targetAnchor.y);
-          const bendOffsetX = edge.bend ? model.projectX(bendWorldX) - model.projectX(defaultBendWorldX) : null;
-          const bendOffsetY = edge.bend ? model.projectY(bendWorldY) - model.projectY(defaultBendWorldY) : null;
-          const curve = resolvePocSmoothEdgeCurve(
-            createPocEdgePathResolutionRequest({
-              sourceAnchor,
-              targetAnchor,
-              sourceX: x1,
-              sourceY: y1,
-              targetX: x2,
-              targetY: y2,
-              spreadStep: 18 * model.scale,
-              bendOffsetX,
-              bendOffsetY,
-              minimumCurveOffset: 10,
-            }),
-          );
-          return (
-            <path
-              key={edge.id}
-              className="editor-minimap-edge"
-              d={buildPocSvgCurvePath(curve)}
-            />
-          );
-        })}
+        {renderedEdges.map((edge) => (
+          <path
+            key={edge.id}
+            className="editor-minimap-edge"
+            d={edge.path}
+          />
+        ))}
         {nodes.map((node) => (
           <rect
             key={node.id}
