@@ -350,6 +350,35 @@ test("edges switch to the matching side when a source node moves across its targ
     expect(moveTo.y).toBeGreaterThan(localSourceTop - 8);
     expect(moveTo.y).toBeLessThan(localSourceTop + movedSourceBox.height + 8);
 });
+test("diagonally rightward edges keep using the right side instead of borrowing the top edge", async ({ page })=>{
+    await page.goto("/ko");
+    const sourceNode = page.locator("[data-node-card-id='2']");
+    const targetNode = page.locator("[data-node-card-id='3']");
+    const targetBox = await targetNode.boundingBox();
+    if (!targetBox) throw new Error("node 3 missing before diagonal routing test");
+    await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(targetBox.x + targetBox.width / 2 + 140, targetBox.y + targetBox.height / 2 - 260, {
+        steps: 12
+    });
+    await page.mouse.up();
+    const sourceBox = await sourceNode.boundingBox();
+    const movedTargetBox = await targetNode.boundingBox();
+    const editorRegionBox = await page.getByRole("region", {
+        name: "HyperFlow 메인 editor"
+    }).boundingBox();
+    if (!sourceBox || !movedTargetBox || !editorRegionBox) {
+        throw new Error("missing node or editor region after diagonal routing drag");
+    }
+    const edgePath = await page.locator('.hf-edge-overlay-hit[data-edge-id="edge-b-c"]').getAttribute("d");
+    if (!edgePath) throw new Error("edge-b-c path missing after diagonal routing drag");
+    const moveTo = parseMoveTo(edgePath);
+    const localSourceRight = sourceBox.x - editorRegionBox.x + sourceBox.width;
+    const localSourceTop = sourceBox.y - editorRegionBox.y;
+    expect(Math.abs(moveTo.x - localSourceRight)).toBeLessThan(24);
+    expect(moveTo.y).toBeGreaterThan(localSourceTop - 8);
+    expect(moveTo.y).toBeLessThan(localSourceTop + sourceBox.height + 8);
+});
 test("editor save and restore keeps authoring state together", async ({ page })=>{
     await page.goto("/ko");
     await page.getByRole("button", {

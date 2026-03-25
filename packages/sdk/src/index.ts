@@ -43,6 +43,7 @@ export type PocEdge<TType extends string = string> = {
 export type PocAnchorSide = "left" | "right" | "top" | "bottom";
 
 const POC_ANCHOR_SIDES: PocAnchorSide[] = ["left", "right", "top", "bottom"];
+const POC_DIRECTIONAL_SIDE_SECTOR = Math.PI / 3;
 
 export type PocAnchorPoint = {
   x: number;
@@ -173,6 +174,34 @@ export function getPocNodeAnchorPoint<TData extends Record<string, unknown>, TTy
     : { x: center.x, y: node.position.y, side: "top" };
 }
 
+function getOppositePocAnchorSide(side: PocAnchorSide): PocAnchorSide {
+  switch (side) {
+    case "left":
+      return "right";
+    case "right":
+      return "left";
+    case "top":
+      return "bottom";
+    case "bottom":
+      return "top";
+  }
+}
+
+function resolvePocDirectionalAnchorSide(dx: number, dy: number): PocAnchorSide {
+  const angle = Math.atan2(dy, dx);
+
+  if (angle > -POC_DIRECTIONAL_SIDE_SECTOR && angle <= POC_DIRECTIONAL_SIDE_SECTOR) {
+    return "right";
+  }
+  if (angle > POC_DIRECTIONAL_SIDE_SECTOR && angle <= Math.PI - POC_DIRECTIONAL_SIDE_SECTOR) {
+    return "bottom";
+  }
+  if (angle <= -POC_DIRECTIONAL_SIDE_SECTOR && angle > -Math.PI + POC_DIRECTIONAL_SIDE_SECTOR) {
+    return "top";
+  }
+  return "left";
+}
+
 export function resolvePocNodeRoleAnchorSide<TData extends Record<string, unknown>, TType extends string>(
   node: PocNode<TData, TType>,
   options: {
@@ -187,32 +216,10 @@ export function resolvePocNodeRoleAnchorSide<TData extends Record<string, unknow
     const anchor = getPocNodeAnchorPointForSide(node, side);
     const dx = options.toward.x - center.x;
     const dy = options.toward.y - center.y;
-    const dominantAxis = Math.abs(dx) >= Math.abs(dy) ? "horizontal" : "vertical";
-    const preferredDirectionalSide =
-      dominantAxis === "horizontal"
-        ? dx >= 0
-          ? "right"
-          : "left"
-        : dy >= 0
-          ? "bottom"
-          : "top";
-    const oppositeDirectionalSide =
-      preferredDirectionalSide === "left"
-        ? "right"
-        : preferredDirectionalSide === "right"
-          ? "left"
-          : preferredDirectionalSide === "top"
-            ? "bottom"
-            : "top";
-
+    const preferredDirectionalSide = resolvePocDirectionalAnchorSide(dx, dy);
+    const oppositeDirectionalSide = getOppositePocAnchorSide(preferredDirectionalSide);
     const orthogonalPenalty =
-      dominantAxis === "horizontal"
-        ? side === "top" || side === "bottom"
-          ? 18
-          : 0
-        : side === "left" || side === "right"
-          ? 18
-          : 0;
+      side !== preferredDirectionalSide && side !== oppositeDirectionalSide ? 18 : 0;
     const oppositePenalty = side === oppositeDirectionalSide ? 42 : 0;
     const preferredPenalty = options.preferredSide && side !== options.preferredSide ? 36 : 0;
     const roleBiasPenalty =

@@ -46,6 +46,7 @@ const ALL_ANCHOR_SIDES: [AnchorSide; 4] = [
     AnchorSide::Top,
     AnchorSide::Bottom,
 ];
+const DIRECTIONAL_SIDE_SECTOR: f32 = std::f32::consts::PI / 3.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AnchorPoint {
@@ -394,6 +395,33 @@ pub fn get_node_anchor_point(node: Node, toward: Point) -> AnchorPoint {
     }
 }
 
+fn opposite_anchor_side(side: AnchorSide) -> AnchorSide {
+    match side {
+        AnchorSide::Left => AnchorSide::Right,
+        AnchorSide::Right => AnchorSide::Left,
+        AnchorSide::Top => AnchorSide::Bottom,
+        AnchorSide::Bottom => AnchorSide::Top,
+    }
+}
+
+fn resolve_directional_anchor_side(dx: f32, dy: f32) -> AnchorSide {
+    let angle = dy.atan2(dx);
+
+    if angle > -DIRECTIONAL_SIDE_SECTOR && angle <= DIRECTIONAL_SIDE_SECTOR {
+        AnchorSide::Right
+    } else if angle > DIRECTIONAL_SIDE_SECTOR
+        && angle <= std::f32::consts::PI - DIRECTIONAL_SIDE_SECTOR
+    {
+        AnchorSide::Bottom
+    } else if angle <= -DIRECTIONAL_SIDE_SECTOR
+        && angle > -std::f32::consts::PI + DIRECTIONAL_SIDE_SECTOR
+    {
+        AnchorSide::Top
+    } else {
+        AnchorSide::Left
+    }
+}
+
 pub fn get_orthogonal_anchor_point(node: Node, side: AnchorSide, toward: Point) -> AnchorPoint {
     let center = get_node_center(node);
 
@@ -547,15 +575,6 @@ pub fn resolve_node_anchors(
         }
     }
 
-    fn opposite_anchor_side(side: AnchorSide) -> AnchorSide {
-        match side {
-            AnchorSide::Left => AnchorSide::Right,
-            AnchorSide::Right => AnchorSide::Left,
-            AnchorSide::Top => AnchorSide::Bottom,
-            AnchorSide::Bottom => AnchorSide::Top,
-        }
-    }
-
     fn score_anchor_side(
         node: Node,
         toward: Point,
@@ -567,30 +586,14 @@ pub fn resolve_node_anchors(
         let anchor = get_node_anchor_point_for_side(node, side);
         let dx = toward.x - center.x;
         let dy = toward.y - center.y;
-        let dominant_axis_is_horizontal = dx.abs() >= dy.abs();
-        let preferred_directional_side = if dominant_axis_is_horizontal {
-            if dx >= 0.0 {
-                AnchorSide::Right
-            } else {
-                AnchorSide::Left
-            }
-        } else if dy >= 0.0 {
-            AnchorSide::Bottom
-        } else {
-            AnchorSide::Top
-        };
+        let preferred_directional_side = resolve_directional_anchor_side(dx, dy);
         let opposite_directional_side = opposite_anchor_side(preferred_directional_side);
-        let orthogonal_penalty = if dominant_axis_is_horizontal {
-            if side == AnchorSide::Top || side == AnchorSide::Bottom {
+        let orthogonal_penalty =
+            if side != preferred_directional_side && side != opposite_directional_side {
                 18.0
             } else {
                 0.0
-            }
-        } else if side == AnchorSide::Left || side == AnchorSide::Right {
-            18.0
-        } else {
-            0.0
-        };
+            };
         let opposite_penalty = if side == opposite_directional_side { 42.0 } else { 0.0 };
         let preferred_penalty = if preferred_side.is_some() && preferred_side != Some(side) {
             36.0

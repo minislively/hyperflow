@@ -101,6 +101,23 @@ test("bridge resolves node anchors with preferred editor-facing sides when reque
   assert.equal(resolved[0].outputAnchor.side, "right");
 });
 
+test("bridge keeps diagonally rightward node outputs on the right side", async () => {
+  const bridge = await bridgePromise;
+  const resolved = bridge.resolveNodeAnchorsBatch([
+    {
+      x: 120,
+      y: 220,
+      width: 180,
+      height: 96,
+      inputToward: { x: 210, y: 268 },
+      outputToward: { x: 430, y: 28 },
+    },
+  ]);
+
+  assert.equal(resolved.length, 1);
+  assert.equal(resolved[0].outputAnchor.side, "right");
+});
+
 test("bridge resolves same-side edge anchors into distinct slots", async () => {
   const bridge = await bridgePromise;
   const resolved = bridge.resolveEdgeAnchorsBatch([

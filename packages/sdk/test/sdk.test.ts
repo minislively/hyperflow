@@ -15,6 +15,7 @@ import {
   projectPocNodesToRuntimeNodes,
   resolvePocEdgeAnchorsBatch,
   resolvePocEdgeCurveSpread,
+  resolvePocNodeRoleAnchorSide,
   resolvePocRenderableEdgesBatch,
   resolvePocSmoothEdgeCurve,
   resolvePocNodeAnchors,
@@ -294,6 +295,80 @@ test("resolvePocEdgeAnchorsBatch resolves edge sides per edge instead of reusing
   assert.equal(resolved[0]!.targetAnchor.side, "left");
   assert.equal(resolved[1]!.sourceAnchor.side, "left");
   assert.equal(resolved[1]!.targetAnchor.side, "right");
+});
+
+test("resolvePocNodeRoleAnchorSide keeps diagonally rightward outputs on the right side", () => {
+  const node = {
+    id: 1,
+    type: "default",
+    position: { x: 120, y: 220 },
+    size: { width: 180, height: 96 },
+    data: { title: "Source" },
+  } as const;
+
+  const center = getPocNodeCenter(node);
+  assert.equal(
+    resolvePocNodeRoleAnchorSide(node, {
+      toward: { x: center.x + 220, y: center.y - 240 },
+      role: "output",
+    }),
+    "right",
+  );
+});
+
+test("resolvePocEdgeAnchorsBatch keeps same-direction siblings on the same rendered side", () => {
+  const nodes = [
+    {
+      id: 1,
+      type: "default",
+      position: { x: 120, y: 220 },
+      size: { width: 180, height: 96 },
+      data: { title: "Source" },
+    },
+    {
+      id: 2,
+      type: "default",
+      position: { x: 520, y: 120 },
+      size: { width: 180, height: 96 },
+      data: { title: "Upper right" },
+    },
+    {
+      id: 3,
+      type: "default",
+      position: { x: 520, y: 360 },
+      size: { width: 180, height: 96 },
+      data: { title: "Lower right" },
+    },
+  ] as const;
+
+  const anchorMap = new Map(
+    nodes.map((node) => {
+      const center = getPocNodeCenter(node);
+      return [
+        Number(node.id),
+        resolvePocNodeAnchors(node, {
+          inputToward: { x: center.x - 1, y: center.y },
+          outputToward: { x: center.x + 1, y: center.y },
+        }),
+      ] as const;
+    }),
+  );
+
+  const resolved = resolvePocEdgeAnchorsBatch(
+    nodes.slice(),
+    [
+      { id: "e-1-2", source: 1, target: 2 },
+      { id: "e-1-3", source: 1, target: 3 },
+    ],
+    anchorMap,
+  );
+
+  assert.equal(resolved.length, 2);
+  assert.equal(resolved[0]!.sourceAnchor.side, "right");
+  assert.equal(resolved[1]!.sourceAnchor.side, "right");
+  assert.equal(resolved[0]!.targetAnchor.side, "left");
+  assert.equal(resolved[1]!.targetAnchor.side, "left");
+  assert.notEqual(resolved[0]!.sourceAnchor.y, resolved[1]!.sourceAnchor.y);
 });
 
 test("resolvePocEdgeCurveSpread centers slot-based offsets", () => {
