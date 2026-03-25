@@ -378,6 +378,65 @@ function applyNodePositionUpdates<TData>(
   );
 }
 
+function appendLearnDemoEdge(
+  current: LearnDemoEdge[],
+  sourceNodeId: number,
+  targetNodeId: number,
+  options: { toggleExisting: boolean },
+) {
+  const duplicateIndex = current.findIndex(
+    (edge) => Number(edge.source) === Number(sourceNodeId) && Number(edge.target) === Number(targetNodeId),
+  );
+  if (duplicateIndex >= 0) {
+    return options.toggleExisting ? current.filter((_, index) => index !== duplicateIndex) : current;
+  }
+
+  return [
+    ...current,
+    {
+      id: `edge-${sourceNodeId}-${targetNodeId}-${current.length + 1}`,
+      source: sourceNodeId,
+      target: targetNodeId,
+      type: "default",
+      bend: null,
+    },
+  ];
+}
+
+function reconnectLearnDemoEdge(
+  current: LearnDemoEdge[],
+  edgeId: string,
+  next: { sourceNodeId?: number; targetNodeId?: number },
+) {
+  const existing = current.find((edge) => edge.id === edgeId);
+  if (!existing) return current;
+
+  const nextSourceNodeId = Number(next.sourceNodeId ?? existing.source);
+  const nextTargetNodeId = Number(next.targetNodeId ?? existing.target);
+  if (nextSourceNodeId === Number(existing.source) && nextTargetNodeId === Number(existing.target)) {
+    return current;
+  }
+  if (nextSourceNodeId === nextTargetNodeId) return current;
+
+  return current
+    .filter(
+      (edge) =>
+        edge.id === edgeId ||
+        Number(edge.source) !== nextSourceNodeId ||
+        Number(edge.target) !== nextTargetNodeId,
+    )
+    .map((edge) =>
+      edge.id === edgeId
+        ? {
+            ...edge,
+            source: nextSourceNodeId,
+            target: nextTargetNodeId,
+            bend: null,
+          }
+        : edge,
+    );
+}
+
 function getEditorRouteLabel(locale: Locale) {
   return locale === "ko" ? "에디터" : "Editor";
 }
@@ -2756,7 +2815,8 @@ function MainEditorSurface({
             nodes: "노드",
             edges: "엣지",
             zoom: "줌",
-            shortcuts: "N 노드 추가 · Shift+클릭 다중 선택 · Delete 삭제 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
+            shortcuts:
+              "N 노드 추가 · Shift+클릭 다중 선택 · Delete 삭제 · 엣지 선택 후 핸들 클릭 다시 연결 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
           },
           inspector: {
             eyebrow: "선택된 항목",
@@ -2795,7 +2855,8 @@ function MainEditorSurface({
             nodes: "Nodes",
             edges: "Edges",
             zoom: "Zoom",
-            shortcuts: "N adds nodes · Shift+click multi-select · Delete removes · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
+            shortcuts:
+              "N adds nodes · Shift+click multi-select · Delete removes · select an edge then click a handle to reconnect · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
           },
           inspector: {
             eyebrow: "Selected item",
@@ -3114,25 +3175,14 @@ function MainEditorSurface({
                   applyNodePositionUpdates(setNodes, updates);
                 }}
                 onEdgeConnect={(sourceNodeId, targetNodeId) => {
-                  setEdges((current) => {
-                    const existingIndex = current.findIndex(
-                      (edge) => Number(edge.source) === Number(sourceNodeId) && Number(edge.target) === Number(targetNodeId),
-                    );
-                    if (existingIndex >= 0) {
-                      return current.filter((_, index) => index !== existingIndex);
-                    }
-
-                    return [
-                      ...current,
-                      {
-                        id: `edge-${sourceNodeId}-${targetNodeId}-${current.length + 1}`,
-                        source: sourceNodeId,
-                        target: targetNodeId,
-                        type: "default",
-                        bend: null,
-                      },
-                    ];
-                  });
+                  setEdges((current) =>
+                    appendLearnDemoEdge(current, sourceNodeId, targetNodeId, {
+                      toggleExisting: true,
+                    }),
+                  );
+                }}
+                onEdgeReconnect={(edgeId, next) => {
+                  setEdges((current) => reconnectLearnDemoEdge(current, edgeId, next));
                 }}
                 onEdgeBendChange={(edgeId, nextBend) => {
                   setEdges((current) =>
@@ -3574,22 +3624,14 @@ function LearnInteractiveDemo({
               applyNodePositionUpdates(setNodes, updates);
             }}
             onEdgeConnect={(sourceNodeId, targetNodeId) => {
-              setEdges((current) => {
-                if (current.some((edge) => Number(edge.source) === Number(sourceNodeId) && Number(edge.target) === Number(targetNodeId))) {
-                  return current;
-                }
-
-                return [
-                  ...current,
-                  {
-                    id: `edge-${sourceNodeId}-${targetNodeId}-${current.length + 1}`,
-                    source: sourceNodeId,
-                    target: targetNodeId,
-                    type: "default",
-                    bend: null,
-                  },
-                ];
-              });
+              setEdges((current) =>
+                appendLearnDemoEdge(current, sourceNodeId, targetNodeId, {
+                  toggleExisting: false,
+                }),
+              );
+            }}
+            onEdgeReconnect={(edgeId, next) => {
+              setEdges((current) => reconnectLearnDemoEdge(current, edgeId, next));
             }}
             onEdgeBendChange={(edgeId, nextBend) => {
               setEdges((current) =>

@@ -167,6 +167,33 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
     }).click();
     await expect(nodeOne).toHaveCount(0);
 });
+test("selected edges can reconnect to another handle without creating a new edge", async ({ page })=>{
+    await page.goto("/ko");
+    const edge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]');
+    const edgeBox = await edge.boundingBox();
+    if (!edgeBox) throw new Error("missing edge-a-b before reconnect");
+    await page.mouse.click(edgeBox.x + edgeBox.width / 2, edgeBox.y + edgeBox.height / 2);
+    const targetThreeHandle = page.getByRole("button", {
+        name: "Connect into node 3"
+    });
+    const targetThreeHandleBox = await targetThreeHandle.boundingBox();
+    if (!targetThreeHandleBox) throw new Error("missing node 3 target handle before reconnect");
+    await page.mouse.click(targetThreeHandleBox.x + targetThreeHandleBox.width / 2, targetThreeHandleBox.y + targetThreeHandleBox.height / 2);
+    await page.getByRole("button", {
+        name: "저장"
+    }).click();
+    const snapshotText = await page.locator(".editor-snapshot").textContent();
+    if (!snapshotText) throw new Error("missing snapshot after edge reconnect");
+    const snapshot = JSON.parse(snapshotText);
+    const reconnectedEdge = snapshot.edges.find((entry)=>Number(entry.source) === 1 && Number(entry.target) === 3);
+    if (!reconnectedEdge) throw new Error("missing reconnected edge in snapshot");
+    expect(reconnectedEdge.source).toBe(1);
+    expect(reconnectedEdge.target).toBe(3);
+    expect(reconnectedEdge.bend).toBeNull();
+    expect(snapshot.edges).toHaveLength(2);
+    await expect(page.getByText("엣지: 2")).toBeVisible();
+    await expect(page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]')).toHaveCount(1);
+});
 test("dragging a node updates connected edges immediately", async ({ page })=>{
     await page.goto("/ko");
     const nodeTwo = page.locator("[data-node-card-id='2']");

@@ -66,6 +66,7 @@ export type HyperFlowPocCanvasProps = {
   onNodesPositionChange?: (updates: Array<{ nodeId: number; nextPosition: PocNode["position"] }>) => void;
   onViewportChange?: (viewport: PocViewport) => void;
   onEdgeConnect?: (sourceNodeId: number, targetNodeId: number) => void;
+  onEdgeReconnect?: (edgeId: string, next: { sourceNodeId?: number; targetNodeId?: number }) => void;
   onEdgeBendChange?: (edgeId: string, nextBend: PocEdge["bend"]) => void;
   onMetricsChange?: (metrics: PocMetrics) => void;
   onReadyChange?: (ready: boolean) => void;
@@ -97,6 +98,7 @@ export function HyperFlowPocCanvas({
   onNodesPositionChange,
   onViewportChange,
   onEdgeConnect,
+  onEdgeReconnect,
   onEdgeBendChange,
   onMetricsChange,
   onReadyChange,
@@ -1145,6 +1147,7 @@ export function HyperFlowPocCanvas({
         isActive:
           pendingConnectionSourceId !== null ||
           connectionPreview !== null ||
+          selectedEdgeId !== null ||
           activeDragNodeIdsSet.has(Number(node.id)) ||
           selectedNodeIdsSet.has(Number(node.id)) ||
           Number(pendingConnectionSourceId) === Number(node.id),
@@ -1166,6 +1169,7 @@ export function HyperFlowPocCanvas({
     pendingConnectionSourceId,
     resolvedEdgeAnchorsById,
     resolvedNodeAnchorsById,
+    selectedEdgeId,
     selectedNodeIdsSet,
     viewport.x,
     viewport.y,
@@ -1173,6 +1177,19 @@ export function HyperFlowPocCanvas({
   ]);
 
   function handleHandleClick(role: "source" | "target", nodeId: number) {
+    if (selectedEdgeId !== null && onEdgeReconnect) {
+      if (role === "source") {
+        onEdgeReconnect(selectedEdgeId, { sourceNodeId: nodeId });
+      } else {
+        onEdgeReconnect(selectedEdgeId, { targetNodeId: nodeId });
+      }
+      selectNode(nodeId);
+      selectEdge(selectedEdgeId);
+      setPendingConnectionSourceId(null);
+      suppressNextHandleClickRef.current = false;
+      return;
+    }
+
     if (!onEdgeConnect) return;
 
     if (role === "source") {
