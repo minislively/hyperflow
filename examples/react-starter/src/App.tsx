@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
   HyperFlowPocCanvas,
   type HyperFlowPocNodeRendererProps,
@@ -3390,6 +3390,15 @@ function MainEditorSurface({
   const perfBaseline = editorPerfBaselines[graphPreset];
   const perfBaselineStatus = evaluatePerfBaseline(perfReadout, perfBaseline);
   const perfBaselineTarget = formatPerfBaselineTarget(perfBaseline);
+  const deferredMinimapNodes = useDeferredValue(nodes);
+  const deferredMinimapEdges = useDeferredValue(edges);
+  const deferredMinimapViewport = useDeferredValue(viewport);
+  const shouldDeferMiniMap =
+    graphPreset === "benchmark" &&
+    (perfReadout.interactionPhase === "dragging" || perfReadout.interactionPhase === "zooming");
+  const minimapNodes = shouldDeferMiniMap ? deferredMinimapNodes : nodes;
+  const minimapEdges = shouldDeferMiniMap ? deferredMinimapEdges : edges;
+  const minimapViewport = shouldDeferMiniMap ? deferredMinimapViewport : viewport;
 
   const fitView = useCallback(() => {
     hasUserAdjustedViewportRef.current = true;
@@ -3744,7 +3753,14 @@ function MainEditorSurface({
                 </span>
                 <span>{ui.status.shortcuts}</span>
               </div>
-              <EditorMiniMap locale={locale} engine={editorEngine} nodes={nodes} edges={edges} viewport={viewport} onViewportChange={handleViewportChange} />
+              <EditorMiniMap
+                locale={locale}
+                engine={editorEngine}
+                nodes={minimapNodes}
+                edges={minimapEdges}
+                viewport={minimapViewport}
+                onViewportChange={handleViewportChange}
+              />
               <HyperFlowPocCanvas
                 engine={editorEngine}
                 className="hf-main-editor-canvas"
