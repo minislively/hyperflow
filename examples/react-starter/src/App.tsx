@@ -24,6 +24,14 @@ import {
   type PocResolvedNodeAnchors,
   type PocViewport,
 } from "@hyperflow/react";
+import {
+  editorPerfBaselines,
+  evaluatePerfBaseline,
+  formatPerfBaselineTarget,
+  maxPerfRecentInteractionWindow,
+  type EditorInteractionPhase,
+  type EditorPerfReadout,
+} from "./perf-baseline.js";
 
 type Locale = "ko" | "en";
 type SectionId = "learn" | "reference" | "examples" | "roadmap";
@@ -107,52 +115,7 @@ type LearnDemoNode = PocNode<{
 
 type LearnDemoEdge = PocEdge<"default">;
 
-type EditorInteractionPhase = "idle" | "dragging" | "zooming" | "settling";
-
-type EditorPerfReadout = {
-  fps: number | null;
-  renderMs: number | null;
-  viewportMs: number | null;
-  inputLatencyMs: number | null;
-  interactionPhase: EditorInteractionPhase;
-  frameSampleCount: number;
-  fixtureSize: number;
-  visibleCount: number;
-  avgRenderMs: number | null;
-  avgViewportMs: number | null;
-  avgInputLatencyMs: number | null;
-  peakInputLatencyMs: number | null;
-  budgetMissCount: number;
-  interactionFrameSampleCount: number;
-  interactionBudgetMissCount: number;
-  interactionBurstCount: number;
-  recentInteractionSampleCount: number;
-  recentAvgRenderMs: number | null;
-  recentAvgViewportMs: number | null;
-  recentAvgInputLatencyMs: number | null;
-  recentPeakInputLatencyMs: number | null;
-  recentBudgetMissRate: number | null;
-};
-
 type EditorGraphPreset = "starter" | "benchmark";
-type PerfBaselineStatus = "warming" | "within" | "over";
-
-type PerfBaseline = {
-  minSamples: number;
-  minInteractionSamples: number;
-  minInteractionBursts: number;
-  recentInteractionWindow: number;
-  maxAvgRenderMs: number;
-  maxAvgViewportMs: number;
-  maxAvgInputLatencyMs: number;
-  maxPeakInputLatencyMs: number;
-  maxBudgetMissRate: number;
-};
-
-type PerfBaselineEvaluation = {
-  status: PerfBaselineStatus;
-  detail: string;
-};
 
 
 const locales: Locale[] = ["ko", "en"];
@@ -206,110 +169,6 @@ const topLevelDefaultPage: Record<SectionId, PageId> = {
 
 const learnDemoCanvas = { width: 720, height: 360 } as const;
 const mainEditorCanvas = { width: 1280, height: 720 } as const;
-const editorPerfBaselines: Record<EditorGraphPreset, PerfBaseline> = {
-  starter: {
-    minSamples: 10,
-    minInteractionSamples: 4,
-    minInteractionBursts: 1,
-    recentInteractionWindow: 4,
-    maxAvgRenderMs: 8,
-    maxAvgViewportMs: 3,
-    maxAvgInputLatencyMs: 45,
-    maxPeakInputLatencyMs: 90,
-    maxBudgetMissRate: 0.2,
-  },
-  benchmark: {
-    minSamples: 18,
-    minInteractionSamples: 6,
-    minInteractionBursts: 2,
-    recentInteractionWindow: 6,
-    maxAvgRenderMs: 12,
-    maxAvgViewportMs: 5,
-    maxAvgInputLatencyMs: 65,
-    maxPeakInputLatencyMs: 130,
-    maxBudgetMissRate: 0.35,
-  },
-};
-const maxPerfRecentInteractionWindow = Math.max(
-  ...Object.values(editorPerfBaselines).map((baseline) => baseline.recentInteractionWindow),
-);
-
-function formatPerfBaselineTarget(baseline: PerfBaseline) {
-  return `F≥${baseline.minSamples} · A≥${baseline.minInteractionSamples} · S≥${baseline.minInteractionBursts} · W≥${baseline.recentInteractionWindow} · R≤${baseline.maxAvgRenderMs.toFixed(0)}ms · V≤${baseline.maxAvgViewportMs.toFixed(0)}ms · I≤${baseline.maxAvgInputLatencyMs.toFixed(0)}ms · P≤${baseline.maxPeakInputLatencyMs.toFixed(0)}ms · B≤${Math.round(baseline.maxBudgetMissRate * 100)}%`;
-}
-
-function evaluatePerfBaseline(readout: EditorPerfReadout, baseline: PerfBaseline): PerfBaselineEvaluation {
-  const totalFrames = Math.max(readout.frameSampleCount, 0);
-  const activeFrames = Math.max(readout.interactionFrameSampleCount, 0);
-  const interactionBursts = Math.max(readout.interactionBurstCount, 0);
-  const recentSamples = Math.max(readout.recentInteractionSampleCount, 0);
-  if (
-    totalFrames < baseline.minSamples ||
-    activeFrames < baseline.minInteractionSamples ||
-    interactionBursts < baseline.minInteractionBursts ||
-    recentSamples < baseline.recentInteractionWindow
-  ) {
-    return {
-      status: "warming",
-      detail: `F ${totalFrames}/${baseline.minSamples} · A ${activeFrames}/${baseline.minInteractionSamples} · S ${interactionBursts}/${baseline.minInteractionBursts} · W ${recentSamples}/${baseline.recentInteractionWindow}`,
-    };
-  }
-
-  const budgetMissRate =
-    activeFrames === 0 ? 0 : readout.interactionBudgetMissCount / Math.max(activeFrames, 1);
-  const avgRenderMs = readout.avgRenderMs ?? Number.POSITIVE_INFINITY;
-  const avgViewportMs = readout.avgViewportMs ?? Number.POSITIVE_INFINITY;
-  const avgInputLatencyMs = readout.avgInputLatencyMs ?? Number.POSITIVE_INFINITY;
-  const peakInputLatencyMs = readout.peakInputLatencyMs ?? Number.POSITIVE_INFINITY;
-  const recentAvgRenderMs = readout.recentAvgRenderMs ?? Number.POSITIVE_INFINITY;
-  const recentAvgViewportMs = readout.recentAvgViewportMs ?? Number.POSITIVE_INFINITY;
-  const recentAvgInputLatencyMs = readout.recentAvgInputLatencyMs ?? Number.POSITIVE_INFINITY;
-  const recentPeakInputLatencyMs = readout.recentPeakInputLatencyMs ?? Number.POSITIVE_INFINITY;
-  const recentBudgetMissRate = readout.recentBudgetMissRate ?? Number.POSITIVE_INFINITY;
-  const failures: string[] = [];
-  if (avgRenderMs > baseline.maxAvgRenderMs) {
-    failures.push(`R ${avgRenderMs.toFixed(1)}/${baseline.maxAvgRenderMs.toFixed(0)}ms`);
-  }
-  if (avgViewportMs > baseline.maxAvgViewportMs) {
-    failures.push(`V ${avgViewportMs.toFixed(1)}/${baseline.maxAvgViewportMs.toFixed(0)}ms`);
-  }
-  if (avgInputLatencyMs > baseline.maxAvgInputLatencyMs) {
-    failures.push(`I ${avgInputLatencyMs.toFixed(1)}/${baseline.maxAvgInputLatencyMs.toFixed(0)}ms`);
-  }
-  if (peakInputLatencyMs > baseline.maxPeakInputLatencyMs) {
-    failures.push(`P ${peakInputLatencyMs.toFixed(1)}/${baseline.maxPeakInputLatencyMs.toFixed(0)}ms`);
-  }
-  if (budgetMissRate > baseline.maxBudgetMissRate) {
-    failures.push(`B ${Math.round(budgetMissRate * 100)}/${Math.round(baseline.maxBudgetMissRate * 100)}%`);
-  }
-  if (recentAvgRenderMs > baseline.maxAvgRenderMs) {
-    failures.push(`Recent R ${recentAvgRenderMs.toFixed(1)}/${baseline.maxAvgRenderMs.toFixed(0)}ms`);
-  }
-  if (recentAvgViewportMs > baseline.maxAvgViewportMs) {
-    failures.push(`Recent V ${recentAvgViewportMs.toFixed(1)}/${baseline.maxAvgViewportMs.toFixed(0)}ms`);
-  }
-  if (recentAvgInputLatencyMs > baseline.maxAvgInputLatencyMs) {
-    failures.push(`Recent I ${recentAvgInputLatencyMs.toFixed(1)}/${baseline.maxAvgInputLatencyMs.toFixed(0)}ms`);
-  }
-  if (recentPeakInputLatencyMs > baseline.maxPeakInputLatencyMs) {
-    failures.push(`Recent P ${recentPeakInputLatencyMs.toFixed(1)}/${baseline.maxPeakInputLatencyMs.toFixed(0)}ms`);
-  }
-  if (recentBudgetMissRate > baseline.maxBudgetMissRate) {
-    failures.push(
-      `Recent B ${Math.round(recentBudgetMissRate * 100)}/${Math.round(baseline.maxBudgetMissRate * 100)}%`,
-    );
-  }
-
-  return failures.length === 0
-    ? {
-        status: "within",
-        detail: `F ${totalFrames} · A ${activeFrames} · S ${interactionBursts} · W ${recentSamples} · B ${Math.round(recentBudgetMissRate * 100)}%`,
-      }
-    : {
-        status: "over",
-        detail: failures[0],
-      };
-}
 
 function useCanvasDimensions(initialSize: { width: number; height: number }) {
   const frameRef = useRef<HTMLDivElement | null>(null);

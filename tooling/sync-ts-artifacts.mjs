@@ -12,9 +12,11 @@ const generatedPairs = [
   ["packages/wasm-bindings/src/index.ts", "packages/wasm-bindings/src/index.js"],
   ["packages/renderer-canvas/src/index.ts", "packages/renderer-canvas/src/index.js"],
   ["examples/vanilla-starter/src/main.ts", "examples/vanilla-starter/src/main.runtime.js"],
+  ["examples/react-starter/src/perf-baseline.ts", "examples/react-starter/src/perf-baseline.js"],
   ["packages/sdk/test/sdk.test.ts", "packages/sdk/test/sdk.test.js"],
   ["packages/wasm-bindings/test/bridge.test.ts", "packages/wasm-bindings/test/bridge.test.js"],
   ["packages/renderer-canvas/test/render.test.ts", "packages/renderer-canvas/test/render.test.js"],
+  ["examples/react-starter/src/perf-baseline.test.ts", "examples/react-starter/src/perf-baseline.test.js"],
   ["tests/e2e/react-starter.apply-flow.spec.ts", "tests/e2e/react-starter.apply-flow.spec.js"]
 ];
 
