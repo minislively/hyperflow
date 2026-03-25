@@ -147,6 +147,41 @@ test("bridge resolves same-side edge anchors into distinct slots", async () => {
   assert.notEqual(resolved[0].y, resolved[1].y);
 });
 
+test("bridge resolves rendered edge anchors with per-edge source/target slots", async () => {
+  const bridge = await bridgePromise;
+  const resolved = bridge.resolveRenderedEdgeAnchorsBatch([
+    {
+      sourceId: 1,
+      sourceX: 0,
+      sourceY: 0,
+      sourceWidth: 180,
+      sourceHeight: 96,
+      targetId: 2,
+      targetX: 260,
+      targetY: -60,
+      targetWidth: 180,
+      targetHeight: 96,
+    },
+    {
+      sourceId: 1,
+      sourceX: 0,
+      sourceY: 0,
+      sourceWidth: 180,
+      sourceHeight: 96,
+      targetId: 3,
+      targetX: 260,
+      targetY: 80,
+      targetWidth: 180,
+      targetHeight: 96,
+    },
+  ]);
+
+  assert.equal(resolved.length, 2);
+  assert.equal(resolved[0].sourceAnchor.side, "right");
+  assert.equal(resolved[1].sourceAnchor.side, "right");
+  assert.notEqual(resolved[0].sourceAnchor.y, resolved[1].sourceAnchor.y);
+});
+
 test("bridge resolves edge curves into cubic control points", async () => {
   const bridge = await bridgePromise;
   const resolved = bridge.resolveEdgeCurvesBatch([

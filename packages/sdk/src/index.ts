@@ -4,8 +4,10 @@ import {
   type HyperflowEdgeAnchorResolutionRequest,
   type HyperflowEdgePathResolutionRequest,
   type HyperflowPoint,
+  type HyperflowRenderedEdgeAnchorResolutionRequest,
   type HyperflowResolvedEdgeAnchor,
   type HyperflowResolvedEdgeCurve,
+  type HyperflowResolvedRenderedEdgeAnchors,
   type HyperflowResolvedNodeAnchors,
   type HyperflowRuntimeNode,
   type HyperflowViewport,
@@ -117,10 +119,12 @@ export type PocEdgeAnchorResolutionRequest = {
   spreadStep?: number;
 };
 
+export type PocRenderedEdgeAnchorResolutionRequest = HyperflowRenderedEdgeAnchorResolutionRequest;
 export type PocAnchorResolutionRequest = HyperflowAnchorResolutionRequest;
 export type PocLowLevelEdgeAnchorResolutionRequest = HyperflowEdgeAnchorResolutionRequest;
 export type PocEdgePathResolutionRequest = HyperflowEdgePathResolutionRequest;
 export type PocLowLevelResolvedEdgeAnchor = HyperflowResolvedEdgeAnchor;
+export type PocRenderedResolvedEdgeAnchors = HyperflowResolvedRenderedEdgeAnchors;
 export type PocResolvedEdgeCurve = HyperflowResolvedEdgeCurve;
 
 export type PocRuntimeNode = HyperflowRuntimeNode;
@@ -529,8 +533,49 @@ export function resolvePocEdgeAnchorsBatch<TData extends Record<string, unknown>
   edges: PocEdge[],
   nodeAnchorsById: Map<number, PocResolvedNodeAnchors>,
   resolveLowLevelAnchors: (requests: PocEdgeAnchorResolutionRequest[]) => PocResolvedEdgeAnchor[] = resolvePocLowLevelEdgeAnchorsBatch,
+  resolveRenderedAnchors?: (requests: PocRenderedEdgeAnchorResolutionRequest[]) => PocRenderedResolvedEdgeAnchors[],
 ): PocResolvedEdgeAnchors[] {
+  void nodeAnchorsById;
   const nodeById = new Map(nodes.map((node) => [Number(node.id), node] as const));
+
+  if (resolveRenderedAnchors) {
+    const requestMeta: string[] = [];
+    const requests: PocRenderedEdgeAnchorResolutionRequest[] = [];
+
+    edges.forEach((edge) => {
+      const sourceNode = nodeById.get(Number(edge.source));
+      const targetNode = nodeById.get(Number(edge.target));
+      if (!sourceNode || !targetNode) return;
+
+      requests.push({
+        sourceId: Number(sourceNode.id),
+        sourceX: sourceNode.position.x,
+        sourceY: sourceNode.position.y,
+        sourceWidth: sourceNode.size.width,
+        sourceHeight: sourceNode.size.height,
+        targetId: Number(targetNode.id),
+        targetX: targetNode.position.x,
+        targetY: targetNode.position.y,
+        targetWidth: targetNode.size.width,
+        targetHeight: targetNode.size.height,
+        spreadStep: 18,
+      });
+      requestMeta.push(edge.id);
+    });
+
+    return resolveRenderedAnchors(requests)
+      .map((entry, index) => {
+        const edgeId = requestMeta[index];
+        if (!edgeId) return null;
+        return {
+          edgeId,
+          sourceAnchor: entry.sourceAnchor,
+          targetAnchor: entry.targetAnchor,
+        };
+      })
+      .filter((entry): entry is PocResolvedEdgeAnchors => entry !== null);
+  }
+
   const sourceRequests: PocEdgeAnchorResolutionRequest[] = [];
   const sourceMeta: string[] = [];
   const targetRequests: PocEdgeAnchorResolutionRequest[] = [];
@@ -853,6 +898,7 @@ export type PocEngineBridge = Pick<
   | "getNodeCount"
   | "resolveNodeAnchorsBatch"
   | "resolveEdgeAnchorsBatch"
+  | "resolveRenderedEdgeAnchorsBatch"
   | "resolveEdgeCurvesBatch"
 >;
 
@@ -877,6 +923,7 @@ export type PocEngine = {
   getNodeCount(): number;
   resolveNodeAnchorsBatch(requests: PocAnchorResolutionRequest[]): HyperflowResolvedNodeAnchors[];
   resolveEdgeAnchorsBatch(requests: PocLowLevelEdgeAnchorResolutionRequest[]): PocLowLevelResolvedEdgeAnchor[];
+  resolveRenderedEdgeAnchorsBatch(requests: PocRenderedEdgeAnchorResolutionRequest[]): PocRenderedResolvedEdgeAnchors[];
   resolveEdgeCurvesBatch(requests: PocEdgePathResolutionRequest[]): PocResolvedEdgeCurve[];
 };
 
@@ -989,6 +1036,10 @@ export async function createPocEngine(options: PocEngineOptions = {}): Promise<P
 
     resolveEdgeAnchorsBatch(requests) {
       return bridge.resolveEdgeAnchorsBatch(requests);
+    },
+
+    resolveRenderedEdgeAnchorsBatch(requests) {
+      return bridge.resolveRenderedEdgeAnchorsBatch(requests);
     },
 
     resolveEdgeCurvesBatch(requests) {

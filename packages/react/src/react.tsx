@@ -1083,6 +1083,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
           edges,
           resolvedNodeAnchorsById,
           engine ? (requests) => engine.resolveEdgeAnchorsBatch(requests) : undefined,
+          engine ? (requests) => engine.resolveRenderedEdgeAnchorsBatch(requests) : undefined,
         ).map((entry) => [entry.edgeId, entry] as const),
       ),
     [edges, engine, nodes, resolvedNodeAnchorsById],

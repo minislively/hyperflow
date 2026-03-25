@@ -311,11 +311,44 @@ export function createPocEdgePathResolutionRequest({ sourceAnchor, targetAnchor,
         minimumCurveOffset
     };
 }
-export function resolvePocEdgeAnchorsBatch(nodes, edges, nodeAnchorsById, resolveLowLevelAnchors = resolvePocLowLevelEdgeAnchorsBatch) {
+export function resolvePocEdgeAnchorsBatch(nodes, edges, nodeAnchorsById, resolveLowLevelAnchors = resolvePocLowLevelEdgeAnchorsBatch, resolveRenderedAnchors) {
+    void nodeAnchorsById;
     const nodeById = new Map(nodes.map((node)=>[
             Number(node.id),
             node
         ]));
+    if (resolveRenderedAnchors) {
+        const requestMeta = [];
+        const requests = [];
+        edges.forEach((edge)=>{
+            const sourceNode = nodeById.get(Number(edge.source));
+            const targetNode = nodeById.get(Number(edge.target));
+            if (!sourceNode || !targetNode) return;
+            requests.push({
+                sourceId: Number(sourceNode.id),
+                sourceX: sourceNode.position.x,
+                sourceY: sourceNode.position.y,
+                sourceWidth: sourceNode.size.width,
+                sourceHeight: sourceNode.size.height,
+                targetId: Number(targetNode.id),
+                targetX: targetNode.position.x,
+                targetY: targetNode.position.y,
+                targetWidth: targetNode.size.width,
+                targetHeight: targetNode.size.height,
+                spreadStep: 18
+            });
+            requestMeta.push(edge.id);
+        });
+        return resolveRenderedAnchors(requests).map((entry, index)=>{
+            const edgeId = requestMeta[index];
+            if (!edgeId) return null;
+            return {
+                edgeId,
+                sourceAnchor: entry.sourceAnchor,
+                targetAnchor: entry.targetAnchor
+            };
+        }).filter((entry)=>entry !== null);
+    }
     const sourceRequests = [];
     const sourceMeta = [];
     const targetRequests = [];
@@ -645,6 +678,9 @@ export async function createPocEngine(options = {}) {
         },
         resolveEdgeAnchorsBatch (requests) {
             return bridge.resolveEdgeAnchorsBatch(requests);
+        },
+        resolveRenderedEdgeAnchorsBatch (requests) {
+            return bridge.resolveRenderedEdgeAnchorsBatch(requests);
         },
         resolveEdgeCurvesBatch (requests) {
             return bridge.resolveEdgeCurvesBatch(requests);

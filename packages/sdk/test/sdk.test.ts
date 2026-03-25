@@ -232,6 +232,47 @@ test("resolvePocEdgeAnchorsBatch keeps same-side siblings on distinct anchors", 
   assert.notEqual(resolved[0]!.sourceAnchor.y, resolved[1]!.sourceAnchor.y);
 });
 
+test("resolvePocEdgeAnchorsBatch can prefer engine-backed rendered anchor batches", () => {
+  const nodes = [
+    {
+      id: 1,
+      type: "default",
+      position: { x: 0, y: 0 },
+      size: { width: 180, height: 96 },
+      data: { title: "A" },
+    },
+    {
+      id: 2,
+      type: "default",
+      position: { x: 260, y: -60 },
+      size: { width: 180, height: 96 },
+      data: { title: "B" },
+    },
+  ] as const;
+
+  const resolved = resolvePocEdgeAnchorsBatch(
+    nodes.slice(),
+    [{ id: "e-1-2", source: 1, target: 2 }],
+    new Map(),
+    () => {
+      throw new Error("low-level fallback should not run when rendered batch is available");
+    },
+    (requests) =>
+      requests.map(() => ({
+        sourceAnchor: { x: 180, y: 48, side: "right", slot: 0, slotCount: 1 },
+        targetAnchor: { x: 260, y: -12, side: "left", slot: 0, slotCount: 1 },
+      })),
+  );
+
+  assert.deepEqual(resolved, [
+    {
+      edgeId: "e-1-2",
+      sourceAnchor: { x: 180, y: 48, side: "right", slot: 0, slotCount: 1 },
+      targetAnchor: { x: 260, y: -12, side: "left", slot: 0, slotCount: 1 },
+    },
+  ]);
+});
+
 test("resolvePocEdgeAnchorsBatch resolves edge sides per edge instead of reusing a single node-side anchor", () => {
   const nodes = [
     {

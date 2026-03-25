@@ -2707,6 +2707,7 @@ const EditorMiniMap = memo(function EditorMiniMap({
         edges,
         anchorMaps,
         engine ? (requests) => engine.resolveEdgeAnchorsBatch(requests) : undefined,
+        engine ? (requests) => engine.resolveRenderedEdgeAnchorsBatch(requests) : undefined,
       ).map((entry) => [entry.edgeId, entry] as const),
     );
   }, [anchorMaps, edges, engine, nodes]);
