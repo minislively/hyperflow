@@ -345,6 +345,25 @@ test("resolvePocSmoothEdgeCurve returns cubic control points without moving endp
   assert.notEqual(curve.sourceControlY, curve.targetControlY);
 });
 
+test("resolvePocSmoothEdgeCurve keeps opposite-side sibling lanes aligned when one end is unslotted", () => {
+  const curve = resolvePocSmoothEdgeCurve({
+    sourceX: 180,
+    sourceY: 120,
+    targetX: 480,
+    targetY: 180,
+    sourceSide: "right",
+    targetSide: "left",
+    sourceSlot: 0,
+    sourceSlotCount: 2,
+    targetSlot: 0,
+    targetSlotCount: 1,
+    spreadStep: 18,
+  });
+
+  assert.equal(curve.sourceControlY - curve.sourceY, curve.targetControlY - curve.targetY);
+  assert.notEqual(curve.sourceControlY, curve.sourceY);
+});
+
 test("buildPocSvgCurvePath formats a resolved curve as an svg cubic path", () => {
   const path = buildPocSvgCurvePath({
     sourceX: 10,

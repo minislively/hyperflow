@@ -731,6 +731,34 @@ pub fn resolve_edge_curve(
     bend_offset_y: Option<f32>,
     minimum_curve_offset: f32,
 ) -> ResolvedEdgeCurve {
+    let use_shared_lane_spread = matches!(
+        (source_side, target_side),
+        (AnchorSide::Left, AnchorSide::Right)
+            | (AnchorSide::Right, AnchorSide::Left)
+            | (AnchorSide::Top, AnchorSide::Bottom)
+            | (AnchorSide::Bottom, AnchorSide::Top)
+    );
+    let shared_lane_spread = if use_shared_lane_spread {
+        if source_spread == 0.0 {
+            target_spread * 0.75
+        } else if target_spread == 0.0 {
+            source_spread * 0.75
+        } else {
+            (source_spread + target_spread) / 2.0
+        }
+    } else {
+        0.0
+    };
+    let resolved_source_spread = if use_shared_lane_spread {
+        shared_lane_spread
+    } else {
+        source_spread
+    };
+    let resolved_target_spread = if use_shared_lane_spread {
+        shared_lane_spread
+    } else {
+        target_spread
+    };
     let dx = target.x - source.x;
     let dy = target.y - source.y;
     let base_offset = minimum_curve_offset.max(dx.abs().max(dy.abs()) * 0.28);
@@ -742,7 +770,7 @@ pub fn resolve_edge_curve(
         source.y,
         source_side,
         base_offset,
-        source_spread,
+        resolved_source_spread,
         bend_influence_x * 0.16,
         bend_influence_y * 0.34,
     );
@@ -751,7 +779,7 @@ pub fn resolve_edge_curve(
         target.y,
         target_side,
         base_offset,
-        target_spread,
+        resolved_target_spread,
         bend_influence_x * 0.16,
         bend_influence_y * 0.34,
     );

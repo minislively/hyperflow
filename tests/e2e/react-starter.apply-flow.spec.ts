@@ -258,6 +258,11 @@ test("same-side edges fan out from distinct visible anchors", async ({ page }) =
   const fanOutMove = parseMoveTo(fanOutPath);
   expect(Math.abs(originalMove.x - fanOutMove.x)).toBeLessThanOrEqual(2);
   expect(Math.abs(originalMove.y - fanOutMove.y)).toBeGreaterThan(6);
+
+  const originalControl = parseFirstCurveControl(originalPath);
+  const fanOutControl = parseFirstCurveControl(fanOutPath);
+  expect(Math.abs(originalControl.y - fanOutControl.y)).toBeGreaterThan(6);
+  expect(Math.sign(originalControl.y - originalMove.y)).not.toBe(Math.sign(fanOutControl.y - fanOutMove.y));
 });
 
 test("edges switch to the matching side when a source node moves across its target", async ({ page }) => {

@@ -153,3 +153,24 @@ test("bridge resolves edge curves into cubic control points", async ()=>{
     assert.ok(resolved[0].targetControlX < resolved[0].targetX);
     assert.notEqual(resolved[0].sourceControlY, resolved[0].targetControlY);
 });
+test("bridge keeps opposite-side sibling lanes aligned when one end has a single slot", async ()=>{
+    const bridge = await bridgePromise;
+    const resolved = bridge.resolveEdgeCurvesBatch([
+        {
+            sourceX: 180,
+            sourceY: 120,
+            targetX: 480,
+            targetY: 180,
+            sourceSide: "right",
+            targetSide: "left",
+            sourceSlot: 0,
+            sourceSlotCount: 2,
+            targetSlot: 0,
+            targetSlotCount: 1,
+            spreadStep: 18
+        }
+    ]);
+    assert.equal(resolved.length, 1);
+    assert.equal(resolved[0].sourceControlY - resolved[0].sourceY, resolved[0].targetControlY - resolved[0].targetY);
+    assert.notEqual(resolved[0].sourceControlY, resolved[0].sourceY);
+});
