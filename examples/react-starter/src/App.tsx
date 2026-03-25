@@ -121,6 +121,15 @@ type EditorPerfReadout = {
 };
 
 type EditorGraphPreset = "starter" | "benchmark";
+type PerfBaselineStatus = "warming" | "within" | "over";
+
+type PerfBaseline = {
+  minSamples: number;
+  maxAvgRenderMs: number;
+  maxAvgViewportMs: number;
+  maxAvgInputLatencyMs: number;
+  maxBudgetMissRate: number;
+};
 
 
 const locales: Locale[] = ["ko", "en"];
@@ -174,6 +183,41 @@ const topLevelDefaultPage: Record<SectionId, PageId> = {
 
 const learnDemoCanvas = { width: 720, height: 360 } as const;
 const mainEditorCanvas = { width: 1280, height: 720 } as const;
+const editorPerfBaselines: Record<EditorGraphPreset, PerfBaseline> = {
+  starter: {
+    minSamples: 10,
+    maxAvgRenderMs: 8,
+    maxAvgViewportMs: 3,
+    maxAvgInputLatencyMs: 45,
+    maxBudgetMissRate: 0.2,
+  },
+  benchmark: {
+    minSamples: 18,
+    maxAvgRenderMs: 12,
+    maxAvgViewportMs: 5,
+    maxAvgInputLatencyMs: 65,
+    maxBudgetMissRate: 0.35,
+  },
+};
+
+function formatPerfBaselineTarget(baseline: PerfBaseline) {
+  return `R≤${baseline.maxAvgRenderMs.toFixed(0)}ms · V≤${baseline.maxAvgViewportMs.toFixed(0)}ms · I≤${baseline.maxAvgInputLatencyMs.toFixed(0)}ms · B≤${Math.round(baseline.maxBudgetMissRate * 100)}%`;
+}
+
+function evaluatePerfBaseline(readout: EditorPerfReadout, baseline: PerfBaseline): PerfBaselineStatus {
+  if (readout.frameSampleCount < baseline.minSamples) return "warming";
+  const budgetMissRate =
+    readout.frameSampleCount === 0 ? 0 : readout.budgetMissCount / Math.max(readout.frameSampleCount, 1);
+  const avgRenderMs = readout.avgRenderMs ?? Number.POSITIVE_INFINITY;
+  const avgViewportMs = readout.avgViewportMs ?? Number.POSITIVE_INFINITY;
+  const avgInputLatencyMs = readout.avgInputLatencyMs ?? Number.POSITIVE_INFINITY;
+  const withinBudget =
+    avgRenderMs <= baseline.maxAvgRenderMs &&
+    avgViewportMs <= baseline.maxAvgViewportMs &&
+    avgInputLatencyMs <= baseline.maxAvgInputLatencyMs &&
+    budgetMissRate <= baseline.maxBudgetMissRate;
+  return withinBudget ? "within" : "over";
+}
 
 function useCanvasDimensions(initialSize: { width: number; height: number }) {
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -3170,6 +3214,8 @@ function MainEditorSurface({
           },
           status: {
             graph: "그래프",
+            perfBaseline: "성능 기준",
+            perfBaselineStatus: "기준 상태",
             nodes: "노드",
             edges: "엣지",
             zoom: "줌",
@@ -3192,6 +3238,9 @@ function MainEditorSurface({
             settling: "반영 중",
             starterGraph: "기본",
             benchmarkGraph: "대형",
+            warming: "수집 중",
+            within: "기준 내",
+            over: "기준 초과",
             shortcuts:
               "N 노드 추가 · Shift+클릭 다중 선택 · Delete 삭제 · 엣지 끝점 드래그/핸들 클릭 다시 연결 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
           },
@@ -3233,6 +3282,8 @@ function MainEditorSurface({
           },
           status: {
             graph: "Graph",
+            perfBaseline: "Perf baseline",
+            perfBaselineStatus: "Baseline status",
             nodes: "Nodes",
             edges: "Edges",
             zoom: "Zoom",
@@ -3255,6 +3306,9 @@ function MainEditorSurface({
             settling: "Settling",
             starterGraph: "Starter",
             benchmarkGraph: "Benchmark",
+            warming: "Warming",
+            within: "Within",
+            over: "Over",
             shortcuts:
               "N adds nodes · Shift+click multi-select · Delete removes · drag an edge endpoint or click a handle to reconnect · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
           },
@@ -3276,6 +3330,10 @@ function MainEditorSurface({
             editor: "Editor",
           },
         };
+
+  const perfBaseline = editorPerfBaselines[graphPreset];
+  const perfBaselineStatus = evaluatePerfBaseline(perfReadout, perfBaseline);
+  const perfBaselineTarget = formatPerfBaselineTarget(perfBaseline);
 
   const fitView = useCallback(() => {
     hasUserAdjustedViewportRef.current = true;
@@ -3572,6 +3630,12 @@ function MainEditorSurface({
               <div className="editor-canvas-status">
                 <span data-editor-perf="graph">
                   {ui.status.graph}: {graphPreset === "starter" ? ui.status.starterGraph : ui.status.benchmarkGraph}
+                </span>
+                <span data-editor-perf="baseline-target">
+                  {ui.status.perfBaseline}: {perfBaselineTarget}
+                </span>
+                <span data-editor-perf="baseline-status">
+                  {ui.status.perfBaselineStatus}: {ui.status[perfBaselineStatus]}
                 </span>
                 <span>
                   {ui.status.nodes}: {nodes.length}

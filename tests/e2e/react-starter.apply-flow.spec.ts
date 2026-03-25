@@ -376,10 +376,15 @@ test("main editor can switch into and out of a large benchmark graph", async ({ 
   await page.goto("/ko");
 
   await expect(page.locator('[data-editor-perf="graph"]')).toContainText("그래프: 기본");
+  await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText("기준 상태: 수집 중");
   await expect(page.getByText("노드: 3")).toBeVisible();
 
   await page.getByRole("button", { name: "대형 그래프 보기" }).click();
   await expect(page.locator('[data-editor-perf="graph"]')).toContainText("그래프: 대형");
+  await expect(page.locator('[data-editor-perf="baseline-target"]')).toContainText("성능 기준:");
+  await expect(page.locator('[data-editor-perf="baseline-target"]')).toContainText("R≤12ms");
+  await expect(page.locator('[data-editor-perf="baseline-target"]')).toContainText("B≤35%");
+  await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText("기준 상태: 수집 중");
   await expect(page.getByText("노드: 84")).toBeVisible();
   await expect(page.getByText("엣지: 137")).toBeVisible();
   await expect(page.locator("[data-node-card-id='84']")).toBeVisible();
@@ -410,9 +415,29 @@ test("main editor can reset perf instrumentation without resetting the graph", a
   await expect(page.locator('[data-editor-perf="avg-input-latency"]')).toContainText("--");
   await expect(page.locator('[data-editor-perf="peak-input-latency"]')).toContainText("--");
   await expect(page.locator('[data-editor-perf="frame-budget"]')).toContainText("0/");
+  await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText("기준 상태: 수집 중");
   const resetSamplesText = await page.locator('[data-editor-perf="samples"]').textContent();
   expect(Number((resetSamplesText ?? "").replace(/\D+/g, ""))).toBeLessThan(12);
   await expect(page.getByText("노드: 3")).toBeVisible();
+});
+
+test("benchmark perf baseline progresses out of warming after enough benchmark interaction samples", async ({ page }) => {
+  await page.goto("/ko");
+
+  await page.getByRole("button", { name: "대형 그래프 보기" }).click();
+  await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText("기준 상태: 수집 중");
+
+  const benchmarkNode = page.locator("[data-node-card-id='42']");
+  const box = await benchmarkNode.boundingBox();
+  if (!box) throw new Error("benchmark node missing before perf baseline interaction test");
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 32, { steps: 18 });
+  await page.mouse.up();
+
+  await expect(page.locator('[data-editor-perf="samples"]')).not.toContainText("프레임: 0");
+  await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText(/기준 상태: (기준 내|기준 초과)/);
 });
 
 test("same-side edges fan out from distinct visible anchors", async ({ page }) => {
