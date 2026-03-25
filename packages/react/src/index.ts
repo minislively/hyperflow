@@ -12,6 +12,7 @@ export {
   createPocEdgeSpreadMaps,
   getPocNodeCenter,
   getPocCenteredSlotSpread,
+  projectPocResolvedEdgeCurve,
   projectPocNodeToRuntimeNode,
   projectPocNodesToRuntimeNodes,
   resolvePocEdgeAnchor,

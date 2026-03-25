@@ -1,9 +1,11 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import {
+  buildPocSvgCurvePath,
   buildSmoothPocEdgePath,
   createPocEngine,
   getPocNodeCenter,
   offsetPocAnchorWithinSide,
+  projectPocResolvedEdgeCurve,
   projectPocNodesToRuntimeNodes,
   resolvePocEdgeAnchorsBatch,
   resolvePocRenderableEdgesBatch,
@@ -237,6 +239,16 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     return activeIds;
   }, [nodes, viewport.x, viewport.y, viewport.zoom]);
   const nodeById = useMemo(() => new Map(nodes.map((node) => [Number(node.id), node])), [nodes]);
+  const connectionPreviewWorldPoint = useMemo(
+    () =>
+      connectionPreview
+        ? {
+            x: viewport.x + connectionPreview.currentX / viewport.zoom,
+            y: viewport.y + connectionPreview.currentY / viewport.zoom,
+          }
+        : null,
+    [connectionPreview, viewport.x, viewport.y, viewport.zoom],
+  );
 
   useEffect(() => {
     viewportRef.current = viewport;
@@ -1013,11 +1025,8 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       const center = getPocNodeCenter(node);
       const preferences = getNodeAnchorPreferences?.(node);
       const outputToward =
-        pendingConnectionSourceId === Number(node.id) && connectionPreview
-          ? {
-              x: viewport.x + connectionPreview.currentX / viewport.zoom,
-              y: viewport.y + connectionPreview.currentY / viewport.zoom,
-            }
+        pendingConnectionSourceId === Number(node.id) && connectionPreviewWorldPoint
+          ? connectionPreviewWorldPoint
           : averageConnectedCenter(connectedNodeMaps.outgoingByNodeId.get(Number(node.id)) ?? []) ?? {
               x: center.x + 1,
               y: center.y,
@@ -1065,14 +1074,11 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     );
   }, [
     connectedNodeMaps,
-    connectionPreview,
+    connectionPreviewWorldPoint,
     engine,
     nodes,
     pendingConnectionSourceId,
     getNodeAnchorPreferences,
-    viewport.x,
-    viewport.y,
-    viewport.zoom,
   ]);
 
   const resolvedEdgeAnchorsById = useMemo(
@@ -1089,29 +1095,38 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     [edges, engine, nodes, resolvedNodeAnchorsById],
   );
 
-  const renderedEdges = useMemo(() => {
+  const worldRenderedEdges = useMemo(() => {
     return resolvePocRenderableEdgesBatch({
       nodes,
       edges,
       resolvedEdgeAnchorsById,
-      projectX: (worldX) => (worldX - viewport.x) * viewport.zoom,
-      projectY: (worldY) => (worldY - viewport.y) * viewport.zoom,
-      spreadStep: 18 * viewport.zoom,
-      minimumCurveOffset: 40,
+      spreadStep: 18,
+      minimumCurveOffset: 40 / Math.max(viewport.zoom, 0.001),
       resolveCurves: engine ? (requests) => engine.resolveEdgeCurvesBatch(requests) : undefined,
-    }).map((entry) => ({
+    });
+  }, [edges, engine, nodes, resolvedEdgeAnchorsById, viewport.zoom]);
+
+  const renderedEdges = useMemo(() => {
+    return worldRenderedEdges.map((entry) => {
+      const curve = projectPocResolvedEdgeCurve(entry.curve, {
+        projectX: (worldX) => (worldX - viewport.x) * viewport.zoom,
+        projectY: (worldY) => (worldY - viewport.y) * viewport.zoom,
+      });
+
+      return {
       id: entry.id,
-      path: entry.path,
-      sourceX: (entry.sourceAnchor.x - viewport.x) * viewport.zoom,
-      sourceY: (entry.sourceAnchor.y - viewport.y) * viewport.zoom,
-      targetX: (entry.targetAnchor.x - viewport.x) * viewport.zoom,
-      targetY: (entry.targetAnchor.y - viewport.y) * viewport.zoom,
+      path: buildPocSvgCurvePath(curve),
+      sourceX: curve.sourceX,
+      sourceY: curve.sourceY,
+      targetX: curve.targetX,
+      targetY: curve.targetY,
       bendOffsetWorldX: entry.bendOffsetWorldX,
       bendOffsetWorldY: entry.bendOffsetWorldY,
       bendWorldX: entry.bendWorldX,
       bendWorldY: entry.bendWorldY,
       hasBend: entry.hasBend,
-    })) as Array<{
+      };
+    }) as Array<{
       id: string;
       path: string;
       sourceX: number;
@@ -1124,7 +1139,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       bendWorldY: number;
       hasBend: boolean;
     }>;
-  }, [edges, engine, nodes, resolvedEdgeAnchorsById, viewport.x, viewport.y, viewport.zoom]);
+  }, [viewport.x, viewport.y, viewport.zoom, worldRenderedEdges]);
 
   const selectedRenderedEdge = useMemo(() => {
     if (!selectedEdgeId) return null;
@@ -1137,6 +1152,22 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       targetNodeId: Number(edgeRecord.target),
     };
   }, [edges, renderedEdges, selectedEdgeId]);
+
+  const edgeAnchorsByNodeId = useMemo(() => {
+    const incomingByNodeId = new Map<number, Array<PocResolvedEdgeAnchors["targetAnchor"]>>();
+    const outgoingByNodeId = new Map<number, Array<PocResolvedEdgeAnchors["sourceAnchor"]>>();
+
+    edges.forEach((edge) => {
+      const resolved = resolvedEdgeAnchorsById.get(edge.id);
+      if (!resolved) return;
+      const sourceId = Number(edge.source);
+      const targetId = Number(edge.target);
+      outgoingByNodeId.set(sourceId, [...(outgoingByNodeId.get(sourceId) ?? []), resolved.sourceAnchor]);
+      incomingByNodeId.set(targetId, [...(incomingByNodeId.get(targetId) ?? []), resolved.targetAnchor]);
+    });
+
+    return { incomingByNodeId, outgoingByNodeId };
+  }, [edges, resolvedEdgeAnchorsById]);
 
   const renderedHandles = useMemo(() => {
     if (!onEdgeConnect) return [];
@@ -1173,14 +1204,8 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       const resolvedAnchors = resolvedNodeAnchorsById.get(Number(node.id));
       if (!resolvedAnchors) return null;
       const { inputAnchor, outputAnchor } = resolvedAnchors;
-      const incomingAnchors = edges
-        .filter((edge) => Number(edge.target) === Number(node.id))
-        .map((edge) => resolvedEdgeAnchorsById.get(edge.id)?.targetAnchor)
-        .filter((anchor): anchor is NonNullable<typeof anchor> => anchor !== undefined);
-      const outgoingAnchors = edges
-        .filter((edge) => Number(edge.source) === Number(node.id))
-        .map((edge) => resolvedEdgeAnchorsById.get(edge.id)?.sourceAnchor)
-        .filter((anchor): anchor is NonNullable<typeof anchor> => anchor !== undefined);
+      const incomingAnchors = edgeAnchorsByNodeId.incomingByNodeId.get(Number(node.id)) ?? [];
+      const outgoingAnchors = edgeAnchorsByNodeId.outgoingByNodeId.get(Number(node.id)) ?? [];
       let representativeInputAnchor = getRepresentativeAnchor(incomingAnchors, inputAnchor);
       let representativeOutputAnchor = getRepresentativeAnchor(outgoingAnchors, outputAnchor);
 
@@ -1221,9 +1246,8 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     connectionPreview,
     nodes,
     onEdgeConnect,
-    edges,
+    edgeAnchorsByNodeId,
     pendingConnectionSourceId,
-    resolvedEdgeAnchorsById,
     resolvedNodeAnchorsById,
     selectedEdgeId,
     selectedNodeIdsSet,

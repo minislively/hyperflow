@@ -1,11 +1,13 @@
 import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
+  buildPocSvgCurvePath,
   HyperFlowPocCanvas,
   type HyperFlowPocNodeRendererProps,
   createPocEngine,
   createPocViewport,
   fitPocViewportToNodes,
   getPocNodeCenter,
+  projectPocResolvedEdgeCurve,
   projectPocNodesToRuntimeNodes,
   resolvePocEdgeAnchorsBatch,
   resolvePocRenderableEdgesBatch,
@@ -2628,13 +2630,15 @@ const EditorMiniMap = memo(function EditorMiniMap({
     };
   }, [edges, nodes, viewport]);
 
+  const nodeById = useMemo(() => new Map(nodes.map((node) => [Number(node.id), node] as const)), [nodes]);
+
   const anchorMaps = useMemo(() => {
     const incomingByNodeId = new Map<number, PocNode[]>();
     const outgoingByNodeId = new Map<number, PocNode[]>();
 
     edges.forEach((edge) => {
-      const sourceNode = nodes.find((node) => Number(node.id) === Number(edge.source));
-      const targetNode = nodes.find((node) => Number(node.id) === Number(edge.target));
+      const sourceNode = nodeById.get(Number(edge.source));
+      const targetNode = nodeById.get(Number(edge.target));
       if (!sourceNode || !targetNode) return;
       outgoingByNodeId.set(Number(sourceNode.id), [...(outgoingByNodeId.get(Number(sourceNode.id)) ?? []), targetNode]);
       incomingByNodeId.set(Number(targetNode.id), [...(incomingByNodeId.get(Number(targetNode.id)) ?? []), sourceNode]);
@@ -2698,7 +2702,7 @@ const EditorMiniMap = memo(function EditorMiniMap({
         .map(({ nodeId }, index) => [nodeId, resolvedAnchors[index] ?? null] as const)
         .filter((entry): entry is [number, PocResolvedNodeAnchors] => entry[1] !== null),
     );
-  }, [edges, engine, nodes]);
+  }, [edges, engine, nodeById, nodes]);
 
   const edgeAnchorsById = useMemo(() => {
     return new Map(
@@ -2712,19 +2716,33 @@ const EditorMiniMap = memo(function EditorMiniMap({
     );
   }, [anchorMaps, edges, engine, nodes]);
 
-  const renderedEdges = useMemo(
+  const worldRenderedEdges = useMemo(
     () =>
       resolvePocRenderableEdgesBatch({
         nodes,
         edges,
         resolvedEdgeAnchorsById: edgeAnchorsById,
-        projectX: model.projectX,
-        projectY: model.projectY,
-        spreadStep: 18 * model.scale,
-        minimumCurveOffset: 10,
+        spreadStep: 18,
+        minimumCurveOffset: 10 / Math.max(model.scale, 0.001),
         resolveCurves: engine ? (requests) => engine.resolveEdgeCurvesBatch(requests) : undefined,
       }),
-    [edgeAnchorsById, edges, engine, model.projectX, model.projectY, model.scale, nodes],
+    [edgeAnchorsById, edges, engine, model.scale, nodes],
+  );
+
+  const renderedEdges = useMemo(
+    () =>
+      worldRenderedEdges.map((edge) => {
+        const projectedCurve = projectPocResolvedEdgeCurve(edge.curve, {
+          projectX: model.projectX,
+          projectY: model.projectY,
+        });
+        return {
+          ...edge,
+          curve: projectedCurve,
+          path: buildPocSvgCurvePath(projectedCurve),
+        };
+      }),
+    [model.projectX, model.projectY, worldRenderedEdges],
   );
 
   function recenterViewport(clientX: number, clientY: number, rect: DOMRect) {

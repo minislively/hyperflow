@@ -587,6 +587,20 @@ export function resolvePocSmoothEdgeCurve({ sourceX, sourceY, targetX, targetY, 
 export function buildPocSvgCurvePath(curve) {
     return `M ${curve.sourceX} ${curve.sourceY} C ${curve.sourceControlX} ${curve.sourceControlY}, ${curve.targetControlX} ${curve.targetControlY}, ${curve.targetX} ${curve.targetY}`;
 }
+export function projectPocResolvedEdgeCurve(curve, options = {}) {
+    const projectX = options.projectX ?? ((value)=>value);
+    const projectY = options.projectY ?? ((value)=>value);
+    return {
+        sourceX: projectX(curve.sourceX),
+        sourceY: projectY(curve.sourceY),
+        sourceControlX: projectX(curve.sourceControlX),
+        sourceControlY: projectY(curve.sourceControlY),
+        targetControlX: projectX(curve.targetControlX),
+        targetControlY: projectY(curve.targetControlY),
+        targetX: projectX(curve.targetX),
+        targetY: projectY(curve.targetY)
+    };
+}
 export function projectPocNodeToRuntimeNode(node) {
     return {
         id: Number(node.id),

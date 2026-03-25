@@ -888,6 +888,28 @@ export function buildPocSvgCurvePath(curve: PocResolvedEdgeCurve) {
   return `M ${curve.sourceX} ${curve.sourceY} C ${curve.sourceControlX} ${curve.sourceControlY}, ${curve.targetControlX} ${curve.targetControlY}, ${curve.targetX} ${curve.targetY}`;
 }
 
+export function projectPocResolvedEdgeCurve(
+  curve: PocResolvedEdgeCurve,
+  options: {
+    projectX?: (value: number) => number;
+    projectY?: (value: number) => number;
+  } = {},
+): PocResolvedEdgeCurve {
+  const projectX = options.projectX ?? ((value: number) => value);
+  const projectY = options.projectY ?? ((value: number) => value);
+
+  return {
+    sourceX: projectX(curve.sourceX),
+    sourceY: projectY(curve.sourceY),
+    sourceControlX: projectX(curve.sourceControlX),
+    sourceControlY: projectY(curve.sourceControlY),
+    targetControlX: projectX(curve.targetControlX),
+    targetControlY: projectY(curve.targetControlY),
+    targetX: projectX(curve.targetX),
+    targetY: projectY(curve.targetY),
+  };
+}
+
 export type PocEngineBridge = Pick<
   HyperflowWasmBridge,
   | "loadFixture"
