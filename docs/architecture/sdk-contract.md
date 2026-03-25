@@ -79,6 +79,8 @@ The current slice also now exposes a **shared anchor/path calculation seam** in 
 
 That seam is now intentionally consumable as a single rendered-edge helper (`resolvePocRenderableEdgesBatch(...)`) so the main canvas and starter minimap do not each maintain their own curve-projection math.
 
+The current performance slice also pushes more of that seam through the shared engine path: the starter editor now shares one `createPocEngine(...)` instance across the main canvas and minimap so both surfaces can consume the same Rust/WASM-backed anchor/curve resolution instead of splitting between engine-backed canvas math and TS-only minimap math.
+
 That seam is intentionally used by both:
 
 - the main React canvas overlay

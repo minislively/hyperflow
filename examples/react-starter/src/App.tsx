@@ -2,9 +2,11 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type
 import {
   HyperFlowPocCanvas,
   type HyperFlowPocNodeRendererProps,
+  createPocEngine,
   createPocViewport,
   fitPocViewportToNodes,
   getPocNodeCenter,
+  projectPocNodesToRuntimeNodes,
   resolvePocEdgeAnchorsBatch,
   resolvePocRenderableEdgesBatch,
   resolvePocNodeAnchors,
@@ -14,6 +16,7 @@ import {
   useWorkflowNodesState,
   useWorkflowSelection,
   type PocEdge,
+  type PocEngine,
   type PocMetrics,
   type PocNode,
   type PocResolvedNodeAnchors,
@@ -2567,12 +2570,14 @@ function IconPulse() {
 
 const EditorMiniMap = memo(function EditorMiniMap({
   locale,
+  engine,
   nodes,
   edges,
   viewport,
   onViewportChange,
 }: {
   locale: Locale;
+  engine: PocEngine | null;
   nodes: LearnDemoNode[];
   edges: LearnDemoEdge[];
   viewport: PocViewport;
@@ -2650,35 +2655,61 @@ const EditorMiniMap = memo(function EditorMiniMap({
       };
     };
 
-    const anchorsByNodeId = new Map<number, PocResolvedNodeAnchors>();
-
-    nodes.forEach((node) => {
+    const requests = nodes.map((node) => {
       const center = getPocNodeCenter(node);
-      const outputToward = averageCenter(outgoingByNodeId.get(Number(node.id)) ?? []) ?? {
-        x: center.x + 1,
-        y: center.y,
+      return {
+        nodeId: Number(node.id),
+        node,
+        inputToward: averageCenter(incomingByNodeId.get(Number(node.id)) ?? []) ?? {
+          x: center.x - 1,
+          y: center.y,
+        },
+        outputToward: averageCenter(outgoingByNodeId.get(Number(node.id)) ?? []) ?? {
+          x: center.x + 1,
+          y: center.y,
+        },
       };
-      const inputToward = averageCenter(incomingByNodeId.get(Number(node.id)) ?? []) ?? {
-        x: center.x - 1,
-        y: center.y,
-      };
-      anchorsByNodeId.set(
-        Number(node.id),
-        resolvePocNodeAnchors(node, {
-          inputToward,
-          outputToward,
-          sameSideOffset: 18,
-          ...getEditorNodeAnchorPreferences(),
-        }),
-      );
     });
 
-    return anchorsByNodeId;
-  }, [edges, nodes]);
+    const resolvedAnchors = engine
+      ? engine.resolveNodeAnchorsBatch(
+          requests.map(({ node, inputToward, outputToward }) => ({
+            x: node.position.x,
+            y: node.position.y,
+            width: node.size.width,
+            height: node.size.height,
+            inputToward,
+            outputToward,
+            sameSideOffset: 18,
+            ...getEditorNodeAnchorPreferences(),
+          })),
+        )
+      : requests.map(({ node, inputToward, outputToward }) =>
+          resolvePocNodeAnchors(node, {
+            inputToward,
+            outputToward,
+            sameSideOffset: 18,
+            ...getEditorNodeAnchorPreferences(),
+          }),
+        );
+
+    return new Map<number, PocResolvedNodeAnchors>(
+      requests
+        .map(({ nodeId }, index) => [nodeId, resolvedAnchors[index] ?? null] as const)
+        .filter((entry): entry is [number, PocResolvedNodeAnchors] => entry[1] !== null),
+    );
+  }, [edges, engine, nodes]);
 
   const edgeAnchorsById = useMemo(() => {
-    return new Map(resolvePocEdgeAnchorsBatch(nodes, edges, anchorMaps).map((entry) => [entry.edgeId, entry] as const));
-  }, [anchorMaps, edges, nodes]);
+    return new Map(
+      resolvePocEdgeAnchorsBatch(
+        nodes,
+        edges,
+        anchorMaps,
+        engine ? (requests) => engine.resolveEdgeAnchorsBatch(requests) : undefined,
+      ).map((entry) => [entry.edgeId, entry] as const),
+    );
+  }, [anchorMaps, edges, engine, nodes]);
 
   const renderedEdges = useMemo(
     () =>
@@ -2690,8 +2721,9 @@ const EditorMiniMap = memo(function EditorMiniMap({
         projectY: model.projectY,
         spreadStep: 18 * model.scale,
         minimumCurveOffset: 10,
+        resolveCurves: engine ? (requests) => engine.resolveEdgeCurvesBatch(requests) : undefined,
       }),
-    [edgeAnchorsById, edges, model.projectX, model.projectY, model.scale, nodes],
+    [edgeAnchorsById, edges, engine, model.projectX, model.projectY, model.scale, nodes],
   );
 
   function recenterViewport(clientX: number, clientY: number, rect: DOMRect) {
@@ -2783,6 +2815,7 @@ function MainEditorSurface({
     edges: LearnDemoEdge[];
     viewport: PocViewport;
   } | null>(null);
+  const [editorEngine, setEditorEngine] = useState<PocEngine | null>(null);
   const [perfReadout, setPerfReadout] = useState<EditorPerfReadout>({
     fps: null,
     renderMs: null,
@@ -2840,6 +2873,29 @@ function MainEditorSurface({
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    createPocEngine()
+      .then((engine) => {
+        if (cancelled) return;
+        setEditorEngine(engine);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEditorEngine(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!editorEngine) return;
+    editorEngine.loadFixture(projectPocNodesToRuntimeNodes(nodes));
+  }, [editorEngine, nodes]);
 
   useEffect(() => {
     viewportRef.current = viewport;
@@ -3688,8 +3744,9 @@ function MainEditorSurface({
                 </span>
                 <span>{ui.status.shortcuts}</span>
               </div>
-              <EditorMiniMap locale={locale} nodes={nodes} edges={edges} viewport={viewport} onViewportChange={handleViewportChange} />
+              <EditorMiniMap locale={locale} engine={editorEngine} nodes={nodes} edges={edges} viewport={viewport} onViewportChange={handleViewportChange} />
               <HyperFlowPocCanvas
+                engine={editorEngine}
                 className="hf-main-editor-canvas"
                 nodes={nodes}
                 edges={edges}

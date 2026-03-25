@@ -4,7 +4,7 @@ export type {
   HyperFlowPocNodeRendererProps,
   HyperFlowPocNodeRenderers,
 } from "./react";
-export { createPocViewport } from "@hyperflow/sdk";
+export { createPocEngine, createPocViewport } from "@hyperflow/sdk";
 export {
   buildPocSvgCurvePath,
   buildSmoothPocEdgePath,
@@ -27,6 +27,7 @@ export type {
   PocAnchorSide,
   PocEdge,
   PocEdgeAnchorResolutionRequest,
+  PocEngine,
   PocMetrics,
   PocNode,
   PocNodePosition,

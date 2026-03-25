@@ -36,6 +36,7 @@ export type HyperFlowPocNodeRendererProps<TData = unknown> = {
 export type HyperFlowPocNodeRenderers = Record<string, React.ComponentType<HyperFlowPocNodeRendererProps<any>>>;
 
 export type HyperFlowPocCanvasProps = {
+  engine?: PocEngine | null;
   nodes: PocNode[];
   edges?: PocEdge[];
   viewport: PocViewport;
@@ -73,6 +74,7 @@ const HANDLE_SIZE = 18;
 const HANDLE_HALF = HANDLE_SIZE / 2;
 
 export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
+  engine: providedEngine = null,
   nodes,
   edges = [],
   viewport,
@@ -101,7 +103,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
   onReadyChange,
 }: HyperFlowPocCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [engine, setEngine] = useState<PocEngine | null>(null);
+  const [internalEngine, setInternalEngine] = useState<PocEngine | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [visibleBoxes, setVisibleBoxes] = useState<VisibleBox[]>([]);
   const [pendingConnectionSourceId, setPendingConnectionSourceId] = useState<number | null>(null);
@@ -123,6 +125,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     height: number;
   } | null>(null);
   const isInteractive = interactive ?? isInteractiveCanvasMode(mode);
+  const engine = providedEngine ?? internalEngine;
   const viewportRef = useRef(viewport);
   const onNodePositionChangeRef = useRef(onNodePositionChange);
   const onNodesPositionChangeRef = useRef(onNodesPositionChange);
@@ -311,12 +314,18 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
   }
 
   useEffect(() => {
+    if (providedEngine) {
+      setError(null);
+      onReadyChange?.(true);
+      return;
+    }
+
     let cancelled = false;
 
     createPocEngine()
       .then((instance) => {
         if (cancelled) return;
-        setEngine(instance);
+        setInternalEngine(instance);
         onReadyChange?.(true);
       })
       .catch((reason) => {
@@ -328,7 +337,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     return () => {
       cancelled = true;
     };
-  }, [onReadyChange]);
+  }, [onReadyChange, providedEngine]);
 
   useEffect(() => {
     if (!engine) return;
