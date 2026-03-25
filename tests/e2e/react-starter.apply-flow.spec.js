@@ -243,6 +243,7 @@ test("dragging empty canvas space pans the viewport without holding modifier key
 });
 test("main editor exposes perf readouts and records input-to-frame latency after interaction", async ({ page })=>{
     await page.goto("/ko");
+    await expect(page.locator('[data-editor-perf="activity"]')).toContainText("상태: 대기");
     await expect(page.locator('[data-editor-perf="fps"]')).toContainText("FPS");
     await expect(page.locator('[data-editor-perf="render"]')).toContainText("ms");
     await expect(page.locator('[data-editor-perf="viewport"]')).toContainText("ms");
@@ -256,6 +257,7 @@ test("main editor exposes perf readouts and records input-to-frame latency after
         steps: 8
     });
     await page.mouse.up();
+    await expect(page.locator('[data-editor-perf="activity"]')).not.toContainText("상태: 대기");
     await expect(page.locator('[data-editor-perf="input-latency"]')).not.toContainText("--");
 });
 test("same-side edges fan out from distinct visible anchors", async ({ page })=>{

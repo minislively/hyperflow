@@ -104,11 +104,14 @@ type LearnDemoNode = PocNode<{
 
 type LearnDemoEdge = PocEdge<"default">;
 
+type EditorInteractionPhase = "idle" | "dragging" | "zooming" | "settling";
+
 type EditorPerfReadout = {
   fps: number | null;
   renderMs: number | null;
   viewportMs: number | null;
   inputLatencyMs: number | null;
+  interactionPhase: EditorInteractionPhase;
 };
 
 
@@ -2693,6 +2696,7 @@ function MainEditorSurface({
     renderMs: null,
     viewportMs: null,
     inputLatencyMs: null,
+    interactionPhase: "idle",
   });
   const editorShellRef = useRef<HTMLElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -2703,13 +2707,17 @@ function MainEditorSurface({
   const perfSampleRef = useRef<{
     lastFrameAt: number;
     smoothedFps: number | null;
-    lastInteractionAt: number;
     lastInteractionLatencyMs: number | null;
+    pendingInteractionAt: number | null;
+    pendingInteractionPhase: Exclude<EditorInteractionPhase, "idle" | "settling"> | null;
+    idleTimerId: number | null;
   }>({
     lastFrameAt: 0,
     smoothedFps: null,
-    lastInteractionAt: 0,
     lastInteractionLatencyMs: null,
+    pendingInteractionAt: null,
+    pendingInteractionPhase: null,
+    idleTimerId: null,
   });
 
   useEffect(() => {
@@ -2729,8 +2737,48 @@ function MainEditorSurface({
     editorShellRef.current?.focus();
   }, []);
 
-  function markEditorInteraction() {
-    perfSampleRef.current.lastInteractionAt = performance.now();
+  useEffect(() => {
+    return () => {
+      if (perfSampleRef.current.idleTimerId !== null) {
+        window.clearTimeout(perfSampleRef.current.idleTimerId);
+      }
+    };
+  }, []);
+
+  function schedulePerfIdleTransition() {
+    if (perfSampleRef.current.idleTimerId !== null) {
+      window.clearTimeout(perfSampleRef.current.idleTimerId);
+    }
+
+    perfSampleRef.current.idleTimerId = window.setTimeout(() => {
+      perfSampleRef.current.idleTimerId = null;
+      setPerfReadout((current) =>
+        current.interactionPhase === "idle"
+          ? current
+          : {
+              ...current,
+              interactionPhase: "idle",
+            },
+      );
+    }, 420);
+  }
+
+  function markEditorInteraction(phase: Exclude<EditorInteractionPhase, "idle" | "settling">) {
+    const now = performance.now();
+    perfSampleRef.current.pendingInteractionAt = now;
+    perfSampleRef.current.pendingInteractionPhase = phase;
+    if (perfSampleRef.current.idleTimerId !== null) {
+      window.clearTimeout(perfSampleRef.current.idleTimerId);
+      perfSampleRef.current.idleTimerId = null;
+    }
+    setPerfReadout((current) =>
+      current.interactionPhase === phase
+        ? current
+        : {
+            ...current,
+            interactionPhase: phase,
+          },
+    );
   }
 
   function handleMetricsChange(metrics: PocMetrics) {
@@ -2744,16 +2792,20 @@ function MainEditorSurface({
         : perfSampleRef.current.smoothedFps === null
           ? instantFps
           : perfSampleRef.current.smoothedFps * 0.8 + instantFps * 0.2;
-    const interactionDeltaMs =
-      perfSampleRef.current.lastInteractionAt > 0 ? now - perfSampleRef.current.lastInteractionAt : Number.POSITIVE_INFINITY;
-    const nextInputLatencyMs =
-      interactionDeltaMs <= 240
-        ? interactionDeltaMs
-        : perfSampleRef.current.lastInteractionLatencyMs;
+    const hasPendingInteraction = perfSampleRef.current.pendingInteractionAt !== null;
+    const nextInputLatencyMs = hasPendingInteraction
+      ? now - Number(perfSampleRef.current.pendingInteractionAt)
+      : perfSampleRef.current.lastInteractionLatencyMs;
 
     perfSampleRef.current.lastFrameAt = now;
     perfSampleRef.current.smoothedFps = nextFps;
     perfSampleRef.current.lastInteractionLatencyMs = nextInputLatencyMs ?? null;
+    perfSampleRef.current.pendingInteractionAt = null;
+    perfSampleRef.current.pendingInteractionPhase = null;
+
+    if (hasPendingInteraction) {
+      schedulePerfIdleTransition();
+    }
 
     const roundedFps = nextFps === null ? null : Math.max(1, Math.round(nextFps));
     const roundedRenderMs = Number(metrics.renderMs.toFixed(1));
@@ -2764,11 +2816,13 @@ function MainEditorSurface({
         : Math.max(0, Number(nextInputLatencyMs.toFixed(1)));
 
     setPerfReadout((current) => {
+      const nextInteractionPhase = hasPendingInteraction ? "settling" : current.interactionPhase;
       if (
         current.fps === roundedFps &&
         current.renderMs === roundedRenderMs &&
         current.viewportMs === roundedViewportMs &&
-        current.inputLatencyMs === roundedInputLatencyMs
+        current.inputLatencyMs === roundedInputLatencyMs &&
+        current.interactionPhase === nextInteractionPhase
       ) {
         return current;
       }
@@ -2778,6 +2832,7 @@ function MainEditorSurface({
         renderMs: roundedRenderMs,
         viewportMs: roundedViewportMs,
         inputLatencyMs: roundedInputLatencyMs,
+        interactionPhase: nextInteractionPhase,
       };
     });
   }
@@ -2897,7 +2952,12 @@ function MainEditorSurface({
             render: "렌더",
             viewport: "뷰포트",
             inputLatency: "입력→프레임",
+            activity: "상태",
             pendingPerf: "측정 중",
+            idle: "대기",
+            dragging: "드래그",
+            zooming: "줌",
+            settling: "반영 중",
             shortcuts:
               "N 노드 추가 · Shift+클릭 다중 선택 · Delete 삭제 · 엣지 선택 후 핸들 클릭 다시 연결 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
           },
@@ -2942,7 +3002,12 @@ function MainEditorSurface({
             render: "Render",
             viewport: "Viewport",
             inputLatency: "Input→frame",
+            activity: "Activity",
             pendingPerf: "Sampling",
+            idle: "Idle",
+            dragging: "Dragging",
+            zooming: "Zooming",
+            settling: "Settling",
             shortcuts:
               "N adds nodes · Shift+click multi-select · Delete removes · select an edge then click a handle to reconnect · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
           },
@@ -3129,16 +3194,16 @@ function MainEditorSurface({
       className="editor-shell"
       tabIndex={-1}
       onPointerDownCapture={() => {
-        markEditorInteraction();
+        markEditorInteraction("dragging");
         editorShellRef.current?.focus();
       }}
       onPointerMoveCapture={(event) => {
         if (event.buttons > 0) {
-          markEditorInteraction();
+          markEditorInteraction("dragging");
         }
       }}
       onWheelCapture={() => {
-        markEditorInteraction();
+        markEditorInteraction("zooming");
       }}
     >
       <header className="editor-topbar">
@@ -3230,6 +3295,9 @@ function MainEditorSurface({
                 </span>
                 <span>
                   {ui.status.zoom}: {Math.round(viewport.zoom * 100)}%
+                </span>
+                <span data-editor-perf="activity">
+                  {ui.status.activity}: {ui.status[perfReadout.interactionPhase]}
                 </span>
                 <span data-editor-perf="fps">
                   {ui.status.fps}: {perfReadout.fps ?? ui.status.pendingPerf}
