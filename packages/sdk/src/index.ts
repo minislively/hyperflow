@@ -149,6 +149,74 @@ export function getPocNodeAnchorPoint<TData extends Record<string, unknown>, TTy
     : { x: center.x, y: node.position.y, side: "top" };
 }
 
+export function resolvePocNodeRoleAnchorSide<TData extends Record<string, unknown>, TType extends string>(
+  node: PocNode<TData, TType>,
+  options: {
+    toward: PocNodePosition;
+    role: "input" | "output";
+    preferredSide?: PocAnchorSide;
+  },
+): PocAnchorSide {
+  const center = getPocNodeCenter(node);
+
+  function scoreAnchorSide(side: PocAnchorSide) {
+    const anchor = getPocNodeAnchorPointForSide(node, side);
+    const dx = options.toward.x - center.x;
+    const dy = options.toward.y - center.y;
+    const dominantAxis = Math.abs(dx) >= Math.abs(dy) ? "horizontal" : "vertical";
+    const preferredDirectionalSide =
+      dominantAxis === "horizontal"
+        ? dx >= 0
+          ? "right"
+          : "left"
+        : dy >= 0
+          ? "bottom"
+          : "top";
+    const oppositeDirectionalSide =
+      preferredDirectionalSide === "left"
+        ? "right"
+        : preferredDirectionalSide === "right"
+          ? "left"
+          : preferredDirectionalSide === "top"
+            ? "bottom"
+            : "top";
+
+    const orthogonalPenalty =
+      dominantAxis === "horizontal"
+        ? side === "top" || side === "bottom"
+          ? 18
+          : 0
+        : side === "left" || side === "right"
+          ? 18
+          : 0;
+    const oppositePenalty = side === oppositeDirectionalSide ? 42 : 0;
+    const preferredPenalty = options.preferredSide && side !== options.preferredSide ? 36 : 0;
+    const roleBiasPenalty =
+      options.role === "input"
+        ? side === "left"
+          ? 0
+          : side === "top" || side === "bottom"
+            ? 8
+            : 16
+        : side === "right"
+          ? 0
+          : side === "top" || side === "bottom"
+            ? 8
+            : 16;
+    const distancePenalty = (Math.abs(anchor.x - options.toward.x) + Math.abs(anchor.y - options.toward.y)) * 0.12;
+
+    return oppositePenalty + orthogonalPenalty + preferredPenalty + roleBiasPenalty + distancePenalty;
+  }
+
+  return POC_ANCHOR_SIDES.reduce<{ side: PocAnchorSide; score: number }>(
+    (best, side) => {
+      const score = scoreAnchorSide(side);
+      return score < best.score ? { side, score } : best;
+    },
+    { side: getPocNodeAnchorPoint(node, options.toward).side, score: Number.POSITIVE_INFINITY },
+  ).side;
+}
+
 function getPocNodeAnchorPointForSide<TData extends Record<string, unknown>, TType extends string>(
   node: PocNode<TData, TType>,
   side: PocAnchorSide,
@@ -262,61 +330,16 @@ export function resolvePocNodeAnchors<TData extends Record<string, unknown>, TTy
   },
 ): PocResolvedNodeAnchors {
   const sameSideOffset = options.sameSideOffset ?? 18;
-  const center = getPocNodeCenter(node);
-
-  function scoreAnchorSide(
-    toward: PocNodePosition,
-    side: PocAnchorSide,
-    role: "input" | "output",
-    preferredSide?: PocAnchorSide,
-  ) {
-    const anchor = getPocNodeAnchorPointForSide(node, side);
-    const dx = toward.x - center.x;
-    const dy = toward.y - center.y;
-    const dominantAxis = Math.abs(dx) >= Math.abs(dy) ? "horizontal" : "vertical";
-    const preferredDirectionalSide =
-      dominantAxis === "horizontal"
-        ? dx >= 0
-          ? "right"
-          : "left"
-        : dy >= 0
-          ? "bottom"
-          : "top";
-    const oppositeDirectionalSide =
-      preferredDirectionalSide === "left"
-        ? "right"
-        : preferredDirectionalSide === "right"
-          ? "left"
-          : preferredDirectionalSide === "top"
-            ? "bottom"
-            : "top";
-
-    const orthogonalPenalty =
-      dominantAxis === "horizontal"
-        ? side === "top" || side === "bottom"
-          ? 18
-          : 0
-        : side === "left" || side === "right"
-          ? 18
-          : 0;
-    const oppositePenalty = side === oppositeDirectionalSide ? 42 : 0;
-    const preferredPenalty = preferredSide && side !== preferredSide ? 36 : 0;
-    const roleBiasPenalty =
-      role === "input"
-        ? side === "left"
-          ? 0
-          : side === "top" || side === "bottom"
-            ? 8
-            : 16
-        : side === "right"
-          ? 0
-          : side === "top" || side === "bottom"
-            ? 8
-            : 16;
-    const distancePenalty = (Math.abs(anchor.x - toward.x) + Math.abs(anchor.y - toward.y)) * 0.12;
-
-    return oppositePenalty + orthogonalPenalty + preferredPenalty + roleBiasPenalty + distancePenalty;
-  }
+  const preferredInputSide = resolvePocNodeRoleAnchorSide(node, {
+    toward: options.inputToward,
+    role: "input",
+    preferredSide: options.preferredInputSide,
+  });
+  const preferredOutputSide = resolvePocNodeRoleAnchorSide(node, {
+    toward: options.outputToward,
+    role: "output",
+    preferredSide: options.preferredOutputSide,
+  });
 
   let bestScore = Number.POSITIVE_INFINITY;
   let bestInputAnchor = getPocNodeAnchorPoint(node, options.inputToward);
@@ -332,8 +355,8 @@ export function resolvePocNodeAnchors<TData extends Record<string, unknown>, TTy
             : 0;
       const score =
         pairPenalty +
-        scoreAnchorSide(options.inputToward, inputSide, "input", options.preferredInputSide) +
-        scoreAnchorSide(options.outputToward, outputSide, "output", options.preferredOutputSide);
+        (inputSide === preferredInputSide ? 0 : 18) +
+        (outputSide === preferredOutputSide ? 0 : 18);
 
       if (score >= bestScore) continue;
 
@@ -489,13 +512,26 @@ export function resolvePocEdgeAnchorsBatch<TData extends Record<string, unknown>
 
   const outgoingGroups = new Map<string, PocEdge[]>();
   const incomingGroups = new Map<string, PocEdge[]>();
+  const sourceSideByEdgeId = new Map<string, PocAnchorSide>();
+  const targetSideByEdgeId = new Map<string, PocAnchorSide>();
 
   edges.forEach((edge) => {
     const sourceId = Number(edge.source);
     const targetId = Number(edge.target);
-    const sourceSide = nodeAnchorsById.get(sourceId)?.outputAnchor.side;
-    const targetSide = nodeAnchorsById.get(targetId)?.inputAnchor.side;
+    const sourceNode = nodeById.get(sourceId);
+    const targetNode = nodeById.get(targetId);
+    if (!sourceNode || !targetNode) return;
+    const sourceSide = resolvePocNodeRoleAnchorSide(sourceNode, {
+      toward: getPocNodeCenter(targetNode),
+      role: "output",
+    });
+    const targetSide = resolvePocNodeRoleAnchorSide(targetNode, {
+      toward: getPocNodeCenter(sourceNode),
+      role: "input",
+    });
     if (!sourceSide || !targetSide) return;
+    sourceSideByEdgeId.set(edge.id, sourceSide);
+    targetSideByEdgeId.set(edge.id, targetSide);
     const outgoingKey = `${sourceId}:${sourceSide}`;
     const incomingKey = `${targetId}:${targetSide}`;
     outgoingGroups.set(outgoingKey, [...(outgoingGroups.get(outgoingKey) ?? []), edge]);

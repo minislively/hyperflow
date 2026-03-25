@@ -84,15 +84,16 @@ That seam is intentionally used by both:
 
 The goal is to keep the following on the same contract before any broader Rust/WASM migration:
 
-- visible handle placement
+- visible handle side selection
 - actual edge start/end anchors
 - sibling fan-out offsets
 - rendered edge paths
 
 The current validated split is now intentionally two-tiered:
 
-- **node-level anchors** still drive the visible connect handles and preserve the current one-handle-per-role authoring UX
-- **edge-level transient anchors** derive per-edge start/end points on those same sides so same-side siblings no longer pretend to share one representative point
+- **node-level anchors** still preserve the current one-handle-per-role authoring UX
+- **edge-level transient anchors** now derive per-edge start/end points and per-edge side choices, so edges no longer have to borrow a node-wide representative side when the opposite node clearly sits elsewhere
+- **representative visible handles** stay on the dominant rendered side for each role so the editor affordance reads like the rendered topology instead of fighting it
 - **slot-aware curve requests** derive same-side curve offsets from per-edge `slot` / `slotCount` metadata so the main canvas and minimap no longer have to invent separate sibling spread math
 
 This means the current validated boundary is no longer only "editor-facing node shape vs runtime geometry node shape". It also includes a narrow, shared **anchor + edge-path utility layer** and a matching **batched engine seam** that higher-level surfaces can call consistently today and migrate inward later.

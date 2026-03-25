@@ -230,6 +230,71 @@ test("resolvePocEdgeAnchorsBatch keeps same-side siblings on distinct anchors", 
   assert.notEqual(resolved[0]!.sourceAnchor.y, resolved[1]!.sourceAnchor.y);
 });
 
+test("resolvePocEdgeAnchorsBatch resolves edge sides per edge instead of reusing a single node-side anchor", () => {
+  const nodes = [
+    {
+      id: 1,
+      type: "default",
+      position: { x: 500, y: 120 },
+      size: { width: 180, height: 96 },
+      data: { title: "Hub" },
+    },
+    {
+      id: 2,
+      type: "default",
+      position: { x: 900, y: 40 },
+      size: { width: 180, height: 96 },
+      data: { title: "Right" },
+    },
+    {
+      id: 3,
+      type: "default",
+      position: { x: 80, y: 180 },
+      size: { width: 180, height: 96 },
+      data: { title: "Left" },
+    },
+  ] as const;
+
+  const anchorMap = new Map<number, ReturnType<typeof resolvePocNodeAnchors>>([
+    [
+      1,
+      {
+        inputAnchor: { x: 590, y: 216, side: "bottom" },
+        outputAnchor: { x: 590, y: 120, side: "top" },
+      },
+    ],
+    [
+      2,
+      {
+        inputAnchor: { x: 900, y: 88, side: "left" },
+        outputAnchor: { x: 1080, y: 88, side: "right" },
+      },
+    ],
+    [
+      3,
+      {
+        inputAnchor: { x: 80, y: 228, side: "left" },
+        outputAnchor: { x: 260, y: 228, side: "right" },
+      },
+    ],
+  ]);
+
+  const resolved = resolvePocEdgeAnchorsBatch(
+    nodes.slice(),
+    [
+      { id: "e-1-2", source: 1, target: 2 },
+      { id: "e-1-3", source: 1, target: 3 },
+    ],
+    anchorMap,
+  );
+
+  assert.equal(resolved.length, 2);
+  assert.equal(resolved[0]!.sourceAnchor.side, "right");
+  assert.equal(resolved[0]!.targetAnchor.side, "left");
+  assert.equal(resolved[1]!.sourceAnchor.side, "left");
+  assert.equal(resolved[1]!.targetAnchor.side, "right");
+});
+
 test("resolvePocEdgeCurveSpread centers slot-based offsets", () => {
   assert.equal(getPocCenteredSlotSpread(0, 2, 18), -9);
   assert.equal(getPocCenteredSlotSpread(1, 2, 18), 9);

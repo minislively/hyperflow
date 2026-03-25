@@ -260,6 +260,36 @@ test("same-side edges fan out from distinct visible anchors", async ({ page }) =
   expect(Math.abs(originalMove.y - fanOutMove.y)).toBeGreaterThan(6);
 });
 
+test("edges switch to the matching side when a source node moves across its target", async ({ page }) => {
+  await page.goto("/ko");
+
+  const sourceNode = page.locator("[data-node-card-id='1']");
+  const sourceBox = await sourceNode.boundingBox();
+  if (!sourceBox) throw new Error("node 1 missing before opposite-side routing test");
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2 + 620, sourceBox.y + sourceBox.height / 2 + 20, { steps: 12 });
+  await page.mouse.up();
+
+  const movedSourceBox = await sourceNode.boundingBox();
+  if (!movedSourceBox) throw new Error("node 1 missing after opposite-side routing drag");
+
+  const editorRegion = page.getByRole("region", { name: "HyperFlow 메인 editor" });
+  const editorRegionBox = await editorRegion.boundingBox();
+  if (!editorRegionBox) throw new Error("editor region missing during opposite-side routing drag");
+
+  const edgePath = await page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]').getAttribute("d");
+  if (!edgePath) throw new Error("edge-a-b path missing after opposite-side routing drag");
+
+  const moveTo = parseMoveTo(edgePath);
+  const localSourceLeft = movedSourceBox.x - editorRegionBox.x;
+  const localSourceTop = movedSourceBox.y - editorRegionBox.y;
+  expect(Math.abs(moveTo.x - localSourceLeft)).toBeLessThan(24);
+  expect(moveTo.y).toBeGreaterThan(localSourceTop - 8);
+  expect(moveTo.y).toBeLessThan(localSourceTop + movedSourceBox.height + 8);
+});
+
 test("editor save and restore keeps authoring state together", async ({ page }) => {
   await page.goto("/ko");
 

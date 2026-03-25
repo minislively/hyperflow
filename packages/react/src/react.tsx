@@ -5,6 +5,7 @@ import {
   createPocEdgePathResolutionRequest,
   createPocEngine,
   getPocNodeCenter,
+  offsetPocAnchorWithinSide,
   projectPocNodesToRuntimeNodes,
   resolvePocEdgeAnchorsBatch,
   resolvePocSmoothEdgeCurve,
@@ -993,15 +994,20 @@ export function HyperFlowPocCanvas({
     viewport.zoom,
   ]);
 
+  const resolvedEdgeAnchorsById = useMemo(
+    () =>
+      new Map<string, PocResolvedEdgeAnchors>(
+        resolvePocEdgeAnchorsBatch(
+          nodes,
+          edges,
+          resolvedNodeAnchorsById,
+          engine ? (requests) => engine.resolveEdgeAnchorsBatch(requests) : undefined,
+        ).map((entry) => [entry.edgeId, entry] as const),
+      ),
+    [edges, engine, nodes, resolvedNodeAnchorsById],
+  );
+
   const renderedEdges = useMemo(() => {
-    const resolvedEdgeAnchorsById = new Map<string, PocResolvedEdgeAnchors>(
-      resolvePocEdgeAnchorsBatch(
-        nodes,
-        edges,
-        resolvedNodeAnchorsById,
-        engine ? (requests) => engine.resolveEdgeAnchorsBatch(requests) : undefined,
-      ).map((entry) => [entry.edgeId, entry] as const),
-    );
     const edgeRequests: Array<
       {
         id: string;
@@ -1072,22 +1078,70 @@ export function HyperFlowPocCanvas({
       bendWorldY: number;
       hasBend: boolean;
     }>;
-  }, [edges, engine, nodeById, nodes, resolvedNodeAnchorsById, viewport.x, viewport.y, viewport.zoom]);
+  }, [edges, engine, nodeById, nodes, resolvedEdgeAnchorsById, viewport.x, viewport.y, viewport.zoom]);
 
   const renderedHandles = useMemo(() => {
     if (!onEdgeConnect) return [];
+
+    function getRepresentativeAnchor(
+      anchors: Array<{ x: number; y: number; side: PocAnchorSide }>,
+      fallback: { x: number; y: number; side: PocAnchorSide },
+    ) {
+      if (anchors.length === 0) return fallback;
+
+      const sideCounts = anchors.reduce(
+        (map, anchor) => map.set(anchor.side, (map.get(anchor.side) ?? 0) + 1),
+        new Map<PocAnchorSide, number>(),
+      );
+      const dominantSide = [...sideCounts.entries()].sort((left, right) => {
+        if (right[1] !== left[1]) return right[1] - left[1];
+        if (left[0] === fallback.side) return -1;
+        if (right[0] === fallback.side) return 1;
+        return 0;
+      })[0]?.[0] ?? fallback.side;
+      const sameSideAnchors = anchors.filter((anchor) => anchor.side === dominantSide);
+      if (sameSideAnchors.length === 0) return fallback;
+
+      if (dominantSide === "left" || dominantSide === "right") {
+        const sorted = sameSideAnchors.slice().sort((left, right) => left.y - right.y);
+        return sorted[Math.floor(sorted.length / 2)] ?? fallback;
+      }
+
+      const sorted = sameSideAnchors.slice().sort((left, right) => left.x - right.x);
+      return sorted[Math.floor(sorted.length / 2)] ?? fallback;
+    }
 
     return nodes.map((node) => {
       const resolvedAnchors = resolvedNodeAnchorsById.get(Number(node.id));
       if (!resolvedAnchors) return null;
       const { inputAnchor, outputAnchor } = resolvedAnchors;
+      const incomingAnchors = edges
+        .filter((edge) => Number(edge.target) === Number(node.id))
+        .map((edge) => resolvedEdgeAnchorsById.get(edge.id)?.targetAnchor)
+        .filter((anchor): anchor is NonNullable<typeof anchor> => anchor !== undefined);
+      const outgoingAnchors = edges
+        .filter((edge) => Number(edge.source) === Number(node.id))
+        .map((edge) => resolvedEdgeAnchorsById.get(edge.id)?.sourceAnchor)
+        .filter((anchor): anchor is NonNullable<typeof anchor> => anchor !== undefined);
+      let representativeInputAnchor = getRepresentativeAnchor(incomingAnchors, inputAnchor);
+      let representativeOutputAnchor = getRepresentativeAnchor(outgoingAnchors, outputAnchor);
+
+      const anchorsOverlap =
+        representativeInputAnchor.side === representativeOutputAnchor.side &&
+        Math.abs(representativeInputAnchor.x - representativeOutputAnchor.x) < 1 &&
+        Math.abs(representativeInputAnchor.y - representativeOutputAnchor.y) < 1;
+
+      if (anchorsOverlap) {
+        representativeInputAnchor = offsetPocAnchorWithinSide(representativeInputAnchor, node, -14);
+        representativeOutputAnchor = offsetPocAnchorWithinSide(representativeOutputAnchor, node, 14);
+      }
 
       return {
         id: node.id,
-        inputX: (inputAnchor.x - viewport.x) * viewport.zoom - HANDLE_HALF,
-        inputY: (inputAnchor.y - viewport.y) * viewport.zoom - HANDLE_HALF,
-        outputX: (outputAnchor.x - viewport.x) * viewport.zoom - HANDLE_HALF,
-        outputY: (outputAnchor.y - viewport.y) * viewport.zoom - HANDLE_HALF,
+        inputX: (representativeInputAnchor.x - viewport.x) * viewport.zoom - HANDLE_HALF,
+        inputY: (representativeInputAnchor.y - viewport.y) * viewport.zoom - HANDLE_HALF,
+        outputX: (representativeOutputAnchor.x - viewport.x) * viewport.zoom - HANDLE_HALF,
+        outputY: (representativeOutputAnchor.y - viewport.y) * viewport.zoom - HANDLE_HALF,
         isActive:
           pendingConnectionSourceId !== null ||
           connectionPreview !== null ||
@@ -1108,7 +1162,9 @@ export function HyperFlowPocCanvas({
     connectionPreview,
     nodes,
     onEdgeConnect,
+    edges,
     pendingConnectionSourceId,
+    resolvedEdgeAnchorsById,
     resolvedNodeAnchorsById,
     selectedNodeIdsSet,
     viewport.x,
