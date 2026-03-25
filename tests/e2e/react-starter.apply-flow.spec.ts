@@ -266,6 +266,24 @@ test("main editor exposes perf readouts and records input-to-frame latency after
   await expect(page.locator('[data-editor-perf="input-latency"]')).not.toContainText("--");
 });
 
+test("main editor can switch into and out of a large benchmark graph", async ({ page }) => {
+  await page.goto("/ko");
+
+  await expect(page.locator('[data-editor-perf="graph"]')).toContainText("그래프: 기본");
+  await expect(page.getByText("노드: 3")).toBeVisible();
+
+  await page.getByRole("button", { name: "대형 그래프 보기" }).click();
+  await expect(page.locator('[data-editor-perf="graph"]')).toContainText("그래프: 대형");
+  await expect(page.getByText("노드: 84")).toBeVisible();
+  await expect(page.getByText("엣지: 137")).toBeVisible();
+  await expect(page.locator("[data-node-card-id='84']")).toBeVisible();
+
+  await page.getByRole("button", { name: "기본 그래프 보기" }).click();
+  await expect(page.locator('[data-editor-perf="graph"]')).toContainText("그래프: 기본");
+  await expect(page.getByText("노드: 3")).toBeVisible();
+  await expect(page.locator("[data-node-card-id='84']")).toHaveCount(0);
+});
+
 test("same-side edges fan out from distinct visible anchors", async ({ page }) => {
   await page.goto("/ko");
 

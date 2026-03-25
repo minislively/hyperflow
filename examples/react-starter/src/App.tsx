@@ -114,6 +114,8 @@ type EditorPerfReadout = {
   interactionPhase: EditorInteractionPhase;
 };
 
+type EditorGraphPreset = "starter" | "benchmark";
+
 
 const locales: Locale[] = ["ko", "en"];
 const sectionOrder: SectionId[] = ["learn", "reference", "examples", "roadmap"];
@@ -236,6 +238,63 @@ function cloneLearnDemoEdges() {
     ...edge,
     bend: edge.bend ? { ...edge.bend } : edge.bend ?? null,
   }));
+}
+
+function createBenchmarkGraph() {
+  const rows = 7;
+  const columns = 12;
+  const nodes: LearnDemoNode[] = [];
+  const edges: LearnDemoEdge[] = [];
+  const nodeWidth = 180;
+  const nodeHeight = 96;
+  const stepX = 250;
+  const stepY = 154;
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const nodeId = row * columns + column + 1;
+      nodes.push({
+        id: nodeId,
+        type: column === 0 ? "input" : column === columns - 1 ? "output" : "transform",
+        position: { x: 80 + column * stepX, y: 80 + row * stepY },
+        size: { width: nodeWidth, height: nodeHeight },
+        data: {
+          title: `Node ${nodeId}`,
+          note: column === 0 ? "Benchmark input" : column === columns - 1 ? "Benchmark output" : "Benchmark step",
+        },
+      });
+    }
+  }
+
+  const pushEdge = (source: number, target: number) => {
+    edges.push({
+      id: `edge-${source}-${target}-${edges.length + 1}`,
+      source,
+      target,
+      type: "default",
+      bend: null,
+    });
+  };
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns - 1; column += 1) {
+      const currentId = row * columns + column + 1;
+      const rightId = currentId + 1;
+      pushEdge(currentId, rightId);
+
+      if (row < rows - 1 && column % 2 === 0) {
+        const lowerRightId = (row + 1) * columns + column + 2;
+        pushEdge(currentId, lowerRightId);
+      }
+
+      if (row > 0 && column % 3 === 1) {
+        const upperRightId = (row - 1) * columns + column + 2;
+        pushEdge(currentId, upperRightId);
+      }
+    }
+  }
+
+  return { nodes, edges };
 }
 
 function getEditorNodeAnchorPreferences() {
@@ -2672,6 +2731,7 @@ function MainEditorSurface({
   const [editorCanvasFrameRef, editorCanvasSize] = useCanvasDimensions(mainEditorCanvas);
   const [nodes, setNodes] = useWorkflowNodesState<LearnDemoNode>(cloneLearnDemoNodes());
   const [edges, setEdges] = useWorkflowEdgesState<LearnDemoEdge>(cloneLearnDemoEdges());
+  const [graphPreset, setGraphPreset] = useState<EditorGraphPreset>("starter");
   const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: null });
   const selectedNode = useSelectedNode({ nodes, selection });
   const [selectedNodeIds, setSelectedNodeIds] = useState<number[]>([]);
@@ -2937,6 +2997,8 @@ function MainEditorSurface({
           docsButton: "학습 문서 보기",
           controls: {
             addNode: "노드 추가",
+            toggleBenchmarkOn: "대형 그래프 보기",
+            toggleBenchmarkOff: "기본 그래프 보기",
             deleteSelection: "선택 삭제",
             fit: "맞춤 보기",
             zoomOut: "축소",
@@ -2945,6 +3007,7 @@ function MainEditorSurface({
             restore: "복원",
           },
           status: {
+            graph: "그래프",
             nodes: "노드",
             edges: "엣지",
             zoom: "줌",
@@ -2958,6 +3021,8 @@ function MainEditorSurface({
             dragging: "드래그",
             zooming: "줌",
             settling: "반영 중",
+            starterGraph: "기본",
+            benchmarkGraph: "대형",
             shortcuts:
               "N 노드 추가 · Shift+클릭 다중 선택 · Delete 삭제 · 엣지 선택 후 핸들 클릭 다시 연결 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
           },
@@ -2987,6 +3052,8 @@ function MainEditorSurface({
           docsButton: "Open Learn docs",
           controls: {
             addNode: "Add node",
+            toggleBenchmarkOn: "Open benchmark graph",
+            toggleBenchmarkOff: "Return to starter graph",
             deleteSelection: "Delete selection",
             fit: "Fit view",
             zoomOut: "Zoom out",
@@ -2995,6 +3062,7 @@ function MainEditorSurface({
             restore: "Restore",
           },
           status: {
+            graph: "Graph",
             nodes: "Nodes",
             edges: "Edges",
             zoom: "Zoom",
@@ -3008,6 +3076,8 @@ function MainEditorSurface({
             dragging: "Dragging",
             zooming: "Zooming",
             settling: "Settling",
+            starterGraph: "Starter",
+            benchmarkGraph: "Benchmark",
             shortcuts:
               "N adds nodes · Shift+click multi-select · Delete removes · select an edge then click a handle to reconnect · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
           },
@@ -3036,8 +3106,8 @@ function MainEditorSurface({
       fitPocViewportToNodes(nodes, {
         width: editorCanvasSize.width,
         height: editorCanvasSize.height,
-        padding: 96,
-        minZoom: 0.35,
+        padding: graphPreset === "benchmark" ? 128 : 96,
+        minZoom: graphPreset === "benchmark" ? 0.18 : 0.35,
         maxZoom: 1.4,
       }),
     );
@@ -3075,6 +3145,32 @@ function MainEditorSurface({
     setSelectedNodeIds([nextNodeId]);
     onSelectionChange({ nodeId: nextNodeId });
     setSelectedEdgeId(null);
+  }
+
+  function loadGraphPreset(nextPreset: EditorGraphPreset) {
+    const nextGraph =
+      nextPreset === "benchmark"
+        ? createBenchmarkGraph()
+        : { nodes: cloneLearnDemoNodes(), edges: cloneLearnDemoEdges() };
+
+    hasUserAdjustedViewportRef.current = true;
+    setGraphPreset(nextPreset);
+    nodesRef.current = nextGraph.nodes;
+    setNodes(nextGraph.nodes);
+    setEdges(nextGraph.edges);
+    setSelectedNodeIds([]);
+    setSelectedEdgeId(null);
+    onSelectionChange({ nodeId: null });
+    setSavedSnapshot(null);
+    setViewport(
+      fitPocViewportToNodes(nextGraph.nodes, {
+        width: editorCanvasSize.width,
+        height: editorCanvasSize.height,
+        padding: nextPreset === "benchmark" ? 128 : 96,
+        minZoom: 0.18,
+        maxZoom: 1.4,
+      }),
+    );
   }
 
   function getResolvedSelectedNodeIds() {
@@ -3256,6 +3352,12 @@ function MainEditorSurface({
                     <IconPlus />
                   </EditorControlButton>
                   <EditorControlButton
+                    label={graphPreset === "starter" ? ui.controls.toggleBenchmarkOn : ui.controls.toggleBenchmarkOff}
+                    onClick={() => loadGraphPreset(graphPreset === "starter" ? "benchmark" : "starter")}
+                  >
+                    {graphPreset === "starter" ? "96" : "3"}
+                  </EditorControlButton>
+                  <EditorControlButton
                     label={ui.controls.deleteSelection}
                     tone="danger"
                     onClick={deleteSelected}
@@ -3287,6 +3389,9 @@ function MainEditorSurface({
                 </div>
               </div>
               <div className="editor-canvas-status">
+                <span data-editor-perf="graph">
+                  {ui.status.graph}: {graphPreset === "starter" ? ui.status.starterGraph : ui.status.benchmarkGraph}
+                </span>
                 <span>
                   {ui.status.nodes}: {nodes.length}
                 </span>
