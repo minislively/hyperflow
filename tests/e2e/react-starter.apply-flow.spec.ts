@@ -188,6 +188,104 @@ test("selected edges can reconnect to another handle without creating a new edge
   await expect(page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]')).toHaveCount(1);
 });
 
+test("selected edge target endpoints can be dragged to reconnect directly", async ({ page }) => {
+  await page.goto("/ko");
+
+  const edge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]');
+  const edgeBox = await edge.boundingBox();
+  if (!edgeBox) throw new Error("missing edge-a-b before endpoint reconnect");
+  await page.mouse.click(edgeBox.x + edgeBox.width / 2, edgeBox.y + edgeBox.height / 2);
+
+  const endpoint = page.getByRole("button", { name: "Reconnect target of edge edge-a-b" });
+  const endpointBox = await endpoint.boundingBox();
+  const targetThreeHandle = page.getByRole("button", { name: "Connect into node 3" });
+  const targetThreeHandleBox = await targetThreeHandle.boundingBox();
+  if (!endpointBox || !targetThreeHandleBox) throw new Error("missing reconnect endpoint or node 3 target handle");
+
+  await page.mouse.move(endpointBox.x + endpointBox.width / 2, endpointBox.y + endpointBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    targetThreeHandleBox.x + targetThreeHandleBox.width / 2,
+    targetThreeHandleBox.y + targetThreeHandleBox.height / 2,
+    { steps: 12 },
+  );
+  await page.mouse.up();
+
+  await page.getByRole("button", { name: "저장" }).click();
+  const snapshotText = await page.locator(".editor-snapshot").textContent();
+  if (!snapshotText) throw new Error("missing snapshot after target endpoint drag reconnect");
+  const snapshot = JSON.parse(snapshotText);
+  const reconnectedEdge = snapshot.edges.find(
+    (entry: { source: number; target: number }) => Number(entry.source) === 1 && Number(entry.target) === 3,
+  );
+  expect(reconnectedEdge).toBeTruthy();
+  expect(snapshot.edges.some((entry: { source: number; target: number }) => Number(entry.source) === 1 && Number(entry.target) === 2)).toBeFalsy();
+});
+
+test("selected edge source endpoints can be dragged to reconnect directly", async ({ page }) => {
+  await page.goto("/ko");
+
+  const edge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-b-c"]');
+  const edgeBox = await edge.boundingBox();
+  if (!edgeBox) throw new Error("missing edge-b-c before source endpoint reconnect");
+  await page.mouse.click(edgeBox.x + edgeBox.width / 2, edgeBox.y + edgeBox.height / 2);
+
+  const endpoint = page.getByRole("button", { name: "Reconnect source of edge edge-b-c" });
+  const endpointBox = await endpoint.boundingBox();
+  const sourceOneHandle = page.getByRole("button", { name: "Connect from node 1" });
+  const sourceOneHandleBox = await sourceOneHandle.boundingBox();
+  if (!endpointBox || !sourceOneHandleBox) throw new Error("missing reconnect endpoint or node 1 source handle");
+
+  await page.mouse.move(endpointBox.x + endpointBox.width / 2, endpointBox.y + endpointBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    sourceOneHandleBox.x + sourceOneHandleBox.width / 2,
+    sourceOneHandleBox.y + sourceOneHandleBox.height / 2,
+    { steps: 12 },
+  );
+  await page.mouse.up();
+
+  await page.getByRole("button", { name: "저장" }).click();
+  const snapshotText = await page.locator(".editor-snapshot").textContent();
+  if (!snapshotText) throw new Error("missing snapshot after source endpoint drag reconnect");
+  const snapshot = JSON.parse(snapshotText);
+  const reconnectedEdge = snapshot.edges.find(
+    (entry: { source: number; target: number }) => Number(entry.source) === 1 && Number(entry.target) === 3,
+  );
+  expect(reconnectedEdge).toBeTruthy();
+  expect(snapshot.edges.some((entry: { source: number; target: number }) => Number(entry.source) === 2 && Number(entry.target) === 3)).toBeFalsy();
+});
+
+test("dropping an edge endpoint reconnect on empty canvas keeps the original edge unchanged", async ({ page }) => {
+  await page.goto("/ko");
+
+  const edge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]');
+  const edgeBox = await edge.boundingBox();
+  const canvas = page.getByLabel("HyperFlow 메인 editor");
+  const canvasBox = await canvas.boundingBox();
+  if (!edgeBox || !canvasBox) throw new Error("missing edge or canvas before invalid reconnect drop");
+  await page.mouse.click(edgeBox.x + edgeBox.width / 2, edgeBox.y + edgeBox.height / 2);
+
+  const endpoint = page.getByRole("button", { name: "Reconnect target of edge edge-a-b" });
+  const endpointBox = await endpoint.boundingBox();
+  if (!endpointBox) throw new Error("missing target reconnect endpoint");
+
+  await page.mouse.move(endpointBox.x + endpointBox.width / 2, endpointBox.y + endpointBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(canvasBox.x + canvasBox.width - 48, canvasBox.y + canvasBox.height - 48, { steps: 12 });
+  await page.mouse.up();
+
+  await page.getByRole("button", { name: "저장" }).click();
+  const snapshotText = await page.locator(".editor-snapshot").textContent();
+  if (!snapshotText) throw new Error("missing snapshot after invalid reconnect drop");
+  const snapshot = JSON.parse(snapshotText);
+  const unchangedEdge = snapshot.edges.find(
+    (entry: { source: number; target: number }) => Number(entry.source) === 1 && Number(entry.target) === 2,
+  );
+  expect(unchangedEdge).toBeTruthy();
+  expect(snapshot.edges).toHaveLength(2);
+});
+
 
 test("dragging a node updates connected edges immediately", async ({ page }) => {
   await page.goto("/ko");

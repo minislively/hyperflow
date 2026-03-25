@@ -3000,7 +3000,7 @@ function MainEditorSurface({
             starterGraph: "기본",
             benchmarkGraph: "대형",
             shortcuts:
-              "N 노드 추가 · Shift+클릭 다중 선택 · Delete 삭제 · 엣지 선택 후 핸들 클릭 다시 연결 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
+              "N 노드 추가 · Shift+클릭 다중 선택 · Delete 삭제 · 엣지 끝점 드래그/핸들 클릭 다시 연결 · Esc 선택 해제 · ⌘/Ctrl+0 맞춤 보기 · ⌘/Ctrl+S 저장",
           },
           inspector: {
             eyebrow: "선택된 항목",
@@ -3055,7 +3055,7 @@ function MainEditorSurface({
             starterGraph: "Starter",
             benchmarkGraph: "Benchmark",
             shortcuts:
-              "N adds nodes · Shift+click multi-select · Delete removes · select an edge then click a handle to reconnect · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
+              "N adds nodes · Shift+click multi-select · Delete removes · drag an edge endpoint or click a handle to reconnect · Esc clears selection · ⌘/Ctrl+0 fits view · ⌘/Ctrl+S saves",
           },
           inspector: {
             eyebrow: "Selected item",

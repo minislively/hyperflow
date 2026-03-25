@@ -946,6 +946,10 @@ button {
   z-index: 6;
 }
 
+.hf-handle-overlay-edge-endpoints {
+  z-index: 7;
+}
+
 .hf-node-overlay {
   position: absolute;
   inset: 0;
@@ -990,6 +994,10 @@ button {
 .hf-node-handle-active {
   background: #2563eb;
   box-shadow: 0 0 0 1px #2563eb;
+}
+
+.hf-edge-endpoint-handle {
+  cursor: grab;
 }
 
 .learn-live-inspector {
