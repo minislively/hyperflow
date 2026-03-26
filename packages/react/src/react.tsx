@@ -74,6 +74,25 @@ export type HyperFlowPocCanvasProps = {
   onReadyChange?: (ready: boolean) => void;
 };
 
+function areVisibleBoxesEquivalent(left: VisibleBox[], right: VisibleBox[]) {
+  if (left === right) return true;
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    const leftBox = left[index];
+    const rightBox = right[index];
+    if (
+      Number(leftBox.id) !== Number(rightBox.id) ||
+      leftBox.x !== rightBox.x ||
+      leftBox.y !== rightBox.y ||
+      leftBox.width !== rightBox.width ||
+      leftBox.height !== rightBox.height
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
   engine: providedEngine = null,
   nodes,
@@ -387,7 +406,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       }
     }
 
-    setVisibleBoxes(boxes);
+    setVisibleBoxes((previousBoxes) => (areVisibleBoxesEquivalent(previousBoxes, boxes) ? previousBoxes : boxes));
     onMetricsChangeRef.current?.(metrics);
   }, [engine, hasCustomNodeRendering, height, nodes, selectedNodeId, viewport, width]);
 
