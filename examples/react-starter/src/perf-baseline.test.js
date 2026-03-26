@@ -2,7 +2,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { comparePerfBaselineReadouts, editorPerfBaselines, evaluatePerfBaseline, evaluatePerfBaselineGate, formatPerfBaselineTarget } from "./perf-baseline.js";
+import { comparePerfBaselineReadoutEvidence, comparePerfBaselineReadouts, editorPerfBaselines, evaluatePerfBaseline, evaluatePerfBaselineGate, formatPerfBaselineTarget } from "./perf-baseline.js";
 function createReadout(overrides = {}) {
     return {
         fps: 60,
@@ -181,6 +181,23 @@ test("comparePerfBaselineReadouts flags verdict changes before metric deltas", (
         detail: "within → over"
     });
 });
+test("comparePerfBaselineReadoutEvidence exposes status-transition evidence before metric deltas", ()=>{
+    const comparison = comparePerfBaselineReadoutEvidence(createReadout(), createReadout({
+        recentAvgRenderMs: 16,
+        recentAvgViewportMs: 9,
+        recentBudgetMissRate: 0.5
+    }), editorPerfBaselines.benchmark);
+    assert.deepEqual(comparison, {
+        verdict: "regressed",
+        reason: "status-transition",
+        detail: "within → over",
+        beforeStatus: "within",
+        afterStatus: "over",
+        beforeGateReason: "within-threshold",
+        afterGateReason: "recent-window-failure",
+        dominantMetric: null
+    });
+});
 test("comparePerfBaselineReadouts reports input-latency improvements when status stays stable", ()=>{
     const comparison = comparePerfBaselineReadouts(createReadout({
         avgInputLatencyMs: 34,
@@ -194,6 +211,33 @@ test("comparePerfBaselineReadouts reports input-latency improvements when status
     assert.deepEqual(comparison, {
         verdict: "improved",
         detail: "I 34.0→24.0ms"
+    });
+});
+test("comparePerfBaselineReadoutEvidence prioritizes input latency deltas when status stays stable", ()=>{
+    const comparison = comparePerfBaselineReadoutEvidence(createReadout({
+        avgInputLatencyMs: 34,
+        interactionBudgetMissCount: 2,
+        interactionFrameSampleCount: 12
+    }), createReadout({
+        avgInputLatencyMs: 24,
+        interactionBudgetMissCount: 2,
+        interactionFrameSampleCount: 12
+    }), editorPerfBaselines.benchmark);
+    assert.deepEqual(comparison, {
+        verdict: "improved",
+        reason: "input-latency-delta",
+        detail: "I 34.0→24.0ms",
+        beforeStatus: "within",
+        afterStatus: "within",
+        beforeGateReason: "within-threshold",
+        afterGateReason: "within-threshold",
+        dominantMetric: {
+            key: "I",
+            unit: "ms",
+            before: 34,
+            after: 24,
+            delta: -10
+        }
     });
 });
 test("comparePerfBaselineReadouts reports budget-miss regressions when status stays stable", ()=>{
@@ -211,6 +255,33 @@ test("comparePerfBaselineReadouts reports budget-miss regressions when status st
         detail: "B 8%→25%"
     });
 });
+test("comparePerfBaselineReadoutEvidence exposes budget-miss deltas when status stays stable", ()=>{
+    const comparison = comparePerfBaselineReadoutEvidence(createReadout({
+        avgInputLatencyMs: 28,
+        interactionBudgetMissCount: 1,
+        interactionFrameSampleCount: 12
+    }), createReadout({
+        avgInputLatencyMs: 28,
+        interactionBudgetMissCount: 3,
+        interactionFrameSampleCount: 12
+    }), editorPerfBaselines.benchmark);
+    assert.deepEqual(comparison, {
+        verdict: "regressed",
+        reason: "budget-miss-delta",
+        detail: "B 8%→25%",
+        beforeStatus: "within",
+        afterStatus: "within",
+        beforeGateReason: "within-threshold",
+        afterGateReason: "within-threshold",
+        dominantMetric: {
+            key: "B",
+            unit: "%",
+            before: 0.08,
+            after: 0.25,
+            delta: 0.17
+        }
+    });
+});
 test("comparePerfBaselineReadouts returns unchanged when verdict and primary metrics stay within tolerance", ()=>{
     const comparison = comparePerfBaselineReadouts(createReadout({
         avgInputLatencyMs: 28.2,
@@ -224,5 +295,26 @@ test("comparePerfBaselineReadouts returns unchanged when verdict and primary met
     assert.deepEqual(comparison, {
         verdict: "unchanged",
         detail: "within stable · I 28.2ms · B 17%"
+    });
+});
+test("comparePerfBaselineReadoutEvidence keeps stable comparisons machine-readable", ()=>{
+    const comparison = comparePerfBaselineReadoutEvidence(createReadout({
+        avgInputLatencyMs: 28.2,
+        interactionBudgetMissCount: 2,
+        interactionFrameSampleCount: 12
+    }), createReadout({
+        avgInputLatencyMs: 28.5,
+        interactionBudgetMissCount: 2,
+        interactionFrameSampleCount: 12
+    }), editorPerfBaselines.benchmark);
+    assert.deepEqual(comparison, {
+        verdict: "unchanged",
+        reason: "within-tolerance",
+        detail: "within stable · I 28.2ms · B 17%",
+        beforeStatus: "within",
+        afterStatus: "within",
+        beforeGateReason: "within-threshold",
+        afterGateReason: "within-threshold",
+        dominantMetric: null
     });
 });

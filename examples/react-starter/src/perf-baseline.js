@@ -211,15 +211,21 @@ export function evaluatePerfBaseline(readout, baseline) {
         detail
     };
 }
-export function comparePerfBaselineReadouts(before, after, baseline) {
-    const beforeEvaluation = evaluatePerfBaseline(before, baseline);
-    const afterEvaluation = evaluatePerfBaseline(after, baseline);
-    const beforeSeverity = getBaselineStatusSeverity(beforeEvaluation.status);
-    const afterSeverity = getBaselineStatusSeverity(afterEvaluation.status);
+export function comparePerfBaselineReadoutEvidence(before, after, baseline) {
+    const beforeGate = evaluatePerfBaselineGate(before, baseline);
+    const afterGate = evaluatePerfBaselineGate(after, baseline);
+    const beforeSeverity = getBaselineStatusSeverity(beforeGate.status);
+    const afterSeverity = getBaselineStatusSeverity(afterGate.status);
     if (afterSeverity !== beforeSeverity) {
         return {
             verdict: afterSeverity < beforeSeverity ? "improved" : "regressed",
-            detail: `${beforeEvaluation.status} → ${afterEvaluation.status}`
+            reason: "status-transition",
+            detail: `${beforeGate.status} → ${afterGate.status}`,
+            beforeStatus: beforeGate.status,
+            afterStatus: afterGate.status,
+            beforeGateReason: beforeGate.reason,
+            afterGateReason: afterGate.reason,
+            dominantMetric: null
         };
     }
     const beforeInput = before.avgInputLatencyMs;
@@ -229,7 +235,19 @@ export function comparePerfBaselineReadouts(before, after, baseline) {
         if (Math.abs(inputDelta) > perfComparisonTolerances.inputLatencyMs) {
             return {
                 verdict: inputDelta < 0 ? "improved" : "regressed",
-                detail: `I ${beforeInput.toFixed(1)}→${afterInput.toFixed(1)}ms`
+                reason: "input-latency-delta",
+                detail: `I ${beforeInput.toFixed(1)}→${afterInput.toFixed(1)}ms`,
+                beforeStatus: beforeGate.status,
+                afterStatus: afterGate.status,
+                beforeGateReason: beforeGate.reason,
+                afterGateReason: afterGate.reason,
+                dominantMetric: {
+                    key: "I",
+                    unit: "ms",
+                    before: beforeInput,
+                    after: afterInput,
+                    delta: inputDelta
+                }
             };
         }
     }
@@ -239,11 +257,36 @@ export function comparePerfBaselineReadouts(before, after, baseline) {
     if (Math.abs(budgetDelta) > perfComparisonTolerances.budgetMissRate) {
         return {
             verdict: budgetDelta < 0 ? "improved" : "regressed",
-            detail: `B ${formatBudgetMissRate(beforeBudgetMissRate)}→${formatBudgetMissRate(afterBudgetMissRate)}`
+            reason: "budget-miss-delta",
+            detail: `B ${formatBudgetMissRate(beforeBudgetMissRate)}→${formatBudgetMissRate(afterBudgetMissRate)}`,
+            beforeStatus: beforeGate.status,
+            afterStatus: afterGate.status,
+            beforeGateReason: beforeGate.reason,
+            afterGateReason: afterGate.reason,
+            dominantMetric: {
+                key: "B",
+                unit: "%",
+                before: beforeBudgetMissRate,
+                after: afterBudgetMissRate,
+                delta: budgetDelta
+            }
         };
     }
     return {
         verdict: "unchanged",
-        detail: `${beforeEvaluation.status} stable · I ${beforeInput === null ? "--" : `${beforeInput.toFixed(1)}ms`} · B ${formatBudgetMissRate(beforeBudgetMissRate)}`
+        reason: "within-tolerance",
+        detail: `${beforeGate.status} stable · I ${beforeInput === null ? "--" : `${beforeInput.toFixed(1)}ms`} · B ${formatBudgetMissRate(beforeBudgetMissRate)}`,
+        beforeStatus: beforeGate.status,
+        afterStatus: afterGate.status,
+        beforeGateReason: beforeGate.reason,
+        afterGateReason: afterGate.reason,
+        dominantMetric: null
+    };
+}
+export function comparePerfBaselineReadouts(before, after, baseline) {
+    const { verdict, detail } = comparePerfBaselineReadoutEvidence(before, after, baseline);
+    return {
+        verdict,
+        detail
     };
 }
