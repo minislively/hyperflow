@@ -2,7 +2,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { editorPerfBaselines, evaluatePerfBaseline, formatPerfBaselineTarget } from "./perf-baseline.js";
+import { comparePerfBaselineReadouts, editorPerfBaselines, evaluatePerfBaseline, formatPerfBaselineTarget } from "./perf-baseline.js";
 function createReadout(overrides = {}) {
     return {
         fps: 60,
@@ -92,6 +92,62 @@ test("evaluatePerfBaseline returns within when aggregate and recent metrics sati
     const evaluation = evaluatePerfBaseline(createReadout(), editorPerfBaselines.benchmark);
     assert.deepEqual(evaluation, {
         status: "within",
-        detail: "F 32 · A 12 · S 3 · W 6 · B 12%"
+        detail: "F 32 · A 12 · S 3 · W 6 · I 28.0/65ms · B 12/35%"
+    });
+});
+test("comparePerfBaselineReadouts flags verdict changes before metric deltas", ()=>{
+    const comparison = comparePerfBaselineReadouts(createReadout(), createReadout({
+        recentAvgRenderMs: 16,
+        recentAvgViewportMs: 9,
+        recentBudgetMissRate: 0.5
+    }), editorPerfBaselines.benchmark);
+    assert.deepEqual(comparison, {
+        verdict: "regressed",
+        detail: "within → over"
+    });
+});
+test("comparePerfBaselineReadouts reports input-latency improvements when status stays stable", ()=>{
+    const comparison = comparePerfBaselineReadouts(createReadout({
+        avgInputLatencyMs: 34,
+        interactionBudgetMissCount: 2,
+        interactionFrameSampleCount: 12
+    }), createReadout({
+        avgInputLatencyMs: 24,
+        interactionBudgetMissCount: 2,
+        interactionFrameSampleCount: 12
+    }), editorPerfBaselines.benchmark);
+    assert.deepEqual(comparison, {
+        verdict: "improved",
+        detail: "I 34.0→24.0ms"
+    });
+});
+test("comparePerfBaselineReadouts reports budget-miss regressions when status stays stable", ()=>{
+    const comparison = comparePerfBaselineReadouts(createReadout({
+        avgInputLatencyMs: 28,
+        interactionBudgetMissCount: 1,
+        interactionFrameSampleCount: 12
+    }), createReadout({
+        avgInputLatencyMs: 28,
+        interactionBudgetMissCount: 3,
+        interactionFrameSampleCount: 12
+    }), editorPerfBaselines.benchmark);
+    assert.deepEqual(comparison, {
+        verdict: "regressed",
+        detail: "B 8%→25%"
+    });
+});
+test("comparePerfBaselineReadouts returns unchanged when verdict and primary metrics stay within tolerance", ()=>{
+    const comparison = comparePerfBaselineReadouts(createReadout({
+        avgInputLatencyMs: 28.2,
+        interactionBudgetMissCount: 2,
+        interactionFrameSampleCount: 12
+    }), createReadout({
+        avgInputLatencyMs: 28.5,
+        interactionBudgetMissCount: 2,
+        interactionFrameSampleCount: 12
+    }), editorPerfBaselines.benchmark);
+    assert.deepEqual(comparison, {
+        verdict: "unchanged",
+        detail: "within stable · I 28.2ms · B 17%"
     });
 });

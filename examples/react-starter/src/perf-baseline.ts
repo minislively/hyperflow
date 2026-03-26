@@ -45,6 +45,13 @@ export type PerfBaselineEvaluation = {
   detail: string;
 };
 
+export type PerfBaselineComparisonVerdict = "improved" | "unchanged" | "regressed";
+
+export type PerfBaselineComparison = {
+  verdict: PerfBaselineComparisonVerdict;
+  detail: string;
+};
+
 type PerfMetricSpec = {
   key: "R" | "V" | "I" | "P" | "B";
   actual: number;
@@ -58,6 +65,11 @@ type PerfMetricAccessor = {
   limit: (baseline: PerfBaseline) => number;
   unit: PerfMetricSpec["unit"];
 };
+
+const perfComparisonTolerances = {
+  inputLatencyMs: 0.5,
+  budgetMissRate: 0.02,
+} as const;
 
 export const editorPerfBaselines: Record<PerfBaselinePreset, PerfBaseline> = {
   starter: {
@@ -112,6 +124,26 @@ function buildMetricSpecs(
   }));
 }
 
+function getInteractionBudgetMissRate(readout: EditorPerfReadout) {
+  const activeFrames = Math.max(readout.interactionFrameSampleCount, 0);
+  return activeFrames === 0 ? 0 : Number((readout.interactionBudgetMissCount / activeFrames).toFixed(2));
+}
+
+function formatBudgetMissRate(rate: number) {
+  return `${Math.round(rate * 100)}%`;
+}
+
+function getBaselineStatusSeverity(status: PerfBaselineStatus) {
+  switch (status) {
+    case "within":
+      return 0;
+    case "warming":
+      return 1;
+    case "over":
+      return 2;
+  }
+}
+
 const aggregateMetricAccessors: readonly PerfMetricAccessor[] = [
   { key: "R", read: (readout) => readout.avgRenderMs, limit: (baseline) => baseline.maxAvgRenderMs, unit: "ms" },
   {
@@ -134,10 +166,7 @@ const aggregateMetricAccessors: readonly PerfMetricAccessor[] = [
   },
   {
     key: "B",
-    read: (readout) => {
-      const activeFrames = Math.max(readout.interactionFrameSampleCount, 0);
-      return activeFrames === 0 ? 0 : readout.interactionBudgetMissCount / Math.max(activeFrames, 1);
-    },
+    read: (readout) => getInteractionBudgetMissRate(readout),
     limit: (baseline) => baseline.maxBudgetMissRate,
     unit: "%",
   },
@@ -218,8 +247,54 @@ export function evaluatePerfBaseline(
   }
 
   const recentBudgetMissRate = readout.recentBudgetMissRate ?? 0;
+  const avgInputLatencyMs = readout.avgInputLatencyMs ?? 0;
   return {
     status: "within",
-    detail: `F ${totalFrames} · A ${activeFrames} · S ${interactionBursts} · W ${recentSamples} · B ${Math.round(recentBudgetMissRate * 100)}%`,
+    detail: `F ${totalFrames} · A ${activeFrames} · S ${interactionBursts} · W ${recentSamples} · I ${avgInputLatencyMs.toFixed(1)}/${baseline.maxAvgInputLatencyMs.toFixed(0)}ms · B ${Math.round(recentBudgetMissRate * 100)}/${Math.round(baseline.maxBudgetMissRate * 100)}%`,
+  };
+}
+
+export function comparePerfBaselineReadouts(
+  before: EditorPerfReadout,
+  after: EditorPerfReadout,
+  baseline: PerfBaseline,
+): PerfBaselineComparison {
+  const beforeEvaluation = evaluatePerfBaseline(before, baseline);
+  const afterEvaluation = evaluatePerfBaseline(after, baseline);
+  const beforeSeverity = getBaselineStatusSeverity(beforeEvaluation.status);
+  const afterSeverity = getBaselineStatusSeverity(afterEvaluation.status);
+
+  if (afterSeverity !== beforeSeverity) {
+    return {
+      verdict: afterSeverity < beforeSeverity ? "improved" : "regressed",
+      detail: `${beforeEvaluation.status} → ${afterEvaluation.status}`,
+    };
+  }
+
+  const beforeInput = before.avgInputLatencyMs;
+  const afterInput = after.avgInputLatencyMs;
+  if (beforeInput !== null && afterInput !== null) {
+    const inputDelta = Number((afterInput - beforeInput).toFixed(1));
+    if (Math.abs(inputDelta) > perfComparisonTolerances.inputLatencyMs) {
+      return {
+        verdict: inputDelta < 0 ? "improved" : "regressed",
+        detail: `I ${beforeInput.toFixed(1)}→${afterInput.toFixed(1)}ms`,
+      };
+    }
+  }
+
+  const beforeBudgetMissRate = getInteractionBudgetMissRate(before);
+  const afterBudgetMissRate = getInteractionBudgetMissRate(after);
+  const budgetDelta = Number((afterBudgetMissRate - beforeBudgetMissRate).toFixed(2));
+  if (Math.abs(budgetDelta) > perfComparisonTolerances.budgetMissRate) {
+    return {
+      verdict: budgetDelta < 0 ? "improved" : "regressed",
+      detail: `B ${formatBudgetMissRate(beforeBudgetMissRate)}→${formatBudgetMissRate(afterBudgetMissRate)}`,
+    };
+  }
+
+  return {
+    verdict: "unchanged",
+    detail: `${beforeEvaluation.status} stable · I ${beforeInput === null ? "--" : `${beforeInput.toFixed(1)}ms`} · B ${formatBudgetMissRate(beforeBudgetMissRate)}`,
   };
 }
