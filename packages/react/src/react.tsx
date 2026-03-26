@@ -5,7 +5,6 @@ import {
   createPocEngine,
   getPocNodeCenter,
   offsetPocAnchorWithinSide,
-  projectPocResolvedEdgeCurve,
   projectPocNodesToRuntimeNodes,
   resolvePocEdgeAnchorsBatch,
   resolvePocRenderableEdgesBatch,
@@ -21,6 +20,9 @@ import {
   type VisibleBox,
 } from "@hyperflow/sdk";
 import { isInteractiveCanvasMode, type HyperFlowCanvasMode } from "./starter";
+
+const HANDLE_SIZE = 18;
+const HANDLE_HALF = HANDLE_SIZE / 2;
 
 export type HyperFlowPocNodeRendererProps<TData = unknown> = {
   node: PocNode;
@@ -71,9 +73,6 @@ export type HyperFlowPocCanvasProps = {
   onMetricsChange?: (metrics: PocMetrics) => void;
   onReadyChange?: (ready: boolean) => void;
 };
-
-const HANDLE_SIZE = 18;
-const HANDLE_HALF = HANDLE_SIZE / 2;
 
 export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
   engine: providedEngine = null,
@@ -316,12 +315,15 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
   }
 
   function getCanvasPoint(event: Pick<React.PointerEvent<HTMLCanvasElement>, "clientX" | "clientY">) {
+    return getCanvasScreenPointFromClientPoint(event.clientX, event.clientY);
+  }
+
+  function getCanvasScreenPointFromClientPoint(clientX: number, clientY: number) {
     if (!canvasRef.current) return null;
     const rect = canvasRef.current.getBoundingClientRect();
     return {
-      rect,
-      screenX: (event.clientX - rect.left) * (canvasRef.current.width / rect.width),
-      screenY: (event.clientY - rect.top) * (canvasRef.current.height / rect.height),
+      screenX: (clientX - rect.left) * (canvasRef.current.width / rect.width),
+      screenY: (clientY - rect.top) * (canvasRef.current.height / rect.height),
     };
   }
 
@@ -747,6 +749,26 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       ) {
         connectionDrag.moved = true;
       }
+      if (engine && canvasRef.current) {
+        const canvasPoint = getCanvasScreenPointFromClientPoint(event.clientX, event.clientY);
+        if (canvasPoint) {
+          const withinCanvas =
+            canvasPoint.screenX >= 0 &&
+            canvasPoint.screenY >= 0 &&
+            canvasPoint.screenX <= canvasRef.current.width &&
+            canvasPoint.screenY <= canvasRef.current.height;
+          const hoveredNodeId = withinCanvas
+            ? engine.hitTest({
+                x: viewportRef.current.x + canvasPoint.screenX / viewportRef.current.zoom,
+                y: viewportRef.current.y + canvasPoint.screenY / viewportRef.current.zoom,
+              })
+            : null;
+          connectionDrag.hoveredNodeId =
+            hoveredNodeId !== null && isCompatibleConnectionTarget(hoveredNodeId) ? hoveredNodeId : null;
+        } else {
+          connectionDrag.hoveredNodeId = null;
+        }
+      }
       pendingConnectionPreviewRef.current = {
         kind: connectionDrag.kind,
         edgeId: connectionDrag.edgeId,
@@ -925,7 +947,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     [],
   );
 
-  const renderedCustomNodes = useMemo(() => {
+  const worldRenderedCustomNodes = useMemo(() => {
     if (!nodeRenderers || !getNodeRendererKey) return [];
 
     return visibleBoxes
@@ -946,10 +968,6 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
           node,
           Renderer,
           data: getNodeRendererData?.(node),
-          screenX: (box.x - viewport.x) * viewport.zoom,
-          screenY: (box.y - viewport.y) * viewport.zoom,
-          screenWidth: box.width * viewport.zoom,
-          screenHeight: box.height * viewport.zoom,
           isDragging,
           isSelected,
           layerPriority,
@@ -966,10 +984,6 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       node: PocNode;
       Renderer: React.ComponentType<HyperFlowPocNodeRendererProps<any>>;
       data: unknown;
-      screenX: number;
-      screenY: number;
-      screenWidth: number;
-      screenHeight: number;
       isDragging: boolean;
       isSelected: boolean;
       layerPriority: number;
@@ -981,11 +995,20 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     nodeById,
     nodeRenderers,
     selectedNodeIdsSet,
-    viewport.x,
-    viewport.y,
-    viewport.zoom,
     visibleBoxes,
   ]);
+
+  const renderedCustomNodes = useMemo(
+    () =>
+      worldRenderedCustomNodes.map((entry) => ({
+        ...entry,
+        screenX: (entry.box.x - viewport.x) * viewport.zoom,
+        screenY: (entry.box.y - viewport.y) * viewport.zoom,
+        screenWidth: entry.box.width * viewport.zoom,
+        screenHeight: entry.box.height * viewport.zoom,
+      })),
+    [viewport.x, viewport.y, viewport.zoom, worldRenderedCustomNodes],
+  );
 
   const connectedNodeMaps = useMemo(() => {
     const incomingByNodeId = new Map<number, PocNode[]>();
@@ -1133,25 +1156,21 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     [viewport.x, viewport.y, viewport.zoom],
   );
 
-  const selectedRenderedEdge = useMemo(() => {
+  const worldSelectedRenderedEdge = useMemo(() => {
     if (!selectedEdgeId) return null;
-    const renderedEdge = renderedEdges.find((edge) => edge.id === selectedEdgeId) ?? null;
+    const renderedEdge = worldRenderedEdges.find((edge) => edge.id === selectedEdgeId) ?? null;
     const edgeRecord = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
     if (!renderedEdge || !edgeRecord) return null;
-    const projectedCurve = projectPocResolvedEdgeCurve(renderedEdge.curve, {
-      projectX: (worldX) => (worldX - viewport.x) * viewport.zoom,
-      projectY: (worldY) => (worldY - viewport.y) * viewport.zoom,
-    });
     return {
       ...renderedEdge,
-      sourceX: projectedCurve.sourceX,
-      sourceY: projectedCurve.sourceY,
-      targetX: projectedCurve.targetX,
-      targetY: projectedCurve.targetY,
+      sourceWorldX: renderedEdge.curve.sourceX,
+      sourceWorldY: renderedEdge.curve.sourceY,
+      targetWorldX: renderedEdge.curve.targetX,
+      targetWorldY: renderedEdge.curve.targetY,
       sourceNodeId: Number(edgeRecord.source),
       targetNodeId: Number(edgeRecord.target),
     };
-  }, [edges, renderedEdges, selectedEdgeId, viewport.x, viewport.y, viewport.zoom]);
+  }, [edges, selectedEdgeId, worldRenderedEdges]);
 
   const edgeAnchorsByNodeId = useMemo(() => {
     const incomingByNodeId = new Map<number, Array<PocResolvedEdgeAnchors["targetAnchor"]>>();
@@ -1169,7 +1188,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     return { incomingByNodeId, outgoingByNodeId };
   }, [edges, resolvedEdgeAnchorsById]);
 
-  const renderedHandles = useMemo(() => {
+  const worldRenderedHandles = useMemo(() => {
     if (!onEdgeConnect) return [];
 
     function getRepresentativeAnchor(
@@ -1221,10 +1240,10 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
 
       return {
         id: node.id,
-        inputX: (representativeInputAnchor.x - viewport.x) * viewport.zoom - HANDLE_HALF,
-        inputY: (representativeInputAnchor.y - viewport.y) * viewport.zoom - HANDLE_HALF,
-        outputX: (representativeOutputAnchor.x - viewport.x) * viewport.zoom - HANDLE_HALF,
-        outputY: (representativeOutputAnchor.y - viewport.y) * viewport.zoom - HANDLE_HALF,
+        inputWorldX: representativeInputAnchor.x,
+        inputWorldY: representativeInputAnchor.y,
+        outputWorldX: representativeOutputAnchor.x,
+        outputWorldY: representativeOutputAnchor.y,
         isActive:
           pendingConnectionSourceId !== null ||
           connectionPreview !== null ||
@@ -1235,10 +1254,10 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       };
     }).filter(Boolean) as Array<{
       id: number;
-      inputX: number;
-      inputY: number;
-      outputX: number;
-      outputY: number;
+      inputWorldX: number;
+      inputWorldY: number;
+      outputWorldX: number;
+      outputWorldY: number;
       isActive: boolean;
     }>;
   }, [
@@ -1251,10 +1270,119 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     resolvedNodeAnchorsById,
     selectedEdgeId,
     selectedNodeIdsSet,
-    viewport.x,
-    viewport.y,
-    viewport.zoom,
   ]);
+
+  const renderedHandles = useMemo(
+    () =>
+      worldRenderedHandles.map((handle) => ({
+        ...handle,
+        inputX: (handle.inputWorldX - viewport.x) * viewport.zoom - HANDLE_HALF,
+        inputY: (handle.inputWorldY - viewport.y) * viewport.zoom - HANDLE_HALF,
+        outputX: (handle.outputWorldX - viewport.x) * viewport.zoom - HANDLE_HALF,
+        outputY: (handle.outputWorldY - viewport.y) * viewport.zoom - HANDLE_HALF,
+      })),
+    [viewport.x, viewport.y, viewport.zoom, worldRenderedHandles],
+  );
+
+  const selectedRenderedEdge = useMemo(() => {
+    if (!worldSelectedRenderedEdge) return null;
+    const sourcePoint = getScreenPointFromWorldPoint(
+      worldSelectedRenderedEdge.sourceWorldX,
+      worldSelectedRenderedEdge.sourceWorldY,
+    );
+    const targetPoint = getScreenPointFromWorldPoint(
+      worldSelectedRenderedEdge.targetWorldX,
+      worldSelectedRenderedEdge.targetWorldY,
+    );
+    return {
+      ...worldSelectedRenderedEdge,
+      sourceX: sourcePoint.x,
+      sourceY: sourcePoint.y,
+      targetX: targetPoint.x,
+      targetY: targetPoint.y,
+    };
+  }, [viewport.x, viewport.y, viewport.zoom, worldSelectedRenderedEdge]);
+
+  function getScreenPointFromWorldPoint(worldX: number, worldY: number) {
+    return {
+      x: (worldX - viewport.x) * viewport.zoom,
+      y: (worldY - viewport.y) * viewport.zoom,
+    };
+  }
+
+  function renderHandleControl(
+    handle: (typeof renderedHandles)[number],
+    role: "source" | "target",
+    key: string,
+  ) {
+    const isSource = role === "source";
+    const handleX = isSource ? handle.outputX : handle.inputX;
+    const handleY = isSource ? handle.outputY : handle.inputY;
+
+    return (
+      <button
+        key={key}
+        type="button"
+        className={
+          isSource
+            ? Number(pendingConnectionSourceId) === Number(handle.id)
+              ? "hf-node-handle hf-node-handle-output hf-node-handle-active"
+              : "hf-node-handle hf-node-handle-output"
+            : "hf-node-handle hf-node-handle-input"
+        }
+        style={{
+          left: `${handleX}px`,
+          top: `${handleY}px`,
+        }}
+        aria-label={isSource ? `Connect from node ${handle.id}` : `Connect into node ${handle.id}`}
+        onPointerDown={(event) => {
+          if (!isSource || !isInteractive || !onEdgeConnect) return;
+          event.preventDefault();
+          event.stopPropagation();
+          startConnectionDrag({
+            kind: "connect",
+            draggedNodeId: handle.id,
+            startX: handleX + HANDLE_HALF,
+            startY: handleY + HANDLE_HALF,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            pointerId: event.pointerId,
+          });
+        }}
+        onPointerEnter={() => {
+          if (!connectionDragRef.current || !connectionDragAcceptsRole(role)) return;
+          if (!isCompatibleConnectionTarget(handle.id)) return;
+          updateHoveredConnectionTarget(handle.id);
+        }}
+        onPointerLeave={() => {
+          if (!connectionDragRef.current || !connectionDragAcceptsRole(role)) return;
+          if (Number(connectionDragRef.current.hoveredNodeId) !== Number(handle.id)) return;
+          updateHoveredConnectionTarget(null);
+        }}
+        onPointerUp={(event) => {
+          if (!connectionDragRef.current || !connectionDragAcceptsRole(role)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (!isCompatibleConnectionTarget(handle.id)) {
+            finalizeConnectionDrag(event.pointerId);
+            return;
+          }
+          updateHoveredConnectionTarget(handle.id);
+          finalizeConnectionDrag(event.pointerId);
+        }}
+        onClick={(event) => {
+          if (suppressNextHandleClickRef.current) {
+            suppressNextHandleClickRef.current = false;
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+          event.stopPropagation();
+          handleHandleClick(role, handle.id);
+        }}
+      />
+    );
+  }
 
   function handleHandleClick(role: "source" | "target", nodeId: number) {
     if (selectedEdgeId !== null && onEdgeReconnect) {
@@ -1396,98 +1524,8 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
               .filter((handle) => !handle.isActive)
               .map((handle) => (
                 <Fragment key={`under-${handle.id}`}>
-                  <button
-                    type="button"
-                    className="hf-node-handle hf-node-handle-input"
-                    style={{ left: `${handle.inputX}px`, top: `${handle.inputY}px` }}
-                    aria-label={`Connect into node ${handle.id}`}
-                    onPointerEnter={() => {
-                      if (!connectionDragRef.current || !connectionDragAcceptsRole("target")) return;
-                      if (!isCompatibleConnectionTarget(handle.id)) return;
-                      updateHoveredConnectionTarget(handle.id);
-                    }}
-                    onPointerLeave={() => {
-                      if (!connectionDragRef.current || !connectionDragAcceptsRole("target")) return;
-                      if (Number(connectionDragRef.current.hoveredNodeId) !== Number(handle.id)) return;
-                      updateHoveredConnectionTarget(null);
-                    }}
-                    onPointerUp={(event) => {
-                      if (!connectionDragRef.current || !connectionDragAcceptsRole("target")) return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      if (!isCompatibleConnectionTarget(handle.id)) {
-                        finalizeConnectionDrag(event.pointerId);
-                        return;
-                      }
-                      updateHoveredConnectionTarget(handle.id);
-                      finalizeConnectionDrag(event.pointerId);
-                    }}
-                    onClick={(event) => {
-                      if (suppressNextHandleClickRef.current) {
-                        suppressNextHandleClickRef.current = false;
-                        event.preventDefault();
-                        event.stopPropagation();
-                        return;
-                      }
-                      event.stopPropagation();
-                      handleHandleClick("target", handle.id);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className={
-                      Number(pendingConnectionSourceId) === Number(handle.id)
-                        ? "hf-node-handle hf-node-handle-output hf-node-handle-active"
-                        : "hf-node-handle hf-node-handle-output"
-                    }
-                    style={{ left: `${handle.outputX}px`, top: `${handle.outputY}px` }}
-                    aria-label={`Connect from node ${handle.id}`}
-                    onPointerDown={(event) => {
-                      if (!isInteractive || !onEdgeConnect) return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      startConnectionDrag({
-                        kind: "connect",
-                        draggedNodeId: handle.id,
-                        startX: handle.outputX + HANDLE_HALF,
-                        startY: handle.outputY + HANDLE_HALF,
-                        clientX: event.clientX,
-                        clientY: event.clientY,
-                        pointerId: event.pointerId,
-                      });
-                    }}
-                    onPointerEnter={() => {
-                      if (!connectionDragRef.current || !connectionDragAcceptsRole("source")) return;
-                      if (!isCompatibleConnectionTarget(handle.id)) return;
-                      updateHoveredConnectionTarget(handle.id);
-                    }}
-                    onPointerLeave={() => {
-                      if (!connectionDragRef.current || !connectionDragAcceptsRole("source")) return;
-                      if (Number(connectionDragRef.current.hoveredNodeId) !== Number(handle.id)) return;
-                      updateHoveredConnectionTarget(null);
-                    }}
-                    onPointerUp={(event) => {
-                      if (!connectionDragRef.current || !connectionDragAcceptsRole("source")) return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      if (!isCompatibleConnectionTarget(handle.id)) {
-                        finalizeConnectionDrag(event.pointerId);
-                        return;
-                      }
-                      updateHoveredConnectionTarget(handle.id);
-                      finalizeConnectionDrag(event.pointerId);
-                    }}
-                    onClick={(event) => {
-                      if (suppressNextHandleClickRef.current) {
-                        suppressNextHandleClickRef.current = false;
-                        event.preventDefault();
-                        event.stopPropagation();
-                        return;
-                      }
-                      event.stopPropagation();
-                      handleHandleClick("source", handle.id);
-                    }}
-                  />
+                  {renderHandleControl(handle, "target", `under-target-${handle.id}`)}
+                  {renderHandleControl(handle, "source", `under-source-${handle.id}`)}
                 </Fragment>
               ))}
           </div>
@@ -1495,100 +1533,10 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
             {renderedHandles
               .filter((handle) => handle.isActive)
               .map((handle) => (
-            <Fragment key={handle.id}>
-                <button
-                  type="button"
-                  className="hf-node-handle hf-node-handle-input"
-                  style={{ left: `${handle.inputX}px`, top: `${handle.inputY}px` }}
-                  aria-label={`Connect into node ${handle.id}`}
-                  onPointerEnter={() => {
-                  if (!connectionDragRef.current || !connectionDragAcceptsRole("target")) return;
-                  if (!isCompatibleConnectionTarget(handle.id)) return;
-                  updateHoveredConnectionTarget(handle.id);
-                }}
-                onPointerLeave={() => {
-                  if (!connectionDragRef.current || !connectionDragAcceptsRole("target")) return;
-                  if (Number(connectionDragRef.current.hoveredNodeId) !== Number(handle.id)) return;
-                  updateHoveredConnectionTarget(null);
-                }}
-                onPointerUp={(event) => {
-                  if (!connectionDragRef.current || !connectionDragAcceptsRole("target")) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  if (!isCompatibleConnectionTarget(handle.id)) {
-                    finalizeConnectionDrag(event.pointerId);
-                    return;
-                  }
-                  updateHoveredConnectionTarget(handle.id);
-                  finalizeConnectionDrag(event.pointerId);
-                }}
-                onClick={(event) => {
-                  if (suppressNextHandleClickRef.current) {
-                    suppressNextHandleClickRef.current = false;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    return;
-                  }
-                  event.stopPropagation();
-                  handleHandleClick("target", handle.id);
-                }}
-              />
-                <button
-                  type="button"
-                  className={
-                    Number(pendingConnectionSourceId) === Number(handle.id)
-                      ? "hf-node-handle hf-node-handle-output hf-node-handle-active"
-                    : "hf-node-handle hf-node-handle-output"
-                }
-                style={{ left: `${handle.outputX}px`, top: `${handle.outputY}px` }}
-                aria-label={`Connect from node ${handle.id}`}
-                onPointerDown={(event) => {
-                  if (!isInteractive || !onEdgeConnect) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  startConnectionDrag({
-                    kind: "connect",
-                    draggedNodeId: handle.id,
-                    startX: handle.outputX + HANDLE_HALF,
-                    startY: handle.outputY + HANDLE_HALF,
-                    clientX: event.clientX,
-                    clientY: event.clientY,
-                    pointerId: event.pointerId,
-                  });
-                }}
-                onPointerEnter={() => {
-                  if (!connectionDragRef.current || !connectionDragAcceptsRole("source")) return;
-                  if (!isCompatibleConnectionTarget(handle.id)) return;
-                  updateHoveredConnectionTarget(handle.id);
-                }}
-                onPointerLeave={() => {
-                  if (!connectionDragRef.current || !connectionDragAcceptsRole("source")) return;
-                  if (Number(connectionDragRef.current.hoveredNodeId) !== Number(handle.id)) return;
-                  updateHoveredConnectionTarget(null);
-                }}
-                onPointerUp={(event) => {
-                  if (!connectionDragRef.current || !connectionDragAcceptsRole("source")) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  if (!isCompatibleConnectionTarget(handle.id)) {
-                    finalizeConnectionDrag(event.pointerId);
-                    return;
-                  }
-                  updateHoveredConnectionTarget(handle.id);
-                  finalizeConnectionDrag(event.pointerId);
-                }}
-                onClick={(event) => {
-                  if (suppressNextHandleClickRef.current) {
-                    suppressNextHandleClickRef.current = false;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    return;
-                  }
-                  event.stopPropagation();
-                  handleHandleClick("source", handle.id);
-                }}
-              />
-            </Fragment>
+                <Fragment key={handle.id}>
+                  {renderHandleControl(handle, "target", `over-target-${handle.id}`)}
+                  {renderHandleControl(handle, "source", `over-source-${handle.id}`)}
+                </Fragment>
             ))}
           </div>
         </>
@@ -1599,7 +1547,10 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
           <button
             type="button"
             className="hf-node-handle hf-node-handle-active hf-edge-endpoint-handle"
-            style={{ left: `${selectedRenderedEdge.sourceX - HANDLE_HALF}px`, top: `${selectedRenderedEdge.sourceY - HANDLE_HALF}px` }}
+            style={{
+              left: `${selectedRenderedEdge.sourceX - HANDLE_HALF}px`,
+              top: `${selectedRenderedEdge.sourceY - HANDLE_HALF}px`,
+            }}
             aria-label={`Reconnect source of edge ${selectedRenderedEdge.id}`}
             onPointerDown={(event) => {
               event.preventDefault();
@@ -1620,7 +1571,10 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
           <button
             type="button"
             className="hf-node-handle hf-node-handle-active hf-edge-endpoint-handle"
-            style={{ left: `${selectedRenderedEdge.targetX - HANDLE_HALF}px`, top: `${selectedRenderedEdge.targetY - HANDLE_HALF}px` }}
+            style={{
+              left: `${selectedRenderedEdge.targetX - HANDLE_HALF}px`,
+              top: `${selectedRenderedEdge.targetY - HANDLE_HALF}px`,
+            }}
             aria-label={`Reconnect target of edge ${selectedRenderedEdge.id}`}
             onPointerDown={(event) => {
               event.preventDefault();
