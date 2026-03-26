@@ -45,6 +45,32 @@ export type PerfBaselineEvaluation = {
   detail: string;
 };
 
+export type PerfBaselineMetricKey = PerfMetricSpec["key"];
+export type PerfBaselineMetricUnit = PerfMetricSpec["unit"];
+export type PerfBaselineMetricScope = "recent" | "aggregate";
+export type PerfBaselineGateReason =
+  | "insufficient-evidence"
+  | "recent-window-failure"
+  | "aggregate-failure"
+  | "within-threshold";
+
+export type PerfBaselineMetricEvidence = PerfMetricSpec & {
+  scope: PerfBaselineMetricScope;
+};
+
+export type PerfBaselineGateEvidence = {
+  status: PerfBaselineStatus;
+  reason: PerfBaselineGateReason;
+  detail: string;
+  blockingMetric: PerfBaselineMetricEvidence | null;
+  totalFrames: number;
+  activeFrames: number;
+  interactionBursts: number;
+  recentSamples: number;
+  recentMetrics: PerfBaselineMetricEvidence[];
+  aggregateMetrics: PerfBaselineMetricEvidence[];
+};
+
 export type PerfBaselineComparisonVerdict = "improved" | "unchanged" | "regressed";
 
 export type PerfBaselineComparison = {
@@ -106,9 +132,13 @@ function formatMetricValue(spec: PerfMetricSpec) {
     : `${Math.round(spec.actual * 100)}/${Math.round(spec.limit * 100)}%`;
 }
 
-function findFirstFailure(specs: readonly PerfMetricSpec[], prefix = "") {
-  const failingSpec = specs.find((spec) => spec.actual > spec.limit);
-  return failingSpec ? `${prefix}${failingSpec.key} ${formatMetricValue(failingSpec)}` : null;
+function cloneMetricSpec(spec: PerfMetricSpec): PerfMetricSpec {
+  return {
+    key: spec.key,
+    actual: spec.actual,
+    limit: spec.limit,
+    unit: spec.unit,
+  };
 }
 
 function buildMetricSpecs(
@@ -209,14 +239,22 @@ export function formatPerfBaselineTarget(baseline: PerfBaseline) {
   return `F≥${baseline.minSamples} · A≥${baseline.minInteractionSamples} · S≥${baseline.minInteractionBursts} · W≥${baseline.recentInteractionWindow} · R≤${baseline.maxAvgRenderMs.toFixed(0)}ms · V≤${baseline.maxAvgViewportMs.toFixed(0)}ms · I≤${baseline.maxAvgInputLatencyMs.toFixed(0)}ms · P≤${baseline.maxPeakInputLatencyMs.toFixed(0)}ms · B≤${Math.round(baseline.maxBudgetMissRate * 100)}%`;
 }
 
-export function evaluatePerfBaseline(
+export function evaluatePerfBaselineGate(
   readout: EditorPerfReadout,
   baseline: PerfBaseline,
-): PerfBaselineEvaluation {
+): PerfBaselineGateEvidence {
   const totalFrames = Math.max(readout.frameSampleCount, 0);
   const activeFrames = Math.max(readout.interactionFrameSampleCount, 0);
   const interactionBursts = Math.max(readout.interactionBurstCount, 0);
   const recentSamples = Math.max(readout.recentInteractionSampleCount, 0);
+  const recentMetrics = buildMetricSpecs(readout, baseline, recentMetricAccessors).map((spec) => ({
+    ...cloneMetricSpec(spec),
+    scope: "recent" as const,
+  }));
+  const aggregateMetrics = buildMetricSpecs(readout, baseline, aggregateMetricAccessors).map((spec) => ({
+    ...cloneMetricSpec(spec),
+    scope: "aggregate" as const,
+  }));
 
   if (
     totalFrames < baseline.minSamples ||
@@ -226,23 +264,47 @@ export function evaluatePerfBaseline(
   ) {
     return {
       status: "warming",
+      reason: "insufficient-evidence",
       detail: `F ${totalFrames}/${baseline.minSamples} · A ${activeFrames}/${baseline.minInteractionSamples} · S ${interactionBursts}/${baseline.minInteractionBursts} · W ${recentSamples}/${baseline.recentInteractionWindow}`,
+      blockingMetric: null,
+      totalFrames,
+      activeFrames,
+      interactionBursts,
+      recentSamples,
+      recentMetrics,
+      aggregateMetrics,
     };
   }
 
-  const recentFailure = findFirstFailure(buildMetricSpecs(readout, baseline, recentMetricAccessors), "Recent ");
+  const recentFailure = recentMetrics.find((spec) => spec.actual > spec.limit) ?? null;
   if (recentFailure) {
     return {
       status: "over",
-      detail: recentFailure,
+      reason: "recent-window-failure",
+      detail: `Recent ${recentFailure.key} ${formatMetricValue(recentFailure)}`,
+      blockingMetric: recentFailure,
+      totalFrames,
+      activeFrames,
+      interactionBursts,
+      recentSamples,
+      recentMetrics,
+      aggregateMetrics,
     };
   }
 
-  const aggregateFailure = findFirstFailure(buildMetricSpecs(readout, baseline, aggregateMetricAccessors));
+  const aggregateFailure = aggregateMetrics.find((spec) => spec.actual > spec.limit) ?? null;
   if (aggregateFailure) {
     return {
       status: "over",
-      detail: aggregateFailure,
+      reason: "aggregate-failure",
+      detail: `${aggregateFailure.key} ${formatMetricValue(aggregateFailure)}`,
+      blockingMetric: aggregateFailure,
+      totalFrames,
+      activeFrames,
+      interactionBursts,
+      recentSamples,
+      recentMetrics,
+      aggregateMetrics,
     };
   }
 
@@ -250,8 +312,24 @@ export function evaluatePerfBaseline(
   const avgInputLatencyMs = readout.avgInputLatencyMs ?? 0;
   return {
     status: "within",
+    reason: "within-threshold",
     detail: `F ${totalFrames} · A ${activeFrames} · S ${interactionBursts} · W ${recentSamples} · I ${avgInputLatencyMs.toFixed(1)}/${baseline.maxAvgInputLatencyMs.toFixed(0)}ms · B ${Math.round(recentBudgetMissRate * 100)}/${Math.round(baseline.maxBudgetMissRate * 100)}%`,
+    blockingMetric: null,
+    totalFrames,
+    activeFrames,
+    interactionBursts,
+    recentSamples,
+    recentMetrics,
+    aggregateMetrics,
   };
+}
+
+export function evaluatePerfBaseline(
+  readout: EditorPerfReadout,
+  baseline: PerfBaseline,
+): PerfBaselineEvaluation {
+  const { status, detail } = evaluatePerfBaselineGate(readout, baseline);
+  return { status, detail };
 }
 
 export function comparePerfBaselineReadouts(
