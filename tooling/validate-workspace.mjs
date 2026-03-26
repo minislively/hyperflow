@@ -19,6 +19,10 @@ const requiredPaths = [
   "docs/evaluator/feedback-template.md",
   "benchmarks/fixtures.js",
   "benchmarks/run-poc.mjs",
+  "benchmarks/perf-baseline-fixtures/benchmark-within.json",
+  "benchmarks/perf-baseline-fixtures/benchmark-over.json",
+  "benchmarks/perf-baseline-fixtures/benchmark-regressed-before.json",
+  "benchmarks/perf-baseline-fixtures/benchmark-regressed-after.json",
   "packages/core-rs/Cargo.toml",
   "packages/core-rs/src/lib.rs",
   "packages/wasm-bindings/package.json",
@@ -54,6 +58,7 @@ const requiredPaths = [
   "tests/e2e/react-starter.apply-flow.spec.js",
   "tooling/sync-ts-artifacts.mjs",
   "tooling/evaluate-perf-baseline.mjs",
+  "tooling/verify-perf-gate.mjs",
   "tsconfig.json",
   "types/node-shims.d.ts"
 ];

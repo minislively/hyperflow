@@ -21,7 +21,7 @@
     "bench": "pnpm run sync:ts-artifacts && node benchmarks/run-poc.mjs",
     "test:runtime": "pnpm run build:wasm && pnpm run test:rust && pnpm run test:js",
     "verify": "pnpm run check && pnpm run test",
-    "verify:full": "pnpm run verify && pnpm run bench",
+    "verify:full": "pnpm run verify && pnpm run verify:perf-gate && pnpm run bench",
     "serve": "pnpm run sync:ts-artifacts && python3 -m http.server 4173",
     "build:wasm:poc": "pnpm run build:wasm",
     "test:poc:rust": "pnpm run test:rust",
@@ -32,7 +32,8 @@
     "serve:poc": "pnpm run serve",
     "dev:react-starter": "pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter dev",
     "build:react-starter": "pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter build",
-    "sync:ts-artifacts": "NODE_NO_WARNINGS=1 node tooling/sync-ts-artifacts.mjs"
+    "sync:ts-artifacts": "NODE_NO_WARNINGS=1 node tooling/sync-ts-artifacts.mjs",
+    "verify:perf-gate": "pnpm run sync:ts-artifacts && node tooling/verify-perf-gate.mjs"
   },
   "type": "module",
   "devDependencies": {
