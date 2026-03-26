@@ -36,6 +36,8 @@ const requiredPaths = [
   "examples/react-starter/src/perf-baseline.js",
   "examples/react-starter/src/perf-baseline.test.ts",
   "examples/react-starter/src/perf-baseline.test.js",
+  "examples/react-starter/src/perf-baseline-cli.test.ts",
+  "examples/react-starter/src/perf-baseline-cli.test.js",
   "examples/vanilla-starter/package.json",
   "examples/vanilla-starter/index.html",
   "examples/vanilla-starter/src/main.ts",
@@ -51,6 +53,7 @@ const requiredPaths = [
   "tests/e2e/react-starter.apply-flow.spec.ts",
   "tests/e2e/react-starter.apply-flow.spec.js",
   "tooling/sync-ts-artifacts.mjs",
+  "tooling/evaluate-perf-baseline.mjs",
   "tsconfig.json",
   "types/node-shims.d.ts"
 ];

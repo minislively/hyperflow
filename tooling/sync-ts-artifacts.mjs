@@ -17,6 +17,7 @@ const generatedPairs = [
   ["packages/wasm-bindings/test/bridge.test.ts", "packages/wasm-bindings/test/bridge.test.js"],
   ["packages/renderer-canvas/test/render.test.ts", "packages/renderer-canvas/test/render.test.js"],
   ["examples/react-starter/src/perf-baseline.test.ts", "examples/react-starter/src/perf-baseline.test.js"],
+  ["examples/react-starter/src/perf-baseline-cli.test.ts", "examples/react-starter/src/perf-baseline-cli.test.js"],
   ["tests/e2e/react-starter.apply-flow.spec.ts", "tests/e2e/react-starter.apply-flow.spec.js"]
 ];
 
