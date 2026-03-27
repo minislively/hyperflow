@@ -939,15 +939,15 @@ button {
 }
 
 .hf-handle-overlay-under {
-  z-index: 4;
-}
-
-.hf-handle-overlay-over {
   z-index: 6;
 }
 
-.hf-handle-overlay-edge-endpoints {
+.hf-handle-overlay-over {
   z-index: 7;
+}
+
+.hf-handle-overlay-edge-endpoints {
+  z-index: 8;
 }
 
 .hf-node-overlay {
@@ -979,21 +979,47 @@ button {
   height: 18px;
   border: 2px solid #ffffff;
   border-radius: 999px;
-  background: #111827;
-  box-shadow: 0 0 0 1px #111827;
+  background: #0f172a;
+  box-shadow:
+    0 0 0 1px #0f172a,
+    0 0 0 4px rgba(248, 250, 252, 0.92),
+    0 8px 18px rgba(15, 23, 42, 0.18);
   pointer-events: auto;
   cursor: crosshair;
-  transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
+  opacity: 1;
+  transition:
+    transform 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease;
 }
 
 .hf-node-handle:hover {
   transform: scale(1.08);
-  box-shadow: 0 0 0 1px #111827, 0 0 0 4px rgba(15, 23, 42, 0.08);
+  box-shadow:
+    0 0 0 1px #0f172a,
+    0 0 0 5px rgba(226, 232, 240, 0.96),
+    0 12px 24px rgba(15, 23, 42, 0.2);
+}
+
+.hf-node-handle-resting {
+  opacity: 0.98;
+}
+
+.hf-node-handle-emphasis {
+  transform: scale(1.06);
+  box-shadow:
+    0 0 0 1px #0f172a,
+    0 0 0 5px rgba(191, 219, 254, 0.95),
+    0 12px 26px rgba(37, 99, 235, 0.16);
 }
 
 .hf-node-handle-active {
   background: #2563eb;
-  box-shadow: 0 0 0 1px #2563eb;
+  box-shadow:
+    0 0 0 1px #2563eb,
+    0 0 0 5px rgba(191, 219, 254, 0.98),
+    0 12px 28px rgba(37, 99, 235, 0.24);
 }
 
 .hf-edge-endpoint-handle {
