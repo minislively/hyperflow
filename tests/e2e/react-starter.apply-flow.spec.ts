@@ -46,6 +46,14 @@ async function runBenchmarkPerfBursts(page: import("@playwright/test").Page) {
   await dragNodeBurst(page, "42", 40, 88);
 }
 
+async function expectNodeHandlesVisibleAtRest(
+  page: import("@playwright/test").Page,
+  nodeId: number | string,
+) {
+  await expect(page.getByRole("button", { name: `Connect into node ${nodeId}` })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Connect from node ${nodeId}` })).toBeVisible();
+}
+
 test("react starter opens the editor-first surface at the locale root", async ({ page }) => {
   await page.goto("/ko");
 
@@ -81,8 +89,12 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
   await page.goto("/ko");
 
   await expect(page.locator("[data-node-card-id='1']")).toBeVisible();
+  await expectNodeHandlesVisibleAtRest(page, 1);
+  await expectNodeHandlesVisibleAtRest(page, 2);
+  await expectNodeHandlesVisibleAtRest(page, 3);
 
   await page.getByRole("button", { name: "노드 추가" }).click();
+  await expectNodeHandlesVisibleAtRest(page, 4);
   await expect(page.locator("[data-node-card-id='4']")).toBeVisible();
   const canvasBoxAfterFirstAdd = await page.getByLabel("HyperFlow 메인 editor").boundingBox();
   const nodeFourAfterFirstAdd = await page.locator("[data-node-card-id='4']").boundingBox();
@@ -104,6 +116,7 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
 
   await page.getByRole("button", { name: "노드 추가" }).click();
   await expect(page.locator("[data-node-card-id='5']")).toBeVisible();
+  await expectNodeHandlesVisibleAtRest(page, 5);
   const canvasBox = await page.getByLabel("HyperFlow 메인 editor").boundingBox();
   const minimapBox = await page.getByLabel("에디터 미니맵").boundingBox();
   const nodeFourBox = await page.locator("[data-node-card-id='4']").boundingBox();
@@ -172,6 +185,13 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
   );
   await page.mouse.down();
   await page.mouse.move(
+    (sourceFourHandleBox.x + sourceFourHandleBox.width / 2 + targetFiveHandleBox.x + targetFiveHandleBox.width / 2) / 2,
+    (sourceFourHandleBox.y + sourceFourHandleBox.height / 2 + targetFiveHandleBox.y + targetFiveHandleBox.height / 2) / 2,
+    { steps: 6 },
+  );
+  await expect(page.locator(".hf-edge-overlay-path-preview")).toHaveCount(1);
+  await expect(page.locator(".hf-edge-overlay-path-preview")).toHaveAttribute("d", /C/);
+  await page.mouse.move(
     targetFiveHandleBox.x + targetFiveHandleBox.width / 2,
     targetFiveHandleBox.y + targetFiveHandleBox.height / 2,
     { steps: 10 },
@@ -179,6 +199,7 @@ test("main editor lets users add, drag, connect, and delete objects", async ({ p
   await page.mouse.up();
   const newEdge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-4-5-3"]');
   await expect(newEdge).toHaveCount(1);
+  await expect(page.locator(".hf-edge-overlay-path-preview")).toHaveCount(0);
   await expect(page.getByText("엣지: 3")).toBeVisible();
 
   await page.getByRole("button", { name: "Connect from node 5" }).click();

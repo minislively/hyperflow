@@ -24,6 +24,27 @@ import { isInteractiveCanvasMode, type HyperFlowCanvasMode } from "./starter";
 const HANDLE_SIZE = 18;
 const HANDLE_HALF = HANDLE_SIZE / 2;
 
+type ConnectionPreviewState = {
+  kind: "connect" | "reconnect-source" | "reconnect-target";
+  edgeId: string | null;
+  draggedNodeId: number;
+  fixedNodeId: number | null;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+  hoveredNodeId: number | null;
+};
+
+function resolvePreviewAnchorSide(from: { x: number; y: number }, toward: { x: number; y: number }): PocAnchorSide {
+  const deltaX = toward.x - from.x;
+  const deltaY = toward.y - from.y;
+  if (Math.abs(deltaX) >= Math.abs(deltaY)) {
+    return deltaX >= 0 ? "right" : "left";
+  }
+  return deltaY >= 0 ? "bottom" : "top";
+}
+
 export type HyperFlowPocNodeRendererProps<TData = unknown> = {
   node: PocNode;
   box: VisibleBox;
@@ -127,17 +148,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
   const [error, setError] = useState<string | null>(null);
   const [visibleBoxes, setVisibleBoxes] = useState<VisibleBox[]>([]);
   const [pendingConnectionSourceId, setPendingConnectionSourceId] = useState<number | null>(null);
-  const [connectionPreview, setConnectionPreview] = useState<{
-    kind: "connect" | "reconnect-source" | "reconnect-target";
-    edgeId: string | null;
-    draggedNodeId: number;
-    fixedNodeId: number | null;
-    startX: number;
-    startY: number;
-    currentX: number;
-    currentY: number;
-    hoveredNodeId: number | null;
-  } | null>(null);
+  const [connectionPreview, setConnectionPreview] = useState<ConnectionPreviewState | null>(null);
   const [selectionBox, setSelectionBox] = useState<{
     left: number;
     top: number;
@@ -158,17 +169,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
   const pendingNodePositionsRef = useRef<Array<{ nodeId: number; nextPosition: PocNode["position"] }> | null>(null);
   const pendingViewportRef = useRef<PocViewport | null>(null);
   const pendingEdgeBendRef = useRef<{ edgeId: string; nextBend: PocEdge["bend"] } | null>(null);
-  const pendingConnectionPreviewRef = useRef<{
-    kind: "connect" | "reconnect-source" | "reconnect-target";
-    edgeId: string | null;
-    draggedNodeId: number;
-    fixedNodeId: number | null;
-    startX: number;
-    startY: number;
-    currentX: number;
-    currentY: number;
-    hoveredNodeId: number | null;
-  } | null>(null);
+  const pendingConnectionPreviewRef = useRef<ConnectionPreviewState | null>(null);
   const suppressNextHandleClickRef = useRef(false);
   const connectionDragRef = useRef<
     | null
@@ -583,6 +584,9 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       pointerId: number | null;
     },
   ) {
+    const initialCanvasPoint = getCanvasScreenPointFromClientPoint(options.clientX, options.clientY);
+    const currentX = initialCanvasPoint?.screenX ?? options.startX;
+    const currentY = initialCanvasPoint?.screenY ?? options.startY;
     if (options.kind === "connect") {
       setPendingConnectionSourceId(options.draggedNodeId);
     } else {
@@ -596,8 +600,8 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       fixedNodeId: options.fixedNodeId ?? null,
       startX: options.startX,
       startY: options.startY,
-      currentX: options.clientX,
-      currentY: options.clientY,
+      currentX,
+      currentY,
       hoveredNodeId: null,
       moved: false,
     };
@@ -608,8 +612,8 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       fixedNodeId: options.fixedNodeId ?? null,
       startX: options.startX,
       startY: options.startY,
-      currentX: options.clientX,
-      currentY: options.clientY,
+      currentX,
+      currentY,
       hoveredNodeId: null,
     };
     scheduleConnectionPreview();
@@ -658,10 +662,10 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     const connectionDrag = connectionDragRef.current;
     let targetNodeId = connectionDrag.hoveredNodeId;
     if (targetNodeId === null && engine && canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const screenX = connectionDrag.currentX - rect.left;
-      const screenY = connectionDrag.currentY - rect.top;
-      if (screenX >= 0 && screenY >= 0 && screenX <= rect.width && screenY <= rect.height) {
+      const { width, height } = canvasRef.current;
+      const screenX = connectionDrag.currentX;
+      const screenY = connectionDrag.currentY;
+      if (screenX >= 0 && screenY >= 0 && screenX <= width && screenY <= height) {
         const worldPoint = {
           x: viewportRef.current.x + screenX / viewportRef.current.zoom,
           y: viewportRef.current.y + screenY / viewportRef.current.zoom,
@@ -760,8 +764,11 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
   ) {
     if (connectionDragRef.current && matchesConnectionPointer(event.pointerId)) {
       const connectionDrag = connectionDragRef.current;
-      connectionDrag.currentX = event.clientX;
-      connectionDrag.currentY = event.clientY;
+      const canvasPoint = getCanvasScreenPointFromClientPoint(event.clientX, event.clientY);
+      if (canvasPoint) {
+        connectionDrag.currentX = canvasPoint.screenX;
+        connectionDrag.currentY = canvasPoint.screenY;
+      }
       if (
         Math.abs(connectionDrag.currentX - connectionDrag.startX) > 4 ||
         Math.abs(connectionDrag.currentY - connectionDrag.startY) > 4
@@ -769,7 +776,6 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
         connectionDrag.moved = true;
       }
       if (engine && canvasRef.current) {
-        const canvasPoint = getCanvasScreenPointFromClientPoint(event.clientX, event.clientY);
         if (canvasPoint) {
           const withinCanvas =
             canvasPoint.screenX >= 0 &&
@@ -1322,6 +1328,85 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     };
   }, [viewport.x, viewport.y, viewport.zoom, worldSelectedRenderedEdge]);
 
+  const connectionPreviewPath = useMemo(() => {
+    if (!connectionPreview) return null;
+
+    function getNodePreviewEndpoint(
+      nodeId: number | null,
+      role: "source" | "target",
+    ): { x: number; y: number; side: PocAnchorSide } | null {
+      if (nodeId === null) return null;
+      const resolvedAnchors = resolvedNodeAnchorsById.get(Number(nodeId));
+      if (!resolvedAnchors) return null;
+      const anchor = role === "source" ? resolvedAnchors.outputAnchor : resolvedAnchors.inputAnchor;
+      const screenPoint = getScreenPointFromWorldPoint(anchor.x, anchor.y);
+      return {
+        x: screenPoint.x,
+        y: screenPoint.y,
+        side: anchor.side,
+      };
+    }
+
+    const pointerPoint = { x: connectionPreview.currentX, y: connectionPreview.currentY };
+
+    if (connectionPreview.kind === "reconnect-source") {
+      const targetEndpoint =
+        getNodePreviewEndpoint(connectionPreview.fixedNodeId, "target") ?? {
+          x: connectionPreview.startX,
+          y: connectionPreview.startY,
+          side: resolvePreviewAnchorSide(
+            { x: connectionPreview.startX, y: connectionPreview.startY },
+            pointerPoint,
+          ),
+        };
+      const sourceEndpoint =
+        getNodePreviewEndpoint(connectionPreview.hoveredNodeId, "source") ?? {
+          x: pointerPoint.x,
+          y: pointerPoint.y,
+          side: resolvePreviewAnchorSide(pointerPoint, targetEndpoint),
+        };
+
+      return buildSmoothPocEdgePath({
+        sourceX: sourceEndpoint.x,
+        sourceY: sourceEndpoint.y,
+        targetX: targetEndpoint.x,
+        targetY: targetEndpoint.y,
+        sourceSide: sourceEndpoint.side,
+        targetSide: targetEndpoint.side,
+      });
+    }
+
+    const sourceEndpoint =
+      getNodePreviewEndpoint(
+        connectionPreview.kind === "reconnect-target"
+          ? connectionPreview.fixedNodeId
+          : connectionPreview.draggedNodeId,
+        "source",
+      ) ?? {
+        x: connectionPreview.startX,
+        y: connectionPreview.startY,
+        side: resolvePreviewAnchorSide(
+          { x: connectionPreview.startX, y: connectionPreview.startY },
+          pointerPoint,
+        ),
+      };
+    const targetEndpoint =
+      getNodePreviewEndpoint(connectionPreview.hoveredNodeId, "target") ?? {
+        x: pointerPoint.x,
+        y: pointerPoint.y,
+        side: resolvePreviewAnchorSide(pointerPoint, sourceEndpoint),
+      };
+
+    return buildSmoothPocEdgePath({
+      sourceX: sourceEndpoint.x,
+      sourceY: sourceEndpoint.y,
+      targetX: targetEndpoint.x,
+      targetY: targetEndpoint.y,
+      sourceSide: sourceEndpoint.side,
+      targetSide: targetEndpoint.side,
+    });
+  }, [connectionPreview, resolvedNodeAnchorsById, viewport.x, viewport.y, viewport.zoom]);
+
   function getScreenPointFromWorldPoint(worldX: number, worldY: number) {
     return {
       x: (worldX - viewport.x) * viewport.zoom,
@@ -1337,18 +1422,21 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
     const isSource = role === "source";
     const handleX = isSource ? handle.outputX : handle.inputX;
     const handleY = isSource ? handle.outputY : handle.inputY;
+    const isPendingSourceHandle = isSource && Number(pendingConnectionSourceId) === Number(handle.id);
+    const handleClassName = [
+      "hf-node-handle",
+      isSource ? "hf-node-handle-output" : "hf-node-handle-input",
+      handle.isActive ? "hf-node-handle-emphasis" : "hf-node-handle-resting",
+      isPendingSourceHandle ? "hf-node-handle-active" : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     return (
       <button
         key={key}
         type="button"
-        className={
-          isSource
-            ? Number(pendingConnectionSourceId) === Number(handle.id)
-              ? "hf-node-handle hf-node-handle-output hf-node-handle-active"
-              : "hf-node-handle hf-node-handle-output"
-            : "hf-node-handle hf-node-handle-input"
-        }
+        className={handleClassName}
         style={{
           left: `${handleX}px`,
           top: `${handleY}px`,
@@ -1520,14 +1608,7 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
           </g>
           {connectionPreview ? (
             <path
-              d={buildSmoothPocEdgePath({
-                sourceX: connectionPreview.startX,
-                sourceY: connectionPreview.startY,
-                targetX: connectionPreview.currentX,
-                targetY: connectionPreview.currentY,
-                sourceSide: connectionPreview.currentX >= connectionPreview.startX ? "right" : "left",
-                targetSide: connectionPreview.currentX >= connectionPreview.startX ? "left" : "right",
-              })}
+              d={connectionPreviewPath ?? ""}
               vectorEffect="non-scaling-stroke"
               className="hf-edge-overlay-path hf-edge-overlay-path-preview"
               aria-hidden="true"
