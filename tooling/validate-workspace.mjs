@@ -59,6 +59,7 @@ const requiredPaths = [
   "tooling/sync-ts-artifacts.mjs",
   "tooling/evaluate-perf-baseline.mjs",
   "tooling/verify-perf-gate.mjs",
+  "tooling/verify-live-perf.mjs",
   "tsconfig.json",
   "types/node-shims.d.ts"
 ];

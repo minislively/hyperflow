@@ -33,7 +33,8 @@
     "dev:react-starter": "pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter dev",
     "build:react-starter": "pnpm run build:wasm && pnpm --filter @hyperflow/example-react-starter build",
     "sync:ts-artifacts": "NODE_NO_WARNINGS=1 node tooling/sync-ts-artifacts.mjs",
-    "verify:perf-gate": "pnpm run sync:ts-artifacts && node tooling/verify-perf-gate.mjs"
+    "verify:perf-gate": "pnpm run sync:ts-artifacts && node tooling/verify-perf-gate.mjs",
+    "verify:perf-live": "pnpm run sync:ts-artifacts && node tooling/verify-live-perf.mjs"
   },
   "type": "module",
   "devDependencies": {

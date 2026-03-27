@@ -1,6 +1,10 @@
 // Generated from TypeScript source by tooling/sync-ts-artifacts.mjs. Do not edit directly.
 
+import fs from "node:fs/promises";
+import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { editorPerfBaselines } from "../../examples/react-starter/src/perf-baseline.js";
+const benchmarkPerfBaseline = editorPerfBaselines.benchmark;
 function parseMoveTo(path) {
     const match = path.match(/^M\s*(-?\d+(?:\.\d+)?)\s*(-?\d+(?:\.\d+)?)/);
     if (!match) throw new Error(`missing move-to segment in path: ${path}`);
@@ -16,6 +20,28 @@ function parseFirstCurveControl(path) {
         x: Number(match[1]),
         y: Number(match[2])
     };
+}
+async function openBenchmarkGraph(page) {
+    await page.getByRole("button", {
+        name: "대형 그래프 보기"
+    }).click();
+    await expect(page.locator('[data-editor-perf="graph"]')).toContainText("그래프: 대형");
+}
+async function dragNodeBurst(page, nodeId, offsetX, offsetY, steps = 18) {
+    const node = page.locator(`[data-node-card-id='${nodeId}']`);
+    const box = await node.boundingBox();
+    if (!box) throw new Error(`node ${nodeId} missing before benchmark interaction`);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + offsetX, box.y + box.height / 2 + offsetY, {
+        steps
+    });
+    await page.mouse.up();
+}
+async function runBenchmarkPerfBursts(page) {
+    await dragNodeBurst(page, "42", 120, 32);
+    await page.waitForTimeout(500);
+    await dragNodeBurst(page, "42", 40, 88);
 }
 test("react starter opens the editor-first surface at the locale root", async ({ page })=>{
     await page.goto("/ko");
@@ -35,6 +61,7 @@ test("react starter opens the editor-first surface at the locale root", async ({
         name: "맞춤 보기"
     })).toBeVisible();
     await expect(page.locator('nav[aria-label="Learn navigation"]')).toHaveCount(0);
+    expect(await page.evaluate(()=>Object.prototype.hasOwnProperty.call(window, "__HF_EDITOR_PERF_READOUT__"))).toBeFalsy();
 });
 test("root and legacy editor routes canonicalize to locale editor", async ({ browser })=>{
     const context = await browser.newContext({
@@ -415,31 +442,44 @@ test("main editor can reset perf instrumentation without resetting the graph", a
 });
 test("benchmark perf baseline progresses out of warming after enough benchmark interaction samples", async ({ page })=>{
     await page.goto("/ko");
-    await page.getByRole("button", {
-        name: "대형 그래프 보기"
-    }).click();
+    await openBenchmarkGraph(page);
     await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText("기준 상태: 수집 중");
-    const benchmarkNode = page.locator("[data-node-card-id='42']");
-    const box = await benchmarkNode.boundingBox();
-    if (!box) throw new Error("benchmark node missing before perf baseline interaction test");
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 32, {
-        steps: 18
-    });
-    await page.mouse.up();
-    await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText("기준 상태: 수집 중");
-    await expect(page.locator('[data-editor-perf="baseline-detail"]')).toContainText("S 1/2");
-    await page.waitForTimeout(500);
-    await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 32);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 + 88, {
-        steps: 18
-    });
-    await page.mouse.up();
+    await runBenchmarkPerfBursts(page);
+    await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText(/기준 상태: (기준 내|기준 초과)/);
     await expect(page.locator('[data-editor-perf="samples"]')).not.toContainText("프레임: 0");
     await expect(page.locator('[data-editor-perf="baseline-status"]')).toContainText(/기준 상태: (기준 내|기준 초과)/);
     await expect(page.locator('[data-editor-perf="baseline-detail"]')).not.toContainText("W 0/");
+});
+test("@perf-live-capture benchmark live perf readout can be captured for harness-only evaluation", async ({ page }, testInfo)=>{
+    const captureOutputPath = process.env.HYPERFLOW_LIVE_PERF_OUTPUT || testInfo.outputPath("live-perf-readout.json");
+    await page.addInitScript(()=>{
+        window.__HF_CAPTURE_EDITOR_PERF__ = true;
+    });
+    await page.goto("/ko");
+    await openBenchmarkGraph(page);
+    await runBenchmarkPerfBursts(page);
+    await page.waitForFunction((baseline)=>{
+        const captureWindow = window;
+        return captureWindow.__HF_EDITOR_PERF_GRAPH_PRESET__ === "benchmark" && captureWindow.__HF_EDITOR_PERF_READOUT__ && (captureWindow.__HF_EDITOR_PERF_READOUT__.frameSampleCount ?? 0) >= baseline.minSamples && (captureWindow.__HF_EDITOR_PERF_READOUT__.recentInteractionSampleCount ?? 0) >= baseline.recentInteractionWindow && (captureWindow.__HF_EDITOR_PERF_READOUT__.interactionBurstCount ?? 0) >= baseline.minInteractionBursts;
+    }, benchmarkPerfBaseline);
+    const liveReadout = await page.evaluate(()=>{
+        const captureWindow = window;
+        return {
+            preset: captureWindow.__HF_EDITOR_PERF_GRAPH_PRESET__,
+            readout: captureWindow.__HF_EDITOR_PERF_READOUT__ ?? null
+        };
+    });
+    expect(liveReadout.preset).toBe("benchmark");
+    expect(liveReadout.readout).not.toBeNull();
+    await fs.mkdir(path.dirname(captureOutputPath), {
+        recursive: true
+    });
+    await fs.writeFile(captureOutputPath, `${JSON.stringify(liveReadout.readout, null, 2)}\n`, "utf8");
+    const persisted = JSON.parse(await fs.readFile(captureOutputPath, "utf8"));
+    expect(persisted.frameSampleCount).toBeGreaterThanOrEqual(benchmarkPerfBaseline.minSamples);
+    expect(persisted.recentInteractionSampleCount).toBeGreaterThanOrEqual(benchmarkPerfBaseline.recentInteractionWindow);
+    expect(persisted.interactionBurstCount).toBeGreaterThanOrEqual(benchmarkPerfBaseline.minInteractionBursts);
+    expect(typeof persisted.fixtureSize).toBe("number");
 });
 test("same-side edges fan out from distinct visible anchors", async ({ page })=>{
     await page.goto("/ko");

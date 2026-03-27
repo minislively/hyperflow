@@ -67,6 +67,12 @@ type Route =
       pageId: PageId;
     };
 
+type PerfCaptureBridgeWindow = Window & typeof globalThis & {
+  __HF_CAPTURE_EDITOR_PERF__?: boolean;
+  __HF_EDITOR_PERF_READOUT__?: EditorPerfReadout;
+  __HF_EDITOR_PERF_GRAPH_PRESET__?: EditorGraphPreset;
+};
+
 type PageCopy = {
   navLabel: string;
   title: string;
@@ -2893,6 +2899,23 @@ function MainEditorSurface({
   useEffect(() => {
     perfInteractionPhaseRef.current = perfReadout.interactionPhase;
   }, [perfReadout.interactionPhase]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const captureBridgeWindow = window as PerfCaptureBridgeWindow;
+    const isAutomationCapture = captureBridgeWindow.__HF_CAPTURE_EDITOR_PERF__ === true && window.navigator.webdriver === true;
+    if (!isAutomationCapture) {
+      delete captureBridgeWindow.__HF_EDITOR_PERF_READOUT__;
+      delete captureBridgeWindow.__HF_EDITOR_PERF_GRAPH_PRESET__;
+      return;
+    }
+    captureBridgeWindow.__HF_EDITOR_PERF_READOUT__ = { ...perfReadout };
+    captureBridgeWindow.__HF_EDITOR_PERF_GRAPH_PRESET__ = graphPreset;
+    return () => {
+      delete captureBridgeWindow.__HF_EDITOR_PERF_READOUT__;
+      delete captureBridgeWindow.__HF_EDITOR_PERF_GRAPH_PRESET__;
+    };
+  }, [graphPreset, perfReadout]);
 
   useEffect(() => {
     setTitleDraft(selectedNode?.data.title ?? "");
