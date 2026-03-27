@@ -727,6 +727,36 @@ test("learn routes point conceptual pages back to the main editor", async ({ pag
     }).click();
     await expect(page).toHaveURL(/\/ko$/);
 });
+test("learn basic interactions renders intentional node cards inside the supporting proof", async ({ page })=>{
+    await page.goto("/ko/learn/basic-interactions");
+    const proofCard = page.locator(".learn-live-card");
+    const canvasSurface = proofCard.locator(".learn-live-canvas");
+    const nodeCards = canvasSurface.locator(".editor-node-card");
+    const nodeHandles = canvasSurface.locator(".hf-node-handle");
+    await expect(page.getByRole("heading", {
+        name: "기본 상호작용"
+    })).toBeVisible();
+    await expect(canvasSurface.locator(".hf-canvas-error")).toHaveCount(0);
+    await expect(nodeCards).toHaveCount(3);
+    await expect(nodeHandles).toHaveCount(6);
+    await expect(nodeCards.nth(0)).toContainText("Node A");
+    await expect(nodeCards.nth(1)).toContainText("Node B");
+    await expect(nodeCards.nth(2)).toContainText("Node C");
+    const canvasBox = await canvasSurface.boundingBox();
+    const chromeBox = await canvasSurface.locator(".learn-live-canvas-chrome").boundingBox();
+    if (!canvasBox) throw new Error("missing learn proof canvas bounds");
+    if (!chromeBox) throw new Error("missing learn proof toolbar bounds");
+    const nodeBoxes = await nodeCards.evaluateAll((elements)=>elements.map((element)=>element.getBoundingClientRect().toJSON()));
+    for (const box of nodeBoxes){
+        expect(box.left).toBeGreaterThanOrEqual(canvasBox.x - 2);
+        expect(box.right).toBeLessThanOrEqual(canvasBox.x + canvasBox.width + 2);
+        expect(box.top).toBeGreaterThanOrEqual(chromeBox.y + chromeBox.height - 12);
+        expect(box.bottom).toBeLessThanOrEqual(canvasBox.y + canvasBox.height + 2);
+    }
+    await nodeCards.nth(1).click();
+    await expect(canvasSurface.locator(".editor-node-card.is-selected")).toContainText("Node B");
+    await expect(proofCard.locator(".learn-live-inspector h3")).toHaveText("Node B");
+});
 test("learn install page still explains the repo-first setup path", async ({ page, browser })=>{
     await page.goto("/ko/learn/installation");
     await expect(page.getByRole("heading", {

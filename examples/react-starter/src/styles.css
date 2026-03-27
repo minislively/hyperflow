@@ -863,6 +863,39 @@ button {
   position: relative;
 }
 
+.learn-live-canvas .editor-node-card {
+  align-content: start;
+  justify-items: start;
+  gap: 6px;
+  padding: 12px 14px;
+  border-color: #c7d2fe;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef2ff 100%);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+  text-align: left;
+}
+
+.learn-live-canvas .editor-node-card:hover {
+  border-color: #818cf8;
+  box-shadow: 0 16px 32px rgba(79, 70, 229, 0.14);
+}
+
+.learn-live-canvas .editor-node-card.is-selected {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.14), 0 16px 30px rgba(79, 70, 229, 0.14);
+}
+
+.learn-live-canvas .editor-node-card strong {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.learn-live-canvas .editor-node-card-note {
+  max-width: 16ch;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .learn-live-canvas-chrome {
   position: absolute;
   top: 14px;
@@ -908,6 +941,13 @@ button {
   transition: stroke 140ms ease, stroke-width 140ms ease, filter 140ms ease;
 }
 
+.learn-live-canvas .hf-edge-overlay-path {
+  stroke: #64748b;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .hf-edge-overlay-hit {
   fill: none;
   stroke: transparent;
@@ -921,16 +961,30 @@ button {
   stroke-width: 2.5;
 }
 
+.learn-live-canvas .hf-edge-overlay-item:hover .hf-edge-overlay-path {
+  stroke: #475467;
+  stroke-width: 3;
+}
+
 .hf-edge-overlay-path-selected {
   stroke: #2563eb;
   stroke-width: 3;
   filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.18));
 }
 
+.learn-live-canvas .hf-edge-overlay-path-selected {
+  stroke: #4f46e5;
+  filter: drop-shadow(0 0 8px rgba(79, 70, 229, 0.24));
+}
+
 .hf-edge-overlay-path-preview {
   stroke: rgba(37, 99, 235, 0.8);
   stroke-width: 2.5;
   stroke-dasharray: 8 6;
+}
+
+.learn-live-canvas .hf-edge-overlay-path-preview {
+  stroke: rgba(79, 70, 229, 0.86);
 }
 
 
@@ -986,14 +1040,36 @@ button {
   transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
 }
 
+.learn-live-canvas .hf-node-handle {
+  border-color: #ffffff;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 2px #344054,
+    0 10px 18px rgba(15, 23, 42, 0.14);
+}
+
 .hf-node-handle:hover {
   transform: scale(1.08);
   box-shadow: 0 0 0 1px #111827, 0 0 0 4px rgba(15, 23, 42, 0.08);
 }
 
+.learn-live-canvas .hf-node-handle:hover {
+  box-shadow:
+    0 0 0 2px #344054,
+    0 0 0 6px rgba(79, 70, 229, 0.12),
+    0 12px 20px rgba(15, 23, 42, 0.16);
+}
+
 .hf-node-handle-active {
   background: #2563eb;
   box-shadow: 0 0 0 1px #2563eb;
+}
+
+.learn-live-canvas .hf-node-handle-active {
+  background: #4f46e5;
+  box-shadow:
+    0 0 0 2px #4f46e5,
+    0 10px 18px rgba(79, 70, 229, 0.24);
 }
 
 .hf-edge-endpoint-handle {

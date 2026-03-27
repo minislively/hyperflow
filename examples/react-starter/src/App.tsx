@@ -2456,6 +2456,16 @@ const EditorNodeCard = memo(function EditorNodeCard({
   );
 });
 
+const learnProofNodeRenderers = { card: EditorNodeCard };
+
+function getLearnProofNodeRendererKey() {
+  return "card";
+}
+
+function getLearnProofNodeRendererData(node: LearnDemoNode) {
+  return node.data;
+}
+
 function EditorControlButton({
   label,
   title,
@@ -3996,20 +4006,21 @@ function LearnInteractiveDemo({
   locale: Locale;
   mode: "nodes-and-edges" | "selection-and-editing" | "viewport" | "basic-interactions" | "save-and-restore";
 }) {
+  const useLearnProofNodeRenderer = mode === "basic-interactions";
+  const [learnCanvasFrameRef, learnCanvasSize] = useCanvasDimensions(learnDemoCanvas);
+  const learnDemoFitOptions = useMemo(
+    () =>
+      useLearnProofNodeRenderer
+        ? { padding: 40, minZoom: 0.52, maxZoom: 1.1 }
+        : { padding: 48, minZoom: 0.6, maxZoom: 1.2 },
+    [useLearnProofNodeRenderer],
+  );
   const [nodes, setNodes] = useWorkflowNodesState<LearnDemoNode>(cloneLearnDemoNodes());
   const [edges, setEdges] = useWorkflowEdgesState<LearnDemoEdge>(cloneLearnDemoEdges());
   const [selection, , onSelectionChange] = useWorkflowSelection({ nodeId: null });
   const selectedNode = useSelectedNode({ nodes, selection });
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [viewport, setViewport] = useState<PocViewport>(() =>
-    fitPocViewportToNodes(cloneLearnDemoNodes(), {
-      width: learnDemoCanvas.width,
-      height: learnDemoCanvas.height,
-      padding: 48,
-      minZoom: 0.6,
-      maxZoom: 1.2,
-    }),
-  );
+  const [viewport, setViewport] = useState<PocViewport>(() => createLearnDemoViewport(cloneLearnDemoNodes()));
   const [titleDraft, setTitleDraft] = useState("");
   const [savedSnapshot, setSavedSnapshot] = useState<{
     nodes: LearnDemoNode[];
@@ -4017,9 +4028,34 @@ function LearnInteractiveDemo({
     viewport: PocViewport;
   } | null>(null);
 
+  function createLearnDemoViewport(targetNodes: LearnDemoNode[]) {
+    return fitPocViewportToNodes(targetNodes, {
+      width: learnCanvasSize.width,
+      height: learnCanvasSize.height,
+      padding: learnDemoFitOptions.padding,
+      minZoom: learnDemoFitOptions.minZoom,
+      maxZoom: learnDemoFitOptions.maxZoom,
+    });
+  }
+
   useEffect(() => {
     setTitleDraft(selectedNode?.data.title ?? "");
   }, [selectedNode?.data.title, selectedNode?.id]);
+
+  useEffect(() => {
+    setViewport((current) => {
+      if (current.width === learnCanvasSize.width && current.height === learnCanvasSize.height) {
+        return current;
+      }
+      return createLearnDemoViewport(nodes);
+    });
+  }, [
+    learnCanvasSize.height,
+    learnCanvasSize.width,
+    learnDemoFitOptions.maxZoom,
+    learnDemoFitOptions.minZoom,
+    learnDemoFitOptions.padding,
+  ]);
 
   const copy =
     locale === "ko"
@@ -4147,15 +4183,7 @@ function LearnInteractiveDemo({
   }
 
   function fitView() {
-    setViewport(
-      fitPocViewportToNodes(nodes, {
-        width: learnDemoCanvas.width,
-        height: learnDemoCanvas.height,
-        padding: 48,
-        minZoom: 0.6,
-        maxZoom: 1.2,
-      }),
-    );
+    setViewport(createLearnDemoViewport(nodes));
   }
 
   function zoom(delta: number) {
@@ -4255,7 +4283,7 @@ function LearnInteractiveDemo({
       </div>
 
       <div className="learn-live-shell">
-        <div className="learn-live-canvas">
+        <div className="learn-live-canvas" ref={learnCanvasFrameRef}>
           <div className="learn-live-canvas-chrome" aria-label={copy.toolbar.canvas}>
             <div className="learn-live-toolbar-group">
               {showAddChrome ? (
@@ -4296,10 +4324,13 @@ function LearnInteractiveDemo({
             nodes={nodes}
             edges={edges}
             viewport={viewport}
-            width={learnDemoCanvas.width}
-            height={learnDemoCanvas.height}
+            width={learnCanvasSize.width}
+            height={learnCanvasSize.height}
             selectedNodeId={selection.nodeId}
             selectedEdgeId={selectedEdgeId}
+            nodeRenderers={useLearnProofNodeRenderer ? learnProofNodeRenderers : undefined}
+            getNodeRendererKey={useLearnProofNodeRenderer ? getLearnProofNodeRendererKey : undefined}
+            getNodeRendererData={useLearnProofNodeRenderer ? getLearnProofNodeRendererData : undefined}
             getNodeAnchorPreferences={getEditorNodeAnchorPreferences}
             onNodeSelect={(nodeId) => {
               onSelectionChange({ nodeId });
