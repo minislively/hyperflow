@@ -62,6 +62,44 @@ test("react starter opens the editor-first surface at the locale root", async ({
   ).toBeFalsy();
 });
 
+test("editor first impression still renders core editor structure and docs button routes to Learn", async ({ page }) => {
+  await page.goto("/ko");
+
+  await expect(page).toHaveURL(/\/ko$/);
+  await expect(page.getByRole("heading", { name: "바로 만져보는 HyperFlow editor" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "학습 문서 보기" })).toBeVisible();
+  await expect(page.getByLabel("HyperFlow 메인 editor")).toBeVisible();
+  await expect(page.getByLabel("에디터 미니맵")).toBeVisible();
+  await expect(page.getByRole("button", { name: "노드 추가" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "선택 삭제" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "맞춤 보기" })).toBeVisible();
+  await expect(page.getByText("캔버스에서 노드나 엣지를 눌러 선택하면 여기서 현재 상태를 확인할 수 있다.")).toBeVisible();
+
+  await page.getByRole("button", { name: "학습 문서 보기" }).click();
+  await expect(page).toHaveURL(/\/ko\/learn$/);
+  await expect(page.getByRole("heading", { name: "처음 시작하기" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Learn navigation" })).toBeVisible();
+});
+
+test("narrow editor keeps starter graph visible before the intro card", async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 1100 });
+  await page.goto("/ko");
+
+  const canvas = page.locator(".editor-canvas-shell");
+  const heroHeading = page.getByRole("heading", { name: "바로 만져보는 HyperFlow editor" });
+  const nodeCard = page.locator(".editor-node-card").filter({ hasText: "Node A" }).first();
+
+  await expect(canvas).toBeVisible();
+  await expect(nodeCard).toBeVisible();
+  await expect(heroHeading).toBeVisible();
+
+  const canvasBox = await canvas.boundingBox();
+  const heroBox = await heroHeading.boundingBox();
+  expect(canvasBox).not.toBeNull();
+  expect(heroBox).not.toBeNull();
+  expect(canvasBox!.y).toBeLessThan(heroBox!.y);
+});
+
 test("root and legacy editor routes canonicalize to locale editor", async ({ browser }) => {
   const context = await browser.newContext({ locale: "en-US" });
   const page = await context.newPage();

@@ -176,6 +176,20 @@ const topLevelDefaultPage: Record<SectionId, PageId> = {
 const learnDemoCanvas = { width: 720, height: 360 } as const;
 const mainEditorCanvas = { width: 1280, height: 720 } as const;
 
+function getEditorViewportFitOptions(canvasSize: { width: number; height: number }, graphPreset: EditorGraphPreset) {
+  const isBenchmark = graphPreset === "benchmark";
+  const isCompactCanvas = canvasSize.width < 640;
+  const padding = isBenchmark ? (isCompactCanvas ? 88 : 128) : isCompactCanvas ? 48 : 96;
+  const minZoom = isBenchmark ? 0.18 : isCompactCanvas ? 0.3 : 0.35;
+  return {
+    width: canvasSize.width,
+    height: canvasSize.height,
+    padding,
+    minZoom,
+    maxZoom: 1.4,
+  };
+}
+
 function useCanvasDimensions(initialSize: { width: number; height: number }) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState(initialSize);
@@ -2772,13 +2786,7 @@ function MainEditorSurface({
   const [selectedNodeIds, setSelectedNodeIds] = useState<number[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<PocViewport>(() =>
-    fitPocViewportToNodes(cloneLearnDemoNodes(), {
-      width: editorCanvasSize.width,
-      height: editorCanvasSize.height,
-      padding: 96,
-      minZoom: 0.35,
-      maxZoom: 1.4,
-    }),
+    fitPocViewportToNodes(cloneLearnDemoNodes(), getEditorViewportFitOptions(editorCanvasSize, "starter")),
   );
   const [titleDraft, setTitleDraft] = useState("");
   const [savedSnapshot, setSavedSnapshot] = useState<{
@@ -3282,13 +3290,7 @@ function MainEditorSurface({
         (editorCanvasSize.width !== mainEditorCanvas.width || editorCanvasSize.height !== mainEditorCanvas.height);
 
       if (shouldRefitMeasuredCanvas) {
-        return fitPocViewportToNodes(nodes, {
-          width: editorCanvasSize.width,
-          height: editorCanvasSize.height,
-          padding: 96,
-          minZoom: 0.35,
-          maxZoom: 1.4,
-        });
+        return fitPocViewportToNodes(nodes, getEditorViewportFitOptions(editorCanvasSize, graphPreset));
       }
 
       const centerX = current.x + current.width / (2 * current.zoom);
@@ -3506,16 +3508,8 @@ function MainEditorSurface({
 
   const fitView = useCallback(() => {
     hasUserAdjustedViewportRef.current = true;
-    setViewport(
-      fitPocViewportToNodes(nodes, {
-        width: editorCanvasSize.width,
-        height: editorCanvasSize.height,
-        padding: graphPreset === "benchmark" ? 128 : 96,
-        minZoom: graphPreset === "benchmark" ? 0.18 : 0.35,
-        maxZoom: 1.4,
-      }),
-    );
-  }, [editorCanvasSize.height, editorCanvasSize.width, graphPreset, nodes]);
+    setViewport(fitPocViewportToNodes(nodes, getEditorViewportFitOptions(editorCanvasSize, graphPreset)));
+  }, [editorCanvasSize, graphPreset, nodes]);
 
   const zoom = useCallback((delta: number) => {
     hasUserAdjustedViewportRef.current = true;
@@ -3568,13 +3562,7 @@ function MainEditorSurface({
     setSavedSnapshot(null);
     resetPerfSampling();
     setViewport(
-      fitPocViewportToNodes(nextGraph.nodes, {
-        width: editorCanvasSize.width,
-        height: editorCanvasSize.height,
-        padding: nextPreset === "benchmark" ? 128 : 96,
-        minZoom: 0.18,
-        maxZoom: 1.4,
-      }),
+      fitPocViewportToNodes(nextGraph.nodes, getEditorViewportFitOptions(editorCanvasSize, nextPreset)),
     );
   }
 
