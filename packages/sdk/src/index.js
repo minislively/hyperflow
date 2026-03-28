@@ -544,7 +544,9 @@ export function resolvePocSmoothEdgeCurve({ sourceX, sourceY, targetX, targetY, 
     const resolvedTargetSpread = sharedLaneSpread ?? effectiveTargetSpread;
     const dx = targetX - sourceX;
     const dy = targetY - sourceY;
-    const baseOffset = Math.max(minimumCurveOffset, Math.max(Math.abs(dx), Math.abs(dy)) * 0.28);
+    const isForwardHorizontalLane = (sourceSide === "right" && targetSide === "left" || sourceSide === "left" && targetSide === "right") && Math.sign(dx || 0) === (sourceSide === "right" ? 1 : -1);
+    const baseOffset = isForwardHorizontalLane ? Math.max(18, Math.min(minimumCurveOffset, Math.abs(dx) * 0.38), Math.max(Math.abs(dx), Math.abs(dy)) * 0.22) : Math.max(minimumCurveOffset, Math.max(Math.abs(dx), Math.abs(dy)) * 0.28);
+    const verticalBendFactor = isForwardHorizontalLane ? 0.24 : 0.34;
     function buildDirectionalControlPoint(x, y, side, spread, bendX = 0, bendY = 0) {
         switch(side){
             case "left":
@@ -571,8 +573,8 @@ export function resolvePocSmoothEdgeCurve({ sourceX, sourceY, targetX, targetY, 
     }
     const bendInfluenceX = bendOffsetX ?? 0;
     const bendInfluenceY = bendOffsetY ?? 0;
-    const sourceControl = buildDirectionalControlPoint(sourceX, sourceY, sourceSide, resolvedSourceSpread, bendInfluenceX * 0.16, bendInfluenceY * 0.34);
-    const targetControl = buildDirectionalControlPoint(targetX, targetY, targetSide, resolvedTargetSpread, bendInfluenceX * 0.16, bendInfluenceY * 0.34);
+    const sourceControl = buildDirectionalControlPoint(sourceX, sourceY, sourceSide, resolvedSourceSpread, bendInfluenceX * 0.16, bendInfluenceY * verticalBendFactor);
+    const targetControl = buildDirectionalControlPoint(targetX, targetY, targetSide, resolvedTargetSpread, bendInfluenceX * 0.16, bendInfluenceY * verticalBendFactor);
     return {
         sourceX,
         sourceY,

@@ -960,7 +960,23 @@ pub fn resolve_edge_curve(
     };
     let dx = target.x - source.x;
     let dy = target.y - source.y;
-    let base_offset = minimum_curve_offset.max(dx.abs().max(dy.abs()) * 0.28);
+    let is_forward_horizontal_lane = matches!(
+        (source_side, target_side),
+        (AnchorSide::Right, AnchorSide::Left) | (AnchorSide::Left, AnchorSide::Right)
+    ) && dx.signum()
+        == if matches!(source_side, AnchorSide::Right) {
+            1.0
+        } else {
+            -1.0
+        };
+    let base_offset = if is_forward_horizontal_lane {
+        18.0_f32
+            .max(minimum_curve_offset.min(dx.abs() * 0.38))
+            .max(dx.abs().max(dy.abs()) * 0.22)
+    } else {
+        minimum_curve_offset.max(dx.abs().max(dy.abs()) * 0.28)
+    };
+    let vertical_bend_factor = if is_forward_horizontal_lane { 0.24 } else { 0.34 };
     let bend_influence_x = bend_offset_x.unwrap_or(0.0);
     let bend_influence_y = bend_offset_y.unwrap_or(0.0);
 
@@ -971,7 +987,7 @@ pub fn resolve_edge_curve(
         base_offset,
         resolved_source_spread,
         bend_influence_x * 0.16,
-        bend_influence_y * 0.34,
+        bend_influence_y * vertical_bend_factor,
     );
     let target_control = build_directional_control_point(
         target.x,
@@ -980,7 +996,7 @@ pub fn resolve_edge_curve(
         base_offset,
         resolved_target_spread,
         bend_influence_x * 0.16,
-        bend_influence_y * 0.34,
+        bend_influence_y * vertical_bend_factor,
     );
 
     ResolvedEdgeCurve {

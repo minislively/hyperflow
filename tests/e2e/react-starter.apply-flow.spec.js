@@ -21,6 +21,37 @@ function parseFirstCurveControl(path) {
         y: Number(match[2])
     };
 }
+function parseCurveSegments(path) {
+    const match = path.match(/^M\s*(-?\d+(?:\.\d+)?)\s*(-?\d+(?:\.\d+)?)\s+C\s*(-?\d+(?:\.\d+)?)\s*(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\s*(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\s*(-?\d+(?:\.\d+)?)$/);
+    if (!match) throw new Error(`missing cubic segments in path: ${path}`);
+    return {
+        move: {
+            x: Number(match[1]),
+            y: Number(match[2])
+        },
+        sourceControl: {
+            x: Number(match[3]),
+            y: Number(match[4])
+        },
+        targetControl: {
+            x: Number(match[5]),
+            y: Number(match[6])
+        },
+        end: {
+            x: Number(match[7]),
+            y: Number(match[8])
+        }
+    };
+}
+function distanceBetweenPoints(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+}
+function expectHorizontalLaneCurve(path, maxLift = 40) {
+    const segments = parseCurveSegments(path);
+    expect(Math.abs(segments.sourceControl.y - segments.move.y)).toBeLessThanOrEqual(maxLift);
+    expect(Math.abs(segments.targetControl.y - segments.end.y)).toBeLessThanOrEqual(maxLift);
+    return segments;
+}
 async function openBenchmarkGraph(page) {
     await page.getByRole("button", {
         name: "대형 그래프 보기"
@@ -271,6 +302,66 @@ test("selected edge target endpoints can be dragged to reconnect directly", asyn
     expect(reconnectedEdge).toBeTruthy();
     expect(snapshot.edges.some((entry)=>Number(entry.source) === 1 && Number(entry.target) === 2)).toBeFalsy();
 });
+test("selected edge target endpoints enter reconnect-target on the first gesture", async ({ page })=>{
+    await page.goto("/ko");
+    const edge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]');
+    const edgeBox = await edge.boundingBox();
+    if (!edgeBox) throw new Error("missing edge-a-b before reconnect-target determinism test");
+    await page.mouse.click(edgeBox.x + edgeBox.width / 2, edgeBox.y + edgeBox.height / 2);
+    const originalPath = await edge.getAttribute("d");
+    const endpoint = page.getByRole("button", {
+        name: "Reconnect target of edge edge-a-b"
+    });
+    const endpointBox = await endpoint.boundingBox();
+    if (!originalPath || !endpointBox) {
+        throw new Error("missing selected edge path or target endpoint before reconnect-target determinism test");
+    }
+    const preview = page.locator(".hf-edge-overlay-path-preview");
+    const endpointCenter = {
+        x: endpointBox.x + endpointBox.width / 2,
+        y: endpointBox.y + endpointBox.height / 2
+    };
+    await page.mouse.move(endpointCenter.x, endpointCenter.y);
+    await page.mouse.down();
+    await expect(preview).toHaveCount(1);
+    await page.mouse.move(endpointCenter.x - 28, endpointCenter.y - 8, {
+        steps: 2
+    });
+    const previewPath = await preview.getAttribute("d");
+    if (!previewPath) throw new Error("missing reconnect-target preview path after first gesture");
+    const originalSegments = parseCurveSegments(originalPath);
+    const previewSegments = parseCurveSegments(previewPath);
+    expect(distanceBetweenPoints(previewSegments.move, originalSegments.move)).toBeLessThanOrEqual(4);
+    expect(distanceBetweenPoints(previewSegments.end, originalSegments.end)).toBeGreaterThan(12);
+    await page.mouse.up();
+});
+test("selected edge target endpoints beat the overlapping edge body hit target", async ({ page })=>{
+    await page.goto("/ko");
+    const edge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]');
+    const edgeBox = await edge.boundingBox();
+    if (!edgeBox) throw new Error("missing edge-a-b before endpoint overlap test");
+    await page.mouse.click(edgeBox.x + edgeBox.width / 2, edgeBox.y + edgeBox.height / 2);
+    const originalPath = await edge.getAttribute("d");
+    const endpoint = page.getByRole("button", {
+        name: "Reconnect target of edge edge-a-b"
+    });
+    const endpointBox = await endpoint.boundingBox();
+    if (!originalPath || !endpointBox) throw new Error("missing selected edge path or target endpoint before endpoint overlap test");
+    const preview = page.locator(".hf-edge-overlay-path-preview");
+    const endpointCenter = {
+        x: endpointBox.x + endpointBox.width / 2,
+        y: endpointBox.y + endpointBox.height / 2
+    };
+    await page.mouse.move(endpointCenter.x, endpointCenter.y);
+    await page.mouse.down();
+    await expect(preview).toHaveCount(1);
+    await page.mouse.move(endpointCenter.x - 14, endpointCenter.y, {
+        steps: 2
+    });
+    await expect(preview).toHaveCount(1);
+    await expect(edge).toHaveAttribute("d", originalPath);
+    await page.mouse.up();
+});
 test("selected edge source endpoints can be dragged to reconnect directly", async ({ page })=>{
     await page.goto("/ko");
     const edge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-b-c"]');
@@ -301,6 +392,105 @@ test("selected edge source endpoints can be dragged to reconnect directly", asyn
     const reconnectedEdge = snapshot.edges.find((entry)=>Number(entry.source) === 1 && Number(entry.target) === 3);
     expect(reconnectedEdge).toBeTruthy();
     expect(snapshot.edges.some((entry)=>Number(entry.source) === 2 && Number(entry.target) === 3)).toBeFalsy();
+});
+test("selected edge source endpoints enter reconnect-source on the first gesture", async ({ page })=>{
+    await page.goto("/ko");
+    const edge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-b-c"]');
+    const edgeBox = await edge.boundingBox();
+    if (!edgeBox) throw new Error("missing edge-b-c before reconnect-source determinism test");
+    await page.mouse.click(edgeBox.x + edgeBox.width / 2, edgeBox.y + edgeBox.height / 2);
+    const originalPath = await edge.getAttribute("d");
+    const endpoint = page.getByRole("button", {
+        name: "Reconnect source of edge edge-b-c"
+    });
+    const endpointBox = await endpoint.boundingBox();
+    if (!originalPath || !endpointBox) {
+        throw new Error("missing selected edge path or source endpoint before reconnect-source determinism test");
+    }
+    const preview = page.locator(".hf-edge-overlay-path-preview");
+    const endpointCenter = {
+        x: endpointBox.x + endpointBox.width / 2,
+        y: endpointBox.y + endpointBox.height / 2
+    };
+    await page.mouse.move(endpointCenter.x, endpointCenter.y);
+    await page.mouse.down();
+    await expect(preview).toHaveCount(1);
+    await page.mouse.move(endpointCenter.x - 28, endpointCenter.y - 8, {
+        steps: 2
+    });
+    const previewPath = await preview.getAttribute("d");
+    if (!previewPath) throw new Error("missing reconnect-source preview path after first gesture");
+    const originalSegments = parseCurveSegments(originalPath);
+    const previewSegments = parseCurveSegments(previewPath);
+    expect(distanceBetweenPoints(previewSegments.move, originalSegments.move)).toBeGreaterThan(12);
+    expect(distanceBetweenPoints(previewSegments.end, originalSegments.end)).toBeLessThanOrEqual(4);
+    await page.mouse.up();
+});
+test("selected edge reconnect previews and committed paths stay close to the horizontal lane", async ({ page })=>{
+    await page.goto("/ko");
+    const nodeOne = page.locator("[data-node-card-id='1']");
+    const nodeThree = page.locator("[data-node-card-id='3']");
+    const nodeOneBox = await nodeOne.boundingBox();
+    const nodeThreeBox = await nodeThree.boundingBox();
+    if (!nodeOneBox || !nodeThreeBox) {
+        throw new Error("missing node 1 or node 3 before horizontal reconnect heuristic test");
+    }
+    const targetX = nodeOneBox.x + nodeOneBox.width + 220;
+    const targetY = nodeOneBox.y + 8;
+    const nodeThreeCenter = {
+        x: nodeThreeBox.x + nodeThreeBox.width / 2,
+        y: nodeThreeBox.y + nodeThreeBox.height / 2
+    };
+    await page.mouse.move(nodeThreeCenter.x, nodeThreeCenter.y);
+    await page.mouse.down();
+    await page.mouse.move(targetX, targetY, {
+        steps: 12
+    });
+    await page.mouse.up();
+    const edge = page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]');
+    const edgeBox = await edge.boundingBox();
+    if (!edgeBox) throw new Error("missing edge-a-b before horizontal reconnect heuristic test");
+    await page.mouse.click(edgeBox.x + edgeBox.width / 2, edgeBox.y + edgeBox.height / 2);
+    const endpoint = page.getByRole("button", {
+        name: "Reconnect target of edge edge-a-b"
+    });
+    const endpointBox = await endpoint.boundingBox();
+    const targetHandle = page.getByRole("button", {
+        name: "Connect into node 3"
+    });
+    const targetHandleBox = await targetHandle.boundingBox();
+    if (!endpointBox || !targetHandleBox) {
+        throw new Error("missing reconnect endpoint or node 3 target handle before horizontal reconnect heuristic test");
+    }
+    const preview = page.locator(".hf-edge-overlay-path-preview");
+    const endpointCenter = {
+        x: endpointBox.x + endpointBox.width / 2,
+        y: endpointBox.y + endpointBox.height / 2
+    };
+    const probePoint = {
+        x: targetHandleBox.x + targetHandleBox.width / 2 - 24,
+        y: targetHandleBox.y + targetHandleBox.height / 2 - 56
+    };
+    const targetCenter = {
+        x: targetHandleBox.x + targetHandleBox.width / 2,
+        y: targetHandleBox.y + targetHandleBox.height / 2
+    };
+    await page.mouse.move(endpointCenter.x, endpointCenter.y);
+    await page.mouse.down();
+    await expect(preview).toHaveCount(1);
+    await page.mouse.move(probePoint.x, probePoint.y, {
+        steps: 8
+    });
+    const previewPath = await preview.getAttribute("d");
+    if (!previewPath) throw new Error("missing reconnect preview path while probing the horizontal lane");
+    expectHorizontalLaneCurve(previewPath);
+    await page.mouse.move(targetCenter.x, targetCenter.y, {
+        steps: 6
+    });
+    await page.mouse.up();
+    const committedPath = await page.locator('.hf-edge-overlay-hit[data-edge-id="edge-a-b"]').getAttribute("d");
+    if (!committedPath) throw new Error("missing committed edge path after horizontal reconnect");
+    expectHorizontalLaneCurve(committedPath);
 });
 test("dropping an edge endpoint reconnect on empty canvas keeps the original edge unchanged", async ({ page })=>{
     await page.goto("/ko");

@@ -231,3 +231,22 @@ test("bridge keeps opposite-side sibling lanes aligned when one end has a single
   assert.equal(resolved[0].sourceControlY - resolved[0].sourceY, resolved[0].targetControlY - resolved[0].targetY);
   assert.notEqual(resolved[0].sourceControlY, resolved[0].sourceY);
 });
+
+test("bridge keeps left/right lanes close to the endpoints under upward bend pressure", async () => {
+  const bridge = await bridgePromise;
+  const resolved = bridge.resolveEdgeCurvesBatch([
+    {
+      sourceX: 180,
+      sourceY: 120,
+      targetX: 480,
+      targetY: 132,
+      sourceSide: "right",
+      targetSide: "left",
+      bendOffsetY: -180,
+    },
+  ]);
+
+  assert.equal(resolved.length, 1);
+  assert.ok(Math.abs(resolved[0].sourceControlY - resolved[0].sourceY) <= 48);
+  assert.ok(Math.abs(resolved[0].targetControlY - resolved[0].targetY) <= 48);
+});
