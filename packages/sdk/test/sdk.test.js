@@ -700,6 +700,19 @@ test("resolvePocSmoothEdgeCurve keeps opposite-side sibling lanes aligned when o
     assert.equal(curve.sourceControlY - curve.sourceY, curve.targetControlY - curve.targetY);
     assert.notEqual(curve.sourceControlY, curve.sourceY);
 });
+test("resolvePocSmoothEdgeCurve keeps left/right lanes close to the endpoints under upward bend pressure", ()=>{
+    const curve = resolvePocSmoothEdgeCurve({
+        sourceX: 180,
+        sourceY: 120,
+        targetX: 480,
+        targetY: 132,
+        sourceSide: "right",
+        targetSide: "left",
+        bendOffsetY: -180
+    });
+    assert.ok(Math.abs(curve.sourceControlY - curve.sourceY) <= 48);
+    assert.ok(Math.abs(curve.targetControlY - curve.targetY) <= 48);
+});
 test("resolvePocRenderableEdgesBatch reuses one projected edge-path contract", ()=>{
     const nodes = [
         {

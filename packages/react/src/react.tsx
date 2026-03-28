@@ -23,6 +23,8 @@ import { isInteractiveCanvasMode, type HyperFlowCanvasMode } from "./starter";
 
 const HANDLE_SIZE = 18;
 const HANDLE_HALF = HANDLE_SIZE / 2;
+const EDGE_ENDPOINT_SIZE = 24;
+const EDGE_ENDPOINT_HALF = EDGE_ENDPOINT_SIZE / 2;
 
 type ConnectionPreviewState = {
   kind: "connect" | "reconnect-source" | "reconnect-target";
@@ -43,6 +45,23 @@ function resolvePreviewAnchorSide(from: { x: number; y: number }, toward: { x: n
     return deltaX >= 0 ? "right" : "left";
   }
   return deltaY >= 0 ? "bottom" : "top";
+}
+
+function resolveComplementaryPreviewSide(side: PocAnchorSide): PocAnchorSide {
+  switch (side) {
+    case "left":
+      return "right";
+    case "right":
+      return "left";
+    case "top":
+      return "bottom";
+    case "bottom":
+      return "top";
+  }
+}
+
+function isHorizontalPreviewSide(side: PocAnchorSide) {
+  return side === "left" || side === "right";
 }
 
 export type HyperFlowPocNodeRendererProps<TData = unknown> = {
@@ -1359,11 +1378,14 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
             pointerPoint,
           ),
         };
+      const fallbackSourceSide = isHorizontalPreviewSide(targetEndpoint.side)
+        ? resolveComplementaryPreviewSide(targetEndpoint.side)
+        : resolvePreviewAnchorSide(pointerPoint, targetEndpoint);
       const sourceEndpoint =
         getNodePreviewEndpoint(connectionPreview.hoveredNodeId, "source") ?? {
           x: pointerPoint.x,
           y: pointerPoint.y,
-          side: resolvePreviewAnchorSide(pointerPoint, targetEndpoint),
+          side: fallbackSourceSide,
         };
 
       return buildSmoothPocEdgePath({
@@ -1387,14 +1409,17 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
         y: connectionPreview.startY,
         side: resolvePreviewAnchorSide(
           { x: connectionPreview.startX, y: connectionPreview.startY },
-          pointerPoint,
-        ),
-      };
+            pointerPoint,
+          ),
+        };
+    const fallbackTargetSide = isHorizontalPreviewSide(sourceEndpoint.side)
+      ? resolveComplementaryPreviewSide(sourceEndpoint.side)
+      : resolvePreviewAnchorSide(pointerPoint, sourceEndpoint);
     const targetEndpoint =
       getNodePreviewEndpoint(connectionPreview.hoveredNodeId, "target") ?? {
         x: pointerPoint.x,
         y: pointerPoint.y,
-        side: resolvePreviewAnchorSide(pointerPoint, sourceEndpoint),
+        side: fallbackTargetSide,
       };
 
     return buildSmoothPocEdgePath({
@@ -1412,6 +1437,34 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
       x: (worldX - viewport.x) * viewport.zoom,
       y: (worldY - viewport.y) * viewport.zoom,
     };
+  }
+
+  function isPointNearSelectedEdgeEndpoint(
+    clientX: number,
+    clientY: number,
+    role?: "source" | "target",
+  ) {
+    if (!selectedRenderedEdge) return false;
+    const canvasPoint = getCanvasScreenPointFromClientPoint(clientX, clientY);
+    if (!canvasPoint) return false;
+    const threshold = EDGE_ENDPOINT_HALF + 8;
+    const matchesEndpoint = (endpointRole: "source" | "target", x: number, y: number) =>
+      (role === undefined || role === endpointRole) &&
+      Math.hypot(canvasPoint.screenX - x, canvasPoint.screenY - y) <= threshold;
+
+    return (
+      matchesEndpoint("source", selectedRenderedEdge.sourceX, selectedRenderedEdge.sourceY) ||
+      matchesEndpoint("target", selectedRenderedEdge.targetX, selectedRenderedEdge.targetY)
+    );
+  }
+
+  function shouldSuppressSelectedEdgeBodyInteraction(
+    edgeId: string,
+    clientX: number,
+    clientY: number,
+  ) {
+    if (edgeId !== selectedEdgeId) return false;
+    return isPointNearSelectedEdgeEndpoint(clientX, clientY);
   }
 
   function renderHandleControl(
@@ -1478,6 +1531,11 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
           finalizeConnectionDrag(event.pointerId);
         }}
         onClick={(event) => {
+          if (selectedRenderedEdge && isPointNearSelectedEdgeEndpoint(event.clientX, event.clientY)) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
           if (suppressNextHandleClickRef.current) {
             suppressNextHandleClickRef.current = false;
             event.preventDefault();
@@ -1565,6 +1623,9 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
                   aria-label={`Select edge ${edge.id}`}
                   tabIndex={0}
                   onPointerDown={(event) => {
+                    if (shouldSuppressSelectedEdgeBodyInteraction(edge.id, event.clientX, event.clientY)) {
+                      return;
+                    }
                     event.preventDefault();
                     event.stopPropagation();
                     selectNode(null);
@@ -1573,6 +1634,9 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
                     startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendOffsetWorldX, y: edge.bendOffsetWorldY }, event.pointerId);
                   }}
                   onMouseDown={(event) => {
+                    if (shouldSuppressSelectedEdgeBodyInteraction(edge.id, event.clientX, event.clientY)) {
+                      return;
+                    }
                     event.preventDefault();
                     event.stopPropagation();
                     selectNode(null);
@@ -1581,11 +1645,21 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
                     startEdgeDrag(edge.id, event.clientX, event.clientY, { x: edge.bendOffsetWorldX, y: edge.bendOffsetWorldY });
                   }}
                   onClick={(event) => {
+                    if (shouldSuppressSelectedEdgeBodyInteraction(edge.id, event.clientX, event.clientY)) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      return;
+                    }
                     event.stopPropagation();
                     selectNode(null);
                     selectEdge(edge.id, { additive: event.shiftKey });
                   }}
                   onDoubleClick={(event) => {
+                    if (shouldSuppressSelectedEdgeBodyInteraction(edge.id, event.clientX, event.clientY)) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      return;
+                    }
                     event.preventDefault();
                     event.stopPropagation();
                     selectNode(null);
@@ -1648,13 +1722,14 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
             type="button"
             className="hf-node-handle hf-node-handle-active hf-edge-endpoint-handle"
             style={{
-              left: `${selectedRenderedEdge.sourceX - HANDLE_HALF}px`,
-              top: `${selectedRenderedEdge.sourceY - HANDLE_HALF}px`,
+              left: `${selectedRenderedEdge.sourceX - EDGE_ENDPOINT_HALF}px`,
+              top: `${selectedRenderedEdge.sourceY - EDGE_ENDPOINT_HALF}px`,
             }}
             aria-label={`Reconnect source of edge ${selectedRenderedEdge.id}`}
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
+              suppressNextHandleClickRef.current = true;
               startConnectionDrag({
                 kind: "reconnect-source",
                 edgeId: selectedRenderedEdge.id,
@@ -1667,18 +1742,23 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
                 pointerId: event.pointerId,
               });
             }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
           />
           <button
             type="button"
             className="hf-node-handle hf-node-handle-active hf-edge-endpoint-handle"
             style={{
-              left: `${selectedRenderedEdge.targetX - HANDLE_HALF}px`,
-              top: `${selectedRenderedEdge.targetY - HANDLE_HALF}px`,
+              left: `${selectedRenderedEdge.targetX - EDGE_ENDPOINT_HALF}px`,
+              top: `${selectedRenderedEdge.targetY - EDGE_ENDPOINT_HALF}px`,
             }}
             aria-label={`Reconnect target of edge ${selectedRenderedEdge.id}`}
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
+              suppressNextHandleClickRef.current = true;
               startConnectionDrag({
                 kind: "reconnect-target",
                 edgeId: selectedRenderedEdge.id,
@@ -1690,6 +1770,10 @@ export const HyperFlowPocCanvas = memo(function HyperFlowPocCanvas({
                 clientY: event.clientY,
                 pointerId: event.pointerId,
               });
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
             }}
           />
         </div>
